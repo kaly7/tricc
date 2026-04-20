@@ -114,10 +114,9 @@ Felhasználó: <?php echo htmlspecialchars($_SESSION["username"]); ?>
   <td><?php echo htmlspecialchars($a['cel_megjegyzes'] ?: $a['cel_goal_name']); ?></td>
   <td><?php echo htmlspecialchars($a['vissza_megjegyzes'] ?: $a['vissza_goal_name']); ?></td>
   <td><?php echo $a['allapot'] === 'ide' ? 'Robot itt van' : 'Robot visszament'; ?></td>
-  <td>
-    <a href="admin_munkaallomas.php?edit=<?php echo (int)$a['id']; ?>" class="button_mentes" style="font-size:12px;padding:4px 10px;">Szerkesztés</a>
-    &nbsp;
-    <a href="admin_munkaallomas.php?delete=<?php echo (int)$a['id']; ?>" class="button_delete" onclick="return confirm('Biztosan törlöd ezt a munkaállomást?')">Törlés</a>
+  <td style="white-space:nowrap;">
+    <a href="admin_munkaallomas.php?edit=<?php echo (int)$a['id']; ?>" class="button_mentes" style="font-size:12px;padding:4px 10px;display:block;margin-bottom:4px;">Szerkesztés</a>
+    <a href="admin_munkaallomas.php?delete=<?php echo (int)$a['id']; ?>" class="button_delete" style="display:block;" onclick="return confirm('Biztosan törlöd ezt a munkaállomást?')">Törlés</a>
   </td>
 </tr>
 <?php endforeach; ?>
