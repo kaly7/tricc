@@ -1,0 +1,13 @@
+CREATE TABLE IF NOT EXISTS vehicle_documents (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  vehicle_id INT NOT NULL,
+  doc_type VARCHAR(32) NOT NULL,
+  file_path VARCHAR(255) NOT NULL,
+  orig_name VARCHAR(255) NOT NULL,
+  mime VARCHAR(120) NOT NULL,
+  size BIGINT UNSIGNED NOT NULL,
+  created_by INT NOT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX(vehicle_id),
+  INDEX(doc_type)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

@@ -1,0 +1,2059 @@
+<?php
+declare(strict_types=1);
+
+function h(?string $s): string {
+    return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
+}
+
+function current_auth_user_id(): int {
+    $candidates = [
+        $_SESSION['user_id'] ?? null,
+        $_SESSION['uid'] ?? null,
+        $_SESSION['auth_user_id'] ?? null,
+        $_SESSION['user']['id'] ?? null,
+        $_SESSION['user']['user_id'] ?? null,
+    ];
+    foreach ($candidates as $candidate) {
+        if ($candidate !== null && $candidate !== '') {
+            return (int)$candidate;
+        }
+    }
+    return 0;
+}
+
+function current_auth_display_name(): string {
+    if (!empty($_SESSION['full_name'])) {
+        return (string)$_SESSION['full_name'];
+    }
+    if (!empty($_SESSION['user']['full_name'])) {
+        return (string)$_SESSION['user']['full_name'];
+    }
+    if (!empty($_SESSION['username'])) {
+        return (string)$_SESSION['username'];
+    }
+    if (!empty($_SESSION['user']['username'])) {
+        return (string)$_SESSION['user']['username'];
+    }
+    return 'Felhasználó';
+}
+
+function flash_set(string $type, string $message): void {
+    $_SESSION['_flash'][$type] = $message;
+}
+
+function flash_get(string $type): string {
+    $value = (string)($_SESSION['_flash'][$type] ?? '');
+    unset($_SESSION['_flash'][$type]);
+    return $value;
+}
+
+function warehouse_module_admin(array $config): bool {
+    return CentralAuth::isAdmin($config, $config['module_key']);
+}
+
+function warehouse_role_label(string $roleKey): string {
+    return match ($roleKey) {
+        'admin' => 'Admin',
+        'user' => 'Kezelő',
+        default => 'Megtekintő',
+    };
+}
+
+function warehouse_all(array $config): array {
+    $pdo = warehouse_pdo($config);
+    $sql = "
+        SELECT w.*,
+               pw.name AS parent_name,
+               (
+                 SELECT COUNT(*)
+                 FROM warehouse_user_access wua
+                 WHERE wua.warehouse_id = w.id
+               ) AS access_count,
+               (
+                 SELECT COUNT(*)
+                 FROM warehouses cw
+                 WHERE cw.parent_id = w.id
+               ) AS child_count
+        FROM warehouses w
+        LEFT JOIN warehouses pw ON pw.id = w.parent_id
+        ORDER BY COALESCE(pw.name, w.name), w.name
+    ";
+    return $pdo->query($sql)->fetchAll();
+}
+
+function warehouse_tree_options(array $config, ?int $selectedId = null): string {
+    $rows = warehouse_all($config);
+    $out = '<option value="">— nincs —</option>';
+    foreach ($rows as $r) {
+        $label = ((int)$r['parent_id'] > 0 ? '↳ ' : '') . (string)$r['name'];
+        $sel = ((int)$selectedId === (int)$r['id']) ? ' selected' : '';
+        $out .= '<option value="' . (int)$r['id'] . '"' . $sel . '>' . h($label) . '</option>';
+    }
+    return $out;
+}
+
+function warehouse_find(array $config, int $warehouseId): ?array {
+    $pdo = warehouse_pdo($config);
+    $st = $pdo->prepare("SELECT w.*, pw.name AS parent_name FROM warehouses w LEFT JOIN warehouses pw ON pw.id=w.parent_id WHERE w.id=? LIMIT 1");
+    $st->execute([$warehouseId]);
+    $row = $st->fetch();
+    return $row ?: null;
+}
+
+function warehouse_request_context(): array {
+    $uri = (string)($_SERVER['REQUEST_URI'] ?? '');
+    if (strlen($uri) > 255) {
+        $uri = substr($uri, 0, 255);
+    }
+
+    $userAgent = (string)($_SERVER['HTTP_USER_AGENT'] ?? '');
+    if (strlen($userAgent) > 255) {
+        $userAgent = substr($userAgent, 0, 255);
+    }
+
+    $ip = (string)($_SERVER['REMOTE_ADDR'] ?? '');
+    if (strlen($ip) > 64) {
+        $ip = substr($ip, 0, 64);
+    }
+
+    $method = strtoupper((string)($_SERVER['REQUEST_METHOD'] ?? 'GET'));
+    if (strlen($method) > 10) {
+        $method = substr($method, 0, 10);
+    }
+
+    return [
+        'ip_address' => $ip !== '' ? $ip : null,
+        'request_uri' => $uri !== '' ? $uri : null,
+        'request_method' => $method !== '' ? $method : null,
+        'user_agent' => $userAgent !== '' ? $userAgent : null,
+    ];
+}
+
+function warehouse_audit(array $config, string $action, string $entityType, ?int $entityId, array $details = []): void {
+    $pdo = warehouse_pdo($config);
+    $ctx = warehouse_request_context();
+    $st = $pdo->prepare(
+        "INSERT INTO audit_log (auth_user_id, action_key, entity_type, entity_id, details_json, ip_address, request_uri, request_method, user_agent)
+         VALUES (?,?,?,?,?,?,?,?,?)"
+    );
+    $st->execute([
+        current_auth_user_id(),
+        $action,
+        $entityType,
+        $entityId,
+        json_encode($details, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+        $ctx['ip_address'],
+        $ctx['request_uri'],
+        $ctx['request_method'],
+        $ctx['user_agent'],
+    ]);
+}
+
+function warehouse_resolved_auth_users(array $config): array {
+    $auth = auth_pdo($config);
+    $rows = $auth->query("SELECT id, username, email, full_name, hr_employee_id, is_active FROM users WHERE is_active=1 ORDER BY full_name, username")->fetchAll();
+
+    $hrMap = [];
+    $hr = warehouse_hr_pdo($config);
+    if ($hr instanceof PDO) {
+        foreach ($hr->query("SELECT id, full_name, is_active FROM employees ORDER BY full_name") as $e) {
+            $hrMap[(int)$e['id']] = $e;
+        }
+    }
+
+    foreach ($rows as &$row) {
+        $empId = (int)($row['hr_employee_id'] ?? 0);
+        $row['resolved_name'] = $row['full_name'];
+        if ($empId > 0 && isset($hrMap[$empId]) && !empty($hrMap[$empId]['full_name'])) {
+            $row['resolved_name'] = $hrMap[$empId]['full_name'];
+        }
+    }
+    unset($row);
+
+    usort($rows, static function(array $a, array $b): int {
+        return strcasecmp((string)$a['resolved_name'], (string)$b['resolved_name']);
+    });
+
+    return $rows;
+}
+
+function warehouse_resolved_auth_user_map(array $config, array $onlyIds = []): array {
+    $users = warehouse_resolved_auth_users($config);
+    $filter = [];
+    if ($onlyIds !== []) {
+        foreach ($onlyIds as $id) {
+            $filter[(int)$id] = true;
+        }
+    }
+
+    $map = [];
+    foreach ($users as $user) {
+        $id = (int)$user['id'];
+        if ($filter !== [] && !isset($filter[$id])) {
+            continue;
+        }
+        $map[$id] = $user;
+    }
+    return $map;
+}
+
+function warehouse_access_list(array $config, int $warehouseId): array {
+    $pdo = warehouse_pdo($config);
+    $items = $pdo->prepare("SELECT id, warehouse_id, auth_user_id, role_key, created_at FROM warehouse_user_access WHERE warehouse_id=? ORDER BY role_key, auth_user_id");
+    $items->execute([$warehouseId]);
+    $items = $items->fetchAll();
+
+    $map = warehouse_resolved_auth_user_map($config);
+    foreach ($items as &$item) {
+        $uid = (int)$item['auth_user_id'];
+        $item['resolved_name'] = $map[$uid]['resolved_name'] ?? ('User #' . $uid);
+        $item['username'] = $map[$uid]['username'] ?? '';
+        $item['email'] = $map[$uid]['email'] ?? '';
+    }
+    unset($item);
+
+    return $items;
+}
+
+function warehouse_collect_subtree_rows(array $config, int $rootWarehouseId): array {
+    $pdo = warehouse_pdo($config);
+    $rows = $pdo->query("SELECT * FROM warehouses ORDER BY name, id")->fetchAll();
+    $byParent = [];
+    $byId = [];
+
+    foreach ($rows as $row) {
+        $id = (int)$row['id'];
+        $parentId = (int)($row['parent_id'] ?? 0);
+        $byId[$id] = $row;
+        $byParent[$parentId][] = $id;
+    }
+
+    $result = [];
+    $walk = static function(int $id, int $depth) use (&$walk, &$result, $byId, $byParent): void {
+        if (!isset($byId[$id])) {
+            return;
+        }
+        $row = $byId[$id];
+        $row['depth'] = $depth;
+        $result[] = $row;
+        foreach ($byParent[$id] ?? [] as $childId) {
+            $walk((int)$childId, $depth + 1);
+        }
+    };
+
+    $walk($rootWarehouseId, 0);
+    return $result;
+}
+
+function warehouse_delete_recursive(array $config, int $rootWarehouseId): array {
+    $pdo = warehouse_pdo($config);
+    $rows = warehouse_collect_subtree_rows($config, $rootWarehouseId);
+    if ($rows === []) {
+        throw new RuntimeException('A törlendő raktár nem található.');
+    }
+
+    $ids = array_map(static fn(array $row): int => (int)$row['id'], $rows);
+    $placeholders = implode(',', array_fill(0, count($ids), '?'));
+
+    $accessCounts = [];
+    $stAccess = $pdo->prepare("SELECT warehouse_id, COUNT(*) AS cnt FROM warehouse_user_access WHERE warehouse_id IN ($placeholders) GROUP BY warehouse_id");
+    $stAccess->execute($ids);
+    foreach ($stAccess->fetchAll() as $row) {
+        $accessCounts[(int)$row['warehouse_id']] = (int)$row['cnt'];
+    }
+
+    usort($rows, static fn(array $a, array $b): int => ((int)$b['depth']) <=> ((int)$a['depth']));
+
+    $pdo->beginTransaction();
+    try {
+        $delAccess = $pdo->prepare("DELETE FROM warehouse_user_access WHERE warehouse_id IN ($placeholders)");
+        $delAccess->execute($ids);
+
+        $delWarehouse = $pdo->prepare("DELETE FROM warehouses WHERE id=?");
+        foreach ($rows as $row) {
+            $wid = (int)$row['id'];
+            warehouse_audit($config, 'warehouse.delete', 'warehouse', $wid, [
+                'name' => (string)$row['name'],
+                'code' => (string)$row['code'],
+                'parent_id' => $row['parent_id'] !== null ? (int)$row['parent_id'] : null,
+                'subtree_root_id' => $rootWarehouseId,
+                'depth' => (int)$row['depth'],
+                'deleted_access_count' => $accessCounts[$wid] ?? 0,
+            ]);
+            $delWarehouse->execute([$wid]);
+        }
+        $pdo->commit();
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        throw $e;
+    }
+
+    return [
+        'deleted_count' => count($rows),
+        'deleted_ids' => $ids,
+    ];
+}
+
+function warehouse_materials_all(array $config, bool $activeOnly = false): array {
+    $pdo = warehouse_pdo($config);
+    $sql = "SELECT * FROM material_items" . ($activeOnly ? " WHERE is_active=1" : "") . " ORDER BY name, sku";
+    return $pdo->query($sql)->fetchAll();
+}
+
+function warehouse_material_find(array $config, int $materialId): ?array {
+    $pdo = warehouse_pdo($config);
+    $st = $pdo->prepare("SELECT * FROM material_items WHERE id=? LIMIT 1");
+    $st->execute([$materialId]);
+    $row = $st->fetch();
+    return $row ?: null;
+}
+
+function warehouse_material_list_filters(array $input): array {
+    $sort = trim((string)($input['sort'] ?? 'name'));
+    if (!in_array($sort, ['sku', 'name', 'category'], true)) {
+        $sort = 'name';
+    }
+
+    $dir = strtolower(trim((string)($input['dir'] ?? 'asc')));
+    if (!in_array($dir, ['asc', 'desc'], true)) {
+        $dir = 'asc';
+    }
+
+    $page = max(1, (int)($input['page'] ?? 1));
+    $perPage = max(1, min(200, (int)($input['per_page'] ?? 50)));
+    $q = trim((string)($input['q'] ?? ''));
+
+    return [
+        'q' => $q,
+        'sort' => $sort,
+        'dir' => $dir,
+        'page' => $page,
+        'per_page' => $perPage,
+    ];
+}
+
+function warehouse_material_list(array $config, array $input = []): array {
+    $pdo = warehouse_pdo($config);
+    $filters = warehouse_material_list_filters($input);
+
+    $where = [];
+    $params = [];
+
+    if ($filters['q'] !== '') {
+        $like = '%' . $filters['q'] . '%';
+        $where[] = '(sku LIKE ? OR name LIKE ? OR COALESCE(category_name, "") LIKE ?)';
+        array_push($params, $like, $like, $like);
+    }
+
+    $whereSql = $where ? (' WHERE ' . implode(' AND ', $where)) : '';
+
+    $sortMap = [
+        'sku' => 'sku',
+        'name' => 'name',
+        'category' => 'category_name',
+    ];
+    $orderBy = $sortMap[$filters['sort']] ?? 'name';
+    $dir = strtoupper($filters['dir']) === 'DESC' ? 'DESC' : 'ASC';
+
+    $countSt = $pdo->prepare('SELECT COUNT(*) FROM material_items' . $whereSql);
+    $countSt->execute($params);
+    $total = (int)$countSt->fetchColumn();
+
+    $pages = max(1, (int)ceil($total / max(1, $filters['per_page'])));
+    $page = min($filters['page'], $pages);
+    $offset = ($page - 1) * $filters['per_page'];
+
+    $sql = 'SELECT * FROM material_items' . $whereSql . ' ORDER BY ' . $orderBy . ' ' . $dir . ', name ASC, sku ASC LIMIT :limit OFFSET :offset';
+    $st = $pdo->prepare($sql);
+    $index = 1;
+    foreach ($params as $param) {
+        $st->bindValue($index++, $param, PDO::PARAM_STR);
+    }
+    $st->bindValue(':limit', $filters['per_page'], PDO::PARAM_INT);
+    $st->bindValue(':offset', $offset, PDO::PARAM_INT);
+    $st->execute();
+
+    return [
+        'rows' => $st->fetchAll(),
+        'total' => $total,
+        'page' => $page,
+        'pages' => $pages,
+        'per_page' => $filters['per_page'],
+        'sort' => $filters['sort'],
+        'dir' => strtolower($dir),
+        'q' => $filters['q'],
+        'offset' => $offset,
+    ];
+}
+
+function warehouse_material_stock_locations(array $config, array $materialIds, bool $onlyNonZero = true): array {
+    $pdo = warehouse_pdo($config);
+    $materialIds = array_values(array_unique(array_map('intval', $materialIds)));
+    if ($materialIds === []) {
+        return [];
+    }
+
+    warehouse_stock_sync_table_from_movements($config);
+
+    $materialPlaceholders = implode(',', array_fill(0, count($materialIds), '?'));
+    $result = [];
+    foreach ($materialIds as $mid) {
+        $result[$mid] = [
+            'material_id' => $mid,
+            'material' => [
+                'id' => $mid,
+                'sku' => '',
+                'name' => '',
+                'unit' => '',
+                'category_name' => '',
+            ],
+            'locations' => [],
+            'total_quantity' => '0.000',
+        ];
+    }
+
+    $matSql = '
+        SELECT id, sku, name, unit, category_name
+        FROM material_items
+        WHERE id IN (' . $materialPlaceholders . ')
+        ORDER BY name, sku
+    ';
+    $matSt = $pdo->prepare($matSql);
+    $matSt->execute($materialIds);
+    foreach ($matSt->fetchAll() as $mat) {
+        $mid = (int)($mat['id'] ?? 0);
+        if (!isset($result[$mid])) {
+            continue;
+        }
+        $result[$mid]['material'] = [
+            'id' => $mid,
+            'sku' => (string)($mat['sku'] ?? ''),
+            'name' => (string)($mat['name'] ?? ''),
+            'unit' => (string)($mat['unit'] ?? ''),
+            'category_name' => (string)($mat['category_name'] ?? ''),
+        ];
+    }
+
+    $isModuleAdmin = warehouse_module_admin($config);
+    $accessible = warehouse_accessible_warehouses($config, false);
+    $allowedIds = $isModuleAdmin ? [] : array_values(array_unique(array_map(static fn(array $row): int => (int)$row['id'], $accessible)));
+    if (!$isModuleAdmin && $allowedIds === []) {
+        return $result;
+    }
+
+    $where = ['ws.material_id IN (' . $materialPlaceholders . ')'];
+    $params = $materialIds;
+
+    if (!$isModuleAdmin) {
+        $where[] = 'ws.warehouse_id IN (' . implode(',', array_fill(0, count($allowedIds), '?')) . ')';
+        $params = array_merge($params, $allowedIds);
+    }
+
+    if ($onlyNonZero) {
+        $where[] = 'ABS(ws.quantity) > 0.0005';
+    }
+
+    $sql = '
+        SELECT ws.material_id,
+               ws.quantity,
+               ws.updated_at,
+               w.id AS warehouse_id,
+               w.name AS warehouse_name,
+               w.code AS warehouse_code,
+               w.is_active AS warehouse_is_active
+        FROM warehouse_stock ws
+        INNER JOIN warehouses w ON w.id = ws.warehouse_id
+        WHERE ' . implode(' AND ', $where) . '
+        ORDER BY w.name, w.code
+    ';
+
+    $locSt = $pdo->prepare($sql);
+    $locSt->execute($params);
+    foreach ($locSt->fetchAll() as $row) {
+        $mid = (int)$row['material_id'];
+        if (!isset($result[$mid])) {
+            continue;
+        }
+        $row['quantity'] = warehouse_decimal_string($row['quantity']);
+        $result[$mid]['locations'][] = $row;
+        $result[$mid]['total_quantity'] = warehouse_decimal_string(
+            (float)$result[$mid]['total_quantity'] + (float)$row['quantity']
+        );
+    }
+
+    $ordered = [];
+    foreach ($materialIds as $mid) {
+        if (isset($result[$mid])) {
+            $ordered[$mid] = $result[$mid];
+        }
+    }
+    return $ordered;
+}
+
+function warehouse_csv_delimiter(string $headerLine): string {
+    $semicolon = substr_count($headerLine, ';');
+    $comma = substr_count($headerLine, ',');
+    return $semicolon > $comma ? ';' : ',';
+}
+
+function warehouse_normalize_header(string $value): string {
+    $value = trim($value);
+    $value = preg_replace('/^\xEF\xBB\xBF/u', '', $value) ?? $value;
+    $map = [
+        'á' => 'a', 'é' => 'e', 'í' => 'i', 'ó' => 'o', 'ö' => 'o', 'ő' => 'o', 'ú' => 'u', 'ü' => 'u', 'ű' => 'u',
+        'Á' => 'a', 'É' => 'e', 'Í' => 'i', 'Ó' => 'o', 'Ö' => 'o', 'Ő' => 'o', 'Ú' => 'u', 'Ü' => 'u', 'Ű' => 'u',
+    ];
+    $value = strtr($value, $map);
+    $value = strtolower($value);
+    $value = preg_replace('/[^a-z0-9]+/', '_', $value) ?? $value;
+    return trim($value, '_');
+}
+
+function warehouse_material_header_map(array $headers): array {
+    $aliases = [
+        'sku' => ['sku', 'cikkszam', 'cikkszám', 'kod', 'kód', 'anyagkod', 'anyag_kod', 'code'],
+        'name' => ['name', 'megnevezes', 'megnevezés', 'anyag', 'nev', 'név'],
+        'unit' => ['unit', 'uom', 'mertekegyseg', 'mértékegység', 'mertekegyseg_rovid'],
+        'category_name' => ['category', 'kategoria', 'kategória', 'csoport', 'anyagcsoport'],
+        'minimum_stock' => ['minimum_stock', 'minimum', 'minimum_keszlet', 'minimum_készlet', 'min_stock', 'min_keszlet'],
+        'note' => ['note', 'comment', 'megjegyzes', 'megjegyzés', 'leiras', 'leírás'],
+        'is_active' => ['is_active', 'active', 'aktiv', 'aktív'],
+    ];
+
+    $normalized = [];
+    foreach ($headers as $index => $header) {
+        $normalized[$index] = warehouse_normalize_header((string)$header);
+    }
+
+    $result = [];
+    foreach ($aliases as $target => $options) {
+        $normalizedAliases = array_map('warehouse_normalize_header', $options);
+        foreach ($normalized as $index => $norm) {
+            if (in_array($norm, $normalizedAliases, true)) {
+                $result[$target] = $index;
+                break;
+            }
+        }
+    }
+
+    return $result;
+}
+
+function warehouse_material_bool(mixed $value): int {
+    $value = strtolower(trim((string)$value));
+    if ($value === '') {
+        return 1;
+    }
+    return in_array($value, ['1', 'igen', 'yes', 'true', 'aktiv', 'aktív'], true) ? 1 : 0;
+}
+
+function warehouse_material_decimal(mixed $value): ?string {
+    $value = trim((string)$value);
+    if ($value === '') {
+        return null;
+    }
+    $value = str_replace(' ', '', $value);
+    $value = str_replace(',', '.', $value);
+    if (!is_numeric($value)) {
+        return null;
+    }
+    return number_format((float)$value, 3, '.', '');
+}
+
+function warehouse_material_upsert(array $config, array $data, ?int $materialId = null): int {
+    $pdo = warehouse_pdo($config);
+
+    $sku = trim((string)($data['sku'] ?? ''));
+    $name = trim((string)($data['name'] ?? ''));
+    $unit = trim((string)($data['unit'] ?? ''));
+    $categoryName = trim((string)($data['category_name'] ?? ''));
+    $minimumStock = warehouse_material_decimal($data['minimum_stock'] ?? null);
+    $note = trim((string)($data['note'] ?? ''));
+    $isActive = (int)($data['is_active'] ?? 1) === 1 ? 1 : 0;
+
+    if ($sku === '' || $name === '') {
+        throw new RuntimeException('A cikkszám és a megnevezés kötelező.');
+    }
+
+    if ($materialId !== null && $materialId > 0) {
+        $st = $pdo->prepare("UPDATE material_items SET sku=?, name=?, unit=?, category_name=?, minimum_stock=?, note=?, is_active=?, updated_by=? WHERE id=?");
+        $st->execute([
+            $sku,
+            $name,
+            ($unit === '' ? null : $unit),
+            ($categoryName === '' ? null : $categoryName),
+            $minimumStock,
+            ($note === '' ? null : $note),
+            $isActive,
+            current_auth_user_id(),
+            $materialId,
+        ]);
+        return $materialId;
+    }
+
+    $st = $pdo->prepare("INSERT INTO material_items (sku, name, unit, category_name, minimum_stock, note, is_active, created_by, updated_by) VALUES (?,?,?,?,?,?,?,?,?)");
+    $st->execute([
+        $sku,
+        $name,
+        ($unit === '' ? null : $unit),
+        ($categoryName === '' ? null : $categoryName),
+        $minimumStock,
+        ($note === '' ? null : $note),
+        $isActive,
+        current_auth_user_id(),
+        current_auth_user_id(),
+    ]);
+    return (int)$pdo->lastInsertId();
+}
+
+function warehouse_material_import_csv(array $config, string $tmpFile, string $originalName): array {
+    $pdo = warehouse_pdo($config);
+    $fh = fopen($tmpFile, 'rb');
+    if (!$fh) {
+        throw new RuntimeException('A CSV fájl nem olvasható.');
+    }
+
+    $firstLine = fgets($fh);
+    if ($firstLine === false) {
+        fclose($fh);
+        throw new RuntimeException('A CSV fájl üres.');
+    }
+
+    $delimiter = warehouse_csv_delimiter($firstLine);
+    rewind($fh);
+
+    $headers = fgetcsv($fh, 0, $delimiter);
+    if (!$headers || count($headers) < 2) {
+        fclose($fh);
+        throw new RuntimeException('A CSV fejléc nem értelmezhető.');
+    }
+
+    $map = warehouse_material_header_map($headers);
+    if (!isset($map['sku'], $map['name'])) {
+        fclose($fh);
+        throw new RuntimeException('A CSV-ben kötelező a cikkszám/sku és a megnevezés/name oszlop.');
+    }
+
+    $batch = $pdo->prepare("INSERT INTO material_import_batches (file_name, imported_by, total_rows, inserted_rows, updated_rows, error_rows, notes) VALUES (?,?,?,?,?,?,?)");
+    $batch->execute([$originalName, current_auth_user_id(), 0, 0, 0, 0, null]);
+    $batchId = (int)$pdo->lastInsertId();
+
+    $selectExisting = $pdo->prepare("SELECT id FROM material_items WHERE sku=? LIMIT 1");
+    $inserted = 0;
+    $updated = 0;
+    $errors = 0;
+    $total = 0;
+    $lineNo = 1;
+
+    try {
+        while (($row = fgetcsv($fh, 0, $delimiter)) !== false) {
+            $lineNo++;
+            if ($row === [null] || count(array_filter($row, static fn($v) => trim((string)$v) !== '')) === 0) {
+                continue;
+            }
+            $total++;
+
+            $payload = [
+                'sku' => $row[$map['sku']] ?? '',
+                'name' => $row[$map['name']] ?? '',
+                'unit' => isset($map['unit']) ? ($row[$map['unit']] ?? '') : '',
+                'category_name' => isset($map['category_name']) ? ($row[$map['category_name']] ?? '') : '',
+                'minimum_stock' => isset($map['minimum_stock']) ? ($row[$map['minimum_stock']] ?? '') : null,
+                'note' => isset($map['note']) ? ($row[$map['note']] ?? '') : '',
+                'is_active' => isset($map['is_active']) ? warehouse_material_bool($row[$map['is_active']] ?? '1') : 1,
+            ];
+
+            try {
+                $selectExisting->execute([trim((string)$payload['sku'])]);
+                $existingId = (int)($selectExisting->fetchColumn() ?: 0);
+                if ($existingId > 0) {
+                    warehouse_material_upsert($config, $payload, $existingId);
+                    $updated++;
+                } else {
+                    warehouse_material_upsert($config, $payload, null);
+                    $inserted++;
+                }
+            } catch (Throwable $e) {
+                $errors++;
+                $log = $pdo->prepare("INSERT INTO material_import_errors (batch_id, line_no, row_json, error_message) VALUES (?,?,?,?)");
+                $log->execute([
+                    $batchId,
+                    $lineNo,
+                    json_encode($row, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+                    $e->getMessage(),
+                ]);
+            }
+        }
+
+        $pdo->prepare("UPDATE material_import_batches SET total_rows=?, inserted_rows=?, updated_rows=?, error_rows=? WHERE id=?")
+            ->execute([$total, $inserted, $updated, $errors, $batchId]);
+
+        warehouse_audit($config, 'material.import_csv', 'material_import_batch', $batchId, [
+            'file_name' => $originalName,
+            'total_rows' => $total,
+            'inserted_rows' => $inserted,
+            'updated_rows' => $updated,
+            'error_rows' => $errors,
+        ]);
+
+        return [
+            'batch_id' => $batchId,
+            'total_rows' => $total,
+            'inserted_rows' => $inserted,
+            'updated_rows' => $updated,
+            'error_rows' => $errors,
+        ];
+    } finally {
+        fclose($fh);
+    }
+}
+
+function warehouse_material_import_batches(array $config, int $limit = 10): array {
+    $pdo = warehouse_pdo($config);
+    $st = $pdo->prepare("SELECT * FROM material_import_batches ORDER BY id DESC LIMIT ?");
+    $st->bindValue(1, $limit, PDO::PARAM_INT);
+    $st->execute();
+    return $st->fetchAll();
+}
+
+function warehouse_audit_filter_values(array $input): array {
+    return [
+        'q' => trim((string)($input['q'] ?? '')),
+        'action_key' => trim((string)($input['action_key'] ?? '')),
+        'entity_type' => trim((string)($input['entity_type'] ?? '')),
+        'auth_user_id' => max(0, (int)($input['auth_user_id'] ?? 0)),
+        'date_from' => trim((string)($input['date_from'] ?? '')),
+        'date_to' => trim((string)($input['date_to'] ?? '')),
+    ];
+}
+
+function warehouse_audit_filter_options(array $config): array {
+    $pdo = warehouse_pdo($config);
+    return [
+        'actions' => $pdo->query("SELECT DISTINCT action_key FROM audit_log ORDER BY action_key")->fetchAll(PDO::FETCH_COLUMN),
+        'entities' => $pdo->query("SELECT DISTINCT entity_type FROM audit_log ORDER BY entity_type")->fetchAll(PDO::FETCH_COLUMN),
+        'users' => warehouse_resolved_auth_users($config),
+    ];
+}
+
+function warehouse_auth_user_ids_by_search(array $config, string $q): array {
+    $q = trim($q);
+    if ($q === '') {
+        return [];
+    }
+
+    $auth = auth_pdo($config);
+    $like = '%' . $q . '%';
+    $st = $auth->prepare("SELECT id FROM users WHERE full_name LIKE ? OR username LIKE ? OR email LIKE ? ORDER BY id DESC LIMIT 100");
+    $st->execute([$like, $like, $like]);
+    return array_map('intval', $st->fetchAll(PDO::FETCH_COLUMN));
+}
+
+function warehouse_audit_search(array $config, array $filters, int $limit = 200): array {
+    $pdo = warehouse_pdo($config);
+    $filters = warehouse_audit_filter_values($filters);
+
+    $where = [];
+    $params = [];
+
+    if ($filters['action_key'] !== '') {
+        $where[] = 'action_key = ?';
+        $params[] = $filters['action_key'];
+    }
+    if ($filters['entity_type'] !== '') {
+        $where[] = 'entity_type = ?';
+        $params[] = $filters['entity_type'];
+    }
+    if ($filters['auth_user_id'] > 0) {
+        $where[] = 'auth_user_id = ?';
+        $params[] = $filters['auth_user_id'];
+    }
+    if ($filters['date_from'] !== '') {
+        $where[] = 'created_at >= ?';
+        $params[] = $filters['date_from'] . ' 00:00:00';
+    }
+    if ($filters['date_to'] !== '') {
+        $where[] = 'created_at < DATE_ADD(?, INTERVAL 1 DAY)';
+        $params[] = $filters['date_to'] . ' 00:00:00';
+    }
+    if ($filters['q'] !== '') {
+        $like = '%' . $filters['q'] . '%';
+        $parts = [
+            'action_key LIKE ?',
+            'entity_type LIKE ?',
+            'CAST(entity_id AS CHAR) LIKE ?',
+            'details_json LIKE ?',
+            'ip_address LIKE ?',
+            'request_uri LIKE ?',
+            'request_method LIKE ?',
+        ];
+        $params[] = $like;
+        $params[] = $like;
+        $params[] = $like;
+        $params[] = $like;
+        $params[] = $like;
+        $params[] = $like;
+        $params[] = $like;
+
+        $matchedUserIds = warehouse_auth_user_ids_by_search($config, $filters['q']);
+        if ($matchedUserIds !== []) {
+            $parts[] = 'auth_user_id IN (' . implode(',', array_fill(0, count($matchedUserIds), '?')) . ')';
+            foreach ($matchedUserIds as $uid) {
+                $params[] = $uid;
+            }
+        }
+        $where[] = '(' . implode(' OR ', $parts) . ')';
+    }
+
+    $sql = 'SELECT * FROM audit_log';
+    if ($where !== []) {
+        $sql .= ' WHERE ' . implode(' AND ', $where);
+    }
+    $sql .= ' ORDER BY id DESC LIMIT ?';
+
+    $st = $pdo->prepare($sql);
+    $idx = 1;
+    foreach ($params as $value) {
+        $st->bindValue($idx++, $value);
+    }
+    $st->bindValue($idx, $limit, PDO::PARAM_INT);
+    $st->execute();
+    $rows = $st->fetchAll();
+
+    $userIds = [];
+    foreach ($rows as $row) {
+        $uid = (int)($row['auth_user_id'] ?? 0);
+        if ($uid > 0) {
+            $userIds[$uid] = $uid;
+        }
+    }
+    $userMap = warehouse_resolved_auth_user_map($config, array_values($userIds));
+
+    foreach ($rows as &$row) {
+        $uid = (int)($row['auth_user_id'] ?? 0);
+        $row['resolved_name'] = $userMap[$uid]['resolved_name'] ?? ($uid > 0 ? ('User #' . $uid) : 'Rendszer');
+        $row['username'] = $userMap[$uid]['username'] ?? '';
+        $row['email'] = $userMap[$uid]['email'] ?? '';
+        $row['details'] = [];
+        $json = (string)($row['details_json'] ?? '');
+        if ($json !== '') {
+            $decoded = json_decode($json, true);
+            if (is_array($decoded)) {
+                $row['details'] = $decoded;
+            }
+        }
+    }
+    unset($row);
+
+    return $rows;
+}
+
+function warehouse_detail_pairs_html(array $details): string {
+    if ($details === []) {
+        return '<span class="text-secondary">—</span>';
+    }
+
+    $items = [];
+    foreach ($details as $key => $value) {
+        if (is_array($value)) {
+            $value = json_encode($value, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        } elseif (is_bool($value)) {
+            $value = $value ? 'true' : 'false';
+        } elseif ($value === null) {
+            $value = 'null';
+        }
+        $items[] = '<div><span class="text-secondary">' . h((string)$key) . ':</span> ' . h((string)$value) . '</div>';
+    }
+    return implode('', $items);
+}
+
+function warehouse_role_rank(string $roleKey): int {
+    return match ($roleKey) {
+        'admin' => 30,
+        'user' => 20,
+        default => 10,
+    };
+}
+
+function warehouse_user_warehouse_roles(array $config): array {
+    if (warehouse_module_admin($config)) {
+        $all = [];
+        foreach (warehouse_all($config) as $row) {
+            $all[(int)$row['id']] = 'admin';
+        }
+        return $all;
+    }
+
+    $pdo = warehouse_pdo($config);
+    $st = $pdo->prepare("SELECT warehouse_id, role_key FROM warehouse_user_access WHERE auth_user_id=?");
+    $st->execute([current_auth_user_id()]);
+    $roles = [];
+    foreach ($st->fetchAll() as $row) {
+        $wid = (int)$row['warehouse_id'];
+        $role = (string)$row['role_key'];
+        if (!isset($roles[$wid]) || warehouse_role_rank($role) > warehouse_role_rank((string)$roles[$wid])) {
+            $roles[$wid] = $role;
+        }
+    }
+    return $roles;
+}
+
+function warehouse_accessible_warehouses(array $config, bool $onlyActive = true): array {
+    $rows = warehouse_all($config);
+    if (warehouse_module_admin($config)) {
+        if ($onlyActive) {
+            $rows = array_values(array_filter($rows, static fn(array $row): bool => (int)$row['is_active'] === 1));
+        }
+        return $rows;
+    }
+
+    $roles = warehouse_user_warehouse_roles($config);
+    $out = [];
+    foreach ($rows as $row) {
+        $wid = (int)$row['id'];
+        if (!isset($roles[$wid])) {
+            continue;
+        }
+        if ($onlyActive && (int)$row['is_active'] !== 1) {
+            continue;
+        }
+        $row['local_role_key'] = $roles[$wid];
+        $out[] = $row;
+    }
+    return $out;
+}
+
+function warehouse_manageable_warehouses(array $config, bool $onlyActive = true): array {
+    $rows = warehouse_accessible_warehouses($config, $onlyActive);
+    if (warehouse_module_admin($config)) {
+        return $rows;
+    }
+    return array_values(array_filter($rows, static function(array $row): bool {
+        $role = (string)($row['local_role_key'] ?? 'viewer');
+        return in_array($role, ['admin', 'user'], true);
+    }));
+}
+
+function warehouse_user_can_view_warehouse(array $config, int $warehouseId): bool {
+    if (warehouse_module_admin($config)) {
+        return true;
+    }
+    $roles = warehouse_user_warehouse_roles($config);
+    return isset($roles[$warehouseId]);
+}
+
+function warehouse_user_can_manage_warehouse(array $config, int $warehouseId): bool {
+    if (warehouse_module_admin($config)) {
+        return true;
+    }
+    $roles = warehouse_user_warehouse_roles($config);
+    if (!isset($roles[$warehouseId])) {
+        return false;
+    }
+    return in_array((string)$roles[$warehouseId], ['admin', 'user'], true);
+}
+
+function warehouse_material_select_options(array $config, bool $activeOnly = true): array {
+    return warehouse_materials_all($config, $activeOnly);
+}
+
+function warehouse_decimal_input(mixed $value, bool $allowZero = false): string {
+    $value = trim((string)$value);
+    if ($value === '') {
+        throw new RuntimeException('A mennyiség megadása kötelező.');
+    }
+    $value = str_replace(' ', '', $value);
+    $value = str_replace(',', '.', $value);
+    if (!is_numeric($value)) {
+        throw new RuntimeException('A mennyiség nem szám.');
+    }
+    $float = (float)$value;
+    if ($allowZero ? ($float < 0) : ($float <= 0)) {
+        throw new RuntimeException($allowZero ? 'A mennyiség nem lehet negatív.' : 'A mennyiségnek 0-nál nagyobbnak kell lennie.');
+    }
+    return number_format($float, 3, '.', '');
+}
+
+function warehouse_decimal_string(mixed $value): string {
+    return number_format((float)$value, 3, '.', '');
+}
+
+
+function warehouse_format_quantity(mixed $value): string {
+    if ($value === null || $value === '') {
+        return '';
+    }
+
+    $raw = trim((string)$value);
+    if ($raw === '') {
+        return '';
+    }
+
+    $normalized = str_replace(' ', '', $raw);
+    $normalized = str_replace(',', '.', $normalized);
+    if (!is_numeric($normalized)) {
+        return $raw;
+    }
+
+    $number = round((float)$normalized, 3);
+    if (abs($number - round($number)) < 0.0005) {
+        return number_format((float)round($number), 0, ',', ' ');
+    }
+
+    $formatted = number_format($number, 3, ',', ' ');
+    $formatted = rtrim(rtrim($formatted, '0'), ',');
+    return $formatted === '-0' ? '0' : $formatted;
+}
+
+function warehouse_quantity_display(mixed $value): string {
+    return warehouse_format_quantity($value);
+}
+
+function warehouse_transfer_available_stock_map(array $config, array $warehouseIds = []): array {
+    $warehouseIds = array_values(array_unique(array_filter(array_map('intval', $warehouseIds), static fn(int $id): bool => $id > 0)));
+    if ($warehouseIds === []) {
+        return [];
+    }
+
+    warehouse_stock_sync_table_from_movements($config);
+
+    $pdo = warehouse_pdo($config);
+    $sql = 'SELECT warehouse_id, material_id, quantity FROM warehouse_stock WHERE warehouse_id IN (' . implode(',', array_fill(0, count($warehouseIds), '?')) . ')';
+    $st = $pdo->prepare($sql);
+    $st->execute($warehouseIds);
+
+    $map = [];
+    foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $row) {
+        $wid = (int)($row['warehouse_id'] ?? 0);
+        $mid = (int)($row['material_id'] ?? 0);
+        if ($wid <= 0 || $mid <= 0) {
+            continue;
+        }
+        $qty = (float)($row['quantity'] ?? 0);
+        $map[$wid][$mid] = [
+            'raw' => warehouse_decimal_string($qty),
+            'display' => warehouse_quantity_display($qty),
+        ];
+    }
+
+    return $map;
+}
+
+function warehouse_stock_union_keys_sql(): string {
+    return 'SELECT warehouse_id, material_id FROM warehouse_stock UNION SELECT warehouse_id, material_id FROM stock_movements';
+}
+
+function warehouse_stock_totals_sql(): string {
+    return 'SELECT warehouse_id, material_id, SUM(quantity_change) AS effective_quantity, MAX(created_at) AS last_movement_at FROM stock_movements GROUP BY warehouse_id, material_id';
+}
+
+
+function warehouse_stock_summary_source_sql(): string {
+    return "
+        SELECT agg.warehouse_id,
+               agg.material_id,
+               CAST(SUM(agg.quantity_delta) AS DECIMAL(14,3)) AS quantity,
+               MAX(agg.row_updated_at) AS updated_at
+        FROM (
+            SELECT sm.warehouse_id,
+                   sm.material_id,
+                   sm.quantity_change AS quantity_delta,
+                   sm.created_at AS row_updated_at
+            FROM stock_movements sm
+
+            UNION ALL
+
+            SELECT ws.warehouse_id,
+                   ws.material_id,
+                   ws.quantity AS quantity_delta,
+                   ws.updated_at AS row_updated_at
+            FROM warehouse_stock ws
+            WHERE NOT EXISTS (
+                SELECT 1
+                FROM stock_movements smx
+                WHERE smx.warehouse_id = ws.warehouse_id
+                  AND smx.material_id = ws.material_id
+            )
+        ) agg
+        GROUP BY agg.warehouse_id, agg.material_id
+    ";
+}
+
+
+
+
+
+
+
+function warehouse_stock_summary(array $config, array $filters = []): array {
+    $pdo = warehouse_pdo($config);
+    $filters = warehouse_stock_filter_values($filters);
+
+    $sql = "
+        SELECT
+            ws.warehouse_id,
+            ws.material_id,
+            ws.quantity,
+            ws.updated_at,
+            w.name AS warehouse_name,
+            w.code AS warehouse_code,
+            w.is_active AS warehouse_is_active,
+            m.sku,
+            m.name AS material_name,
+            m.unit,
+            m.category_name,
+            m.minimum_stock,
+            m.is_active AS material_is_active
+        FROM warehouse_stock ws
+        INNER JOIN warehouses w ON w.id = ws.warehouse_id
+        INNER JOIN material_items m ON m.id = ws.material_id
+        WHERE ABS(ws.quantity) > 0.0005
+    ";
+
+    $params = [];
+
+    // Csak nem-adminnál szűrjünk helyi raktárjogra
+    if (!warehouse_module_admin($config)) {
+        $accessible = warehouse_accessible_warehouses($config, false);
+        if ($accessible === []) {
+            error_log('warehouse_stock_summary: no accessible warehouses');
+            return [];
+        }
+
+        $allowedIds = array_values(array_unique(array_map(
+            static fn(array $row): int => (int)$row['id'],
+            $accessible
+        )));
+
+        if ($allowedIds === []) {
+            error_log('warehouse_stock_summary: allowedIds empty');
+            return [];
+        }
+
+        $sql .= " AND ws.warehouse_id IN (" . implode(',', array_map('intval', $allowedIds)) . ")";
+    }
+
+    if ((int)$filters['warehouse_id'] > 0) {
+        $sql .= " AND ws.warehouse_id = :warehouse_id";
+        $params[':warehouse_id'] = (int)$filters['warehouse_id'];
+    }
+
+    if ($filters['q'] !== '') {
+        $sql .= " AND (
+            m.sku LIKE :q
+            OR m.name LIKE :q
+            OR COALESCE(m.category_name, '') LIKE :q
+            OR w.name LIKE :q
+            OR w.code LIKE :q
+        )";
+        $params[':q'] = '%' . $filters['q'] . '%';
+    }
+
+    if ((int)$filters['low_only'] === 1) {
+        $sql .= " AND m.minimum_stock IS NOT NULL AND ws.quantity <= m.minimum_stock";
+    }
+
+    $sql .= " ORDER BY w.name, m.name, m.sku";
+
+    $st = $pdo->prepare($sql);
+
+    foreach ($params as $key => $value) {
+        if ($key === ':warehouse_id') {
+            $st->bindValue($key, (int)$value, PDO::PARAM_INT);
+        } else {
+            $st->bindValue($key, $value, PDO::PARAM_STR);
+        }
+    }
+
+    $st->execute();
+    $rows = $st->fetchAll(PDO::FETCH_ASSOC);
+
+    error_log('warehouse_stock_summary FILTERS=' . json_encode($filters, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+    error_log('warehouse_stock_summary SQL=' . $sql);
+    error_log('warehouse_stock_summary ROWS=' . count($rows));
+
+    foreach ($rows as &$row) {
+        $row['quantity'] = warehouse_decimal_string($row['quantity']);
+    }
+    unset($row);
+
+    return $rows;
+}
+
+
+function warehouse_stock_sync_table_from_movements(array $config): void {
+    $pdo = warehouse_pdo($config);
+    $sql = "
+        INSERT INTO warehouse_stock (warehouse_id, material_id, quantity, created_by, updated_by, created_at, updated_at)
+        SELECT sm.warehouse_id,
+               sm.material_id,
+               CAST(SUM(sm.quantity_change) AS DECIMAL(14,3)) AS quantity,
+               MAX(sm.performed_by) AS created_by,
+               MAX(sm.performed_by) AS updated_by,
+               MIN(sm.created_at) AS created_at,
+               MAX(sm.created_at) AS updated_at
+        FROM stock_movements sm
+        GROUP BY sm.warehouse_id, sm.material_id
+        ON DUPLICATE KEY UPDATE
+            quantity = VALUES(quantity),
+            updated_by = VALUES(updated_by),
+            updated_at = VALUES(updated_at)
+    ";
+    $pdo->exec($sql);
+}
+
+function warehouse_stock_sync_locked(PDO $pdo, array $config, int $warehouseId, int $materialId): array {
+    $lock = $pdo->prepare('SELECT * FROM warehouse_stock WHERE warehouse_id=? AND material_id=? FOR UPDATE');
+    $lock->execute([$warehouseId, $materialId]);
+    $stockRow = $lock->fetch();
+
+    $sumSt = $pdo->prepare('SELECT COUNT(*) AS movement_count, COALESCE(SUM(quantity_change), 0) AS effective_quantity FROM stock_movements WHERE warehouse_id=? AND material_id=?');
+    $sumSt->execute([$warehouseId, $materialId]);
+    $sumRow = $sumSt->fetch();
+    $movementCount = (int)($sumRow['movement_count'] ?? 0);
+    $effective = $movementCount > 0 ? (float)($sumRow['effective_quantity'] ?? 0) : (float)($stockRow['quantity'] ?? 0);
+    $effectiveS = warehouse_decimal_string($effective);
+
+    if ($stockRow) {
+        $rowId = (int)$stockRow['id'];
+        if ($movementCount > 0 && abs((float)$stockRow['quantity'] - $effective) > 0.0005) {
+            $pdo->prepare('UPDATE warehouse_stock SET quantity=?, updated_by=? WHERE id=?')
+                ->execute([$effectiveS, current_auth_user_id(), $rowId]);
+        }
+        return [
+            'id' => $rowId,
+            'quantity' => $effectiveS,
+            'exists' => true,
+        ];
+    }
+
+    if (abs($effective) > 0.0005) {
+        $pdo->prepare('INSERT INTO warehouse_stock (warehouse_id, material_id, quantity, created_by, updated_by) VALUES (?,?,?,?,?)')
+            ->execute([$warehouseId, $materialId, $effectiveS, current_auth_user_id(), current_auth_user_id()]);
+        return [
+            'id' => (int)$pdo->lastInsertId(),
+            'quantity' => $effectiveS,
+            'exists' => true,
+        ];
+    }
+
+    return [
+        'id' => 0,
+        'quantity' => '0.000',
+        'exists' => false,
+    ];
+}
+
+function warehouse_stock_current_quantity(array $config, int $warehouseId, int $materialId): string {
+    $pdo = warehouse_pdo($config);
+    $st = $pdo->prepare('SELECT COUNT(*) AS movement_count, COALESCE(SUM(quantity_change), 0) AS effective_quantity FROM stock_movements WHERE warehouse_id=? AND material_id=?');
+    $st->execute([$warehouseId, $materialId]);
+    $row = $st->fetch();
+    $movementCount = (int)($row['movement_count'] ?? 0);
+    if ($movementCount > 0) {
+        return warehouse_decimal_string((float)($row['effective_quantity'] ?? 0));
+    }
+
+    $stockSt = $pdo->prepare('SELECT quantity FROM warehouse_stock WHERE warehouse_id=? AND material_id=? LIMIT 1');
+    $stockSt->execute([$warehouseId, $materialId]);
+    $stockRow = $stockSt->fetch();
+    return warehouse_decimal_string((float)($stockRow['quantity'] ?? 0));
+}
+
+
+function warehouse_stock_debug_snapshot(array $config, array $filters = []): array {
+    $pdo = warehouse_pdo($config);
+    $filters = warehouse_stock_filter_values($filters);
+
+    $snapshot = [
+        'current_auth_user_id' => current_auth_user_id(),
+        'warehouse_module_admin' => warehouse_module_admin($config),
+        'session_keys' => array_keys($_SESSION ?? []),
+        'accessible_warehouses' => [],
+        'manageable_warehouses' => [],
+        'warehouse_stock_rows' => 0,
+        'stock_movement_groups' => 0,
+        'stock_summary_preview' => [],
+        'stock_summary_count' => 0,
+        'stock_summary_rows' => [],
+        'filters' => $filters,
+    ];
+
+    $accessible = warehouse_accessible_warehouses($config, false);
+    $manageable = warehouse_manageable_warehouses($config, false);
+    $snapshot['accessible_warehouses'] = array_map(static fn(array $row): array => [
+        'id' => (int)$row['id'],
+        'name' => (string)$row['name'],
+        'code' => (string)$row['code'],
+        'local_role_key' => (string)($row['local_role_key'] ?? ''),
+    ], $accessible);
+    $snapshot['manageable_warehouses'] = array_map(static fn(array $row): array => [
+        'id' => (int)$row['id'],
+        'name' => (string)$row['name'],
+        'code' => (string)$row['code'],
+        'local_role_key' => (string)($row['local_role_key'] ?? ''),
+    ], $manageable);
+
+    $snapshot['warehouse_stock_rows'] = (int)$pdo->query('SELECT COUNT(*) FROM warehouse_stock')->fetchColumn();
+    $snapshot['stock_movement_groups'] = (int)$pdo->query('SELECT COUNT(*) FROM (SELECT warehouse_id, material_id FROM stock_movements GROUP BY warehouse_id, material_id) x')->fetchColumn();
+
+    $preview = $pdo->query(
+        'SELECT ws.warehouse_id, ws.material_id, ws.quantity, w.name AS warehouse_name, m.sku, m.name AS material_name
+'
+        . 'FROM warehouse_stock ws
+'
+        . 'INNER JOIN warehouses w ON w.id = ws.warehouse_id
+'
+        . 'INNER JOIN material_items m ON m.id = ws.material_id
+'
+        . 'ORDER BY ws.warehouse_id, ws.material_id
+'
+        . 'LIMIT 20'
+    )->fetchAll();
+    $snapshot['stock_summary_preview'] = $preview;
+
+    $rows = warehouse_stock_summary($config, $filters);
+    $snapshot['stock_summary_count'] = count($rows);
+    $snapshot['stock_summary_rows'] = array_slice($rows, 0, 20);
+
+    return $snapshot;
+}
+
+function warehouse_stock_filter_values(array $src): array {
+    $warehouseId = 0;
+    if (isset($src['warehouse_id']) && is_numeric($src['warehouse_id'])) {
+        $warehouseId = (int)$src['warehouse_id'];
+    }
+
+    $q = '';
+    if (isset($src['q'])) {
+        $q = trim((string)$src['q']);
+    }
+
+    $lowOnly = 0;
+    if (isset($src['low_only'])) {
+        $value = (string)$src['low_only'];
+        $lowOnly = in_array($value, ['1', 'on', 'true'], true) ? 1 : 0;
+    }
+
+    return [
+        'warehouse_id' => $warehouseId,
+        'q' => $q,
+        'low_only' => $lowOnly,
+    ];
+}
+
+
+function warehouse_movement_type_label(string $type): string {
+    return match ($type) {
+        'receipt' => 'Bevételezés',
+        'adjustment_set' => 'Korrekció: beállítás',
+        'adjustment_add' => 'Korrekció: növelés',
+        'adjustment_subtract' => 'Korrekció: csökkentés',
+        'transfer_out' => 'Raktárközi átadás ki',
+        'transfer_in' => 'Raktárközi átadás be',
+        default => $type,
+    };
+}
+
+function warehouse_stock_apply_movement(array $config, int $warehouseId, int $materialId, string $movementType, mixed $quantityInput, ?string $referenceNo = null, ?string $note = null): int {
+    $pdo = warehouse_pdo($config);
+
+    if (!warehouse_user_can_manage_warehouse($config, $warehouseId)) {
+        throw new RuntimeException('Ehhez a raktárhoz nincs módosítási jogosultságod.');
+    }
+
+    $warehouse = warehouse_find($config, $warehouseId);
+    if (!$warehouse) {
+        throw new RuntimeException('A raktár nem található.');
+    }
+    $material = warehouse_material_find($config, $materialId);
+    if (!$material) {
+        throw new RuntimeException('Az anyag nem található.');
+    }
+    if ((int)$material['is_active'] !== 1) {
+        throw new RuntimeException('Inaktív anyagra nem lehet készletmozgást rögzíteni.');
+    }
+
+    $quantity = warehouse_decimal_input($quantityInput, $movementType === 'adjustment_set');
+    $referenceNo = trim((string)$referenceNo);
+    $note = trim((string)$note);
+
+    if (!in_array($movementType, ['receipt', 'adjustment_set', 'adjustment_add', 'adjustment_subtract'], true)) {
+        throw new RuntimeException('Érvénytelen mozgástípus.');
+    }
+
+    $pdo->beginTransaction();
+    try {
+        $stockState = warehouse_stock_sync_locked($pdo, $config, $warehouseId, $materialId);
+        $before = (float)$stockState['quantity'];
+        $qty = (float)$quantity;
+        $change = 0.0;
+        $after = $before;
+
+        if ($movementType === 'receipt' || $movementType === 'adjustment_add') {
+            $change = $qty;
+            $after = $before + $qty;
+        } elseif ($movementType === 'adjustment_subtract') {
+            $change = -1 * $qty;
+            $after = $before - $qty;
+            if ($after < -0.0005) {
+                throw new RuntimeException('A csökkentés negatív készletet eredményezne, ez most tiltva van.');
+            }
+        } elseif ($movementType === 'adjustment_set') {
+            $after = $qty;
+            $change = $after - $before;
+        }
+
+        $beforeS = warehouse_decimal_string($before);
+        $afterS = warehouse_decimal_string($after);
+        $changeS = warehouse_decimal_string($change);
+
+        if ((int)$stockState['id'] > 0) {
+            $pdo->prepare('UPDATE warehouse_stock SET quantity=?, updated_by=? WHERE id=?')
+                ->execute([$afterS, current_auth_user_id(), (int)$stockState['id']]);
+        } else {
+            $pdo->prepare('INSERT INTO warehouse_stock (warehouse_id, material_id, quantity, created_by, updated_by) VALUES (?,?,?,?,?)')
+                ->execute([$warehouseId, $materialId, $afterS, current_auth_user_id(), current_auth_user_id()]);
+        }
+
+        $ins = $pdo->prepare('INSERT INTO stock_movements (warehouse_id, material_id, movement_type, quantity_change, quantity_before, quantity_after, reference_no, note, performed_by) VALUES (?,?,?,?,?,?,?,?,?)');
+        $ins->execute([
+            $warehouseId,
+            $materialId,
+            $movementType,
+            $changeS,
+            $beforeS,
+            $afterS,
+            $referenceNo !== '' ? $referenceNo : null,
+            $note !== '' ? $note : null,
+            current_auth_user_id(),
+        ]);
+        $movementId = (int)$pdo->lastInsertId();
+
+        $pdo->commit();
+
+        warehouse_audit($config, 'stock.' . $movementType, 'stock_movement', $movementId, [
+            'warehouse_id' => $warehouseId,
+            'warehouse_name' => (string)$warehouse['name'],
+            'material_id' => $materialId,
+            'material_sku' => (string)($material['sku'] ?? ''),
+            'material_name' => (string)($material['name'] ?? ''),
+            'quantity_change' => $changeS,
+            'quantity_before' => $beforeS,
+            'quantity_after' => $afterS,
+            'reference_no' => $referenceNo !== '' ? $referenceNo : null,
+            'note' => $note !== '' ? $note : null,
+        ]);
+
+        return $movementId;
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        throw $e;
+    }
+}
+
+function warehouse_stock_movement_filter_values(array $input): array {
+    $sort = trim((string)($input['sort'] ?? 'date'));
+    if (!in_array($sort, ['date', 'warehouse', 'material', 'movement_type'], true)) {
+        $sort = 'date';
+    }
+
+    $dir = strtolower(trim((string)($input['dir'] ?? 'desc')));
+    if (!in_array($dir, ['asc', 'desc'], true)) {
+        $dir = 'desc';
+    }
+
+    return [
+        'warehouse_id' => max(0, (int)($input['warehouse_id'] ?? 0)),
+        'material_id' => max(0, (int)($input['material_id'] ?? 0)),
+        'movement_type' => trim((string)($input['movement_type'] ?? '')),
+        'date_from' => trim((string)($input['date_from'] ?? '')),
+        'date_to' => trim((string)($input['date_to'] ?? '')),
+        'q' => trim((string)($input['q'] ?? '')),
+        'sort' => $sort,
+        'dir' => $dir,
+        'page' => max(1, (int)($input['page'] ?? 1)),
+        'per_page' => 50,
+    ];
+}
+
+function warehouse_stock_movement_types(): array {
+    return [
+        'receipt' => warehouse_movement_type_label('receipt'),
+        'adjustment_set' => warehouse_movement_type_label('adjustment_set'),
+        'adjustment_add' => warehouse_movement_type_label('adjustment_add'),
+        'adjustment_subtract' => warehouse_movement_type_label('adjustment_subtract'),
+        'transfer_out' => warehouse_movement_type_label('transfer_out'),
+        'transfer_in' => warehouse_movement_type_label('transfer_in'),
+    ];
+}
+
+function warehouse_stock_movements_search(array $config, array $filters = []): array {
+    $pdo = warehouse_pdo($config);
+    $filters = warehouse_stock_movement_filter_values($filters);
+
+    $empty = [
+        'rows' => [],
+        'total' => 0,
+        'page' => 1,
+        'pages' => 1,
+        'per_page' => 50,
+        'sort' => $filters['sort'],
+        'dir' => $filters['dir'],
+        'offset' => 0,
+        'filters' => $filters,
+    ];
+
+    $accessible = warehouse_accessible_warehouses($config, false);
+    if ($accessible === []) {
+        return $empty;
+    }
+    $allowedIds = array_map(static fn(array $row): int => (int)$row['id'], $accessible);
+
+    $where = ['sm.warehouse_id IN (' . implode(',', array_fill(0, count($allowedIds), '?')) . ')'];
+    $params = $allowedIds;
+
+    if ($filters['warehouse_id'] > 0) {
+        if (!in_array($filters['warehouse_id'], $allowedIds, true)) {
+            return $empty;
+        }
+        $where[] = 'sm.warehouse_id = ?';
+        $params[] = $filters['warehouse_id'];
+    }
+    if ($filters['material_id'] > 0) {
+        $where[] = 'sm.material_id = ?';
+        $params[] = $filters['material_id'];
+    }
+    if ($filters['movement_type'] !== '') {
+        $where[] = 'sm.movement_type = ?';
+        $params[] = $filters['movement_type'];
+    }
+    if ($filters['date_from'] !== '') {
+        $where[] = 'sm.created_at >= ?';
+        $params[] = $filters['date_from'] . ' 00:00:00';
+    }
+    if ($filters['date_to'] !== '') {
+        $where[] = 'sm.created_at < DATE_ADD(?, INTERVAL 1 DAY)';
+        $params[] = $filters['date_to'] . ' 00:00:00';
+    }
+    if ($filters['q'] !== '') {
+        $like = '%' . $filters['q'] . '%';
+        $where[] = "(w.name LIKE ? OR w.code LIKE ? OR m.sku LIKE ? OR m.name LIKE ? OR COALESCE(sm.reference_no, '') LIKE ? OR COALESCE(sm.note, '') LIKE ?)";
+        array_push($params, $like, $like, $like, $like, $like, $like);
+    }
+
+    $sortMap = [
+        'date' => 'sm.created_at',
+        'warehouse' => 'w.name',
+        'material' => 'm.name',
+        'movement_type' => 'sm.movement_type',
+    ];
+    $orderBy = $sortMap[$filters['sort']] ?? 'sm.created_at';
+    $dir = $filters['dir'] === 'asc' ? 'ASC' : 'DESC';
+    $whereSql = implode(' AND ', $where);
+
+    $countSt = $pdo->prepare("
+        SELECT COUNT(*)
+        FROM stock_movements sm
+        INNER JOIN warehouses w ON w.id = sm.warehouse_id
+        INNER JOIN material_items m ON m.id = sm.material_id
+        WHERE $whereSql
+    ");
+    $countSt->execute($params);
+    $total = (int)$countSt->fetchColumn();
+    $pages = max(1, (int)ceil($total / $filters['per_page']));
+    $page = min($filters['page'], $pages);
+    $offset = ($page - 1) * $filters['per_page'];
+
+    $sql = "
+        SELECT sm.*, w.name AS warehouse_name, w.code AS warehouse_code,
+               m.sku, m.name AS material_name, m.unit
+        FROM stock_movements sm
+        INNER JOIN warehouses w ON w.id = sm.warehouse_id
+        INNER JOIN material_items m ON m.id = sm.material_id
+        WHERE $whereSql
+        ORDER BY $orderBy $dir, sm.id " . ($dir === 'ASC' ? 'ASC' : 'DESC') . "
+        LIMIT ? OFFSET ?
+    ";
+
+    $st = $pdo->prepare($sql);
+    $index = 1;
+    foreach ($params as $param) {
+        $type = is_int($param) ? PDO::PARAM_INT : PDO::PARAM_STR;
+        $st->bindValue($index++, $param, $type);
+    }
+    $st->bindValue($index++, (int)$filters['per_page'], PDO::PARAM_INT);
+    $st->bindValue($index++, (int)$offset, PDO::PARAM_INT);
+    $st->execute();
+    $rows = $st->fetchAll();
+
+    $userIds = [];
+    foreach ($rows as $row) {
+        $uid = (int)($row['performed_by'] ?? 0);
+        if ($uid > 0) {
+            $userIds[$uid] = $uid;
+        }
+    }
+    $userMap = warehouse_resolved_auth_user_map($config, array_values($userIds));
+
+    foreach ($rows as &$row) {
+        $uid = (int)($row['performed_by'] ?? 0);
+        $row['performed_name'] = $userMap[$uid]['resolved_name'] ?? ($uid > 0 ? ('User #' . $uid) : 'Rendszer');
+        $row['performed_username'] = $userMap[$uid]['username'] ?? '';
+    }
+    unset($row);
+
+    return [
+        'rows' => $rows,
+        'total' => $total,
+        'page' => $page,
+        'pages' => $pages,
+        'per_page' => $filters['per_page'],
+        'sort' => $filters['sort'],
+        'dir' => $filters['dir'],
+        'offset' => $offset,
+        'filters' => $filters,
+    ];
+}
+
+function warehouse_transfer_status_label(string $status): string {
+    return match ($status) {
+        'pending' => 'Függőben',
+        'accepted' => 'Elfogadva',
+        'rejected' => 'Elutasítva',
+        'cancelled' => 'Törölve',
+        default => $status,
+    };
+}
+
+function warehouse_transfer_badge_class(string $status): string {
+    return match ($status) {
+        'pending' => 'bg-warning text-dark',
+        'accepted' => 'bg-success',
+        'rejected' => 'bg-danger',
+        'cancelled' => 'bg-secondary',
+        default => 'bg-light text-dark',
+    };
+}
+
+function warehouse_transfer_filter_values(array $input): array {
+    $status = trim((string)($input['status'] ?? ''));
+    if (!in_array($status, ['', 'pending', 'accepted', 'rejected', 'cancelled'], true)) {
+        $status = '';
+    }
+
+    $scope = trim((string)($input['scope'] ?? 'all'));
+    if (!in_array($scope, ['all', 'incoming', 'outgoing'], true)) {
+        $scope = 'all';
+    }
+
+    return [
+        'status' => $status,
+        'scope' => $scope,
+        'warehouse_id' => max(0, (int)($input['warehouse_id'] ?? 0)),
+        'q' => trim((string)($input['q'] ?? '')),
+    ];
+}
+
+function warehouse_all_active_options(array $config): array {
+    $pdo = warehouse_pdo($config);
+    return $pdo->query('SELECT * FROM warehouses WHERE is_active=1 ORDER BY name, code')->fetchAll();
+}
+
+function warehouse_transfer_reference(int $transferId): string {
+    return 'TR-' . str_pad((string)$transferId, 6, '0', STR_PAD_LEFT);
+}
+
+function warehouse_transfer_find(array $config, int $transferId): ?array {
+    $pdo = warehouse_pdo($config);
+    $sql = "
+        SELECT tr.*, 
+               sw.name AS source_warehouse_name, sw.code AS source_warehouse_code,
+               tw.name AS target_warehouse_name, tw.code AS target_warehouse_code,
+               m.sku, m.name AS material_name, m.unit, m.category_name
+        FROM stock_transfers tr
+        INNER JOIN warehouses sw ON sw.id = tr.source_warehouse_id
+        INNER JOIN warehouses tw ON tw.id = tr.target_warehouse_id
+        INNER JOIN material_items m ON m.id = tr.material_id
+        WHERE tr.id = ?
+        LIMIT 1
+    ";
+    $st = $pdo->prepare($sql);
+    $st->execute([$transferId]);
+    $row = $st->fetch();
+    if (!$row) {
+        return null;
+    }
+
+    $userIds = [];
+    foreach (['requested_by', 'accepted_by', 'rejected_by', 'cancelled_by'] as $field) {
+        $uid = (int)($row[$field] ?? 0);
+        if ($uid > 0) {
+            $userIds[] = $uid;
+        }
+    }
+    $userMap = warehouse_resolved_auth_user_map($config, $userIds);
+    foreach (['requested_by', 'accepted_by', 'rejected_by', 'cancelled_by'] as $field) {
+        $uid = (int)($row[$field] ?? 0);
+        $row[$field . '_name'] = $userMap[$uid]['resolved_name'] ?? ($uid > 0 ? ('User #' . $uid) : '');
+    }
+    return $row;
+}
+
+function warehouse_transfer_search(array $config, array $filters = [], int $limit = 300): array {
+    $pdo = warehouse_pdo($config);
+    $filters = warehouse_transfer_filter_values($filters);
+
+    $viewable = warehouse_accessible_warehouses($config, false);
+    if (!warehouse_module_admin($config) && $viewable === []) {
+        return [];
+    }
+
+    $where = [];
+    $params = [];
+
+    if (!warehouse_module_admin($config)) {
+        $allowedIds = array_values(array_unique(array_map(static fn(array $row): int => (int)$row['id'], $viewable)));
+        $where[] = '(tr.source_warehouse_id IN (' . implode(',', array_fill(0, count($allowedIds), '?')) . ') OR tr.target_warehouse_id IN (' . implode(',', array_fill(0, count($allowedIds), '?')) . '))';
+        $params = array_merge($params, $allowedIds, $allowedIds);
+    }
+
+    if ($filters['status'] !== '') {
+        $where[] = 'tr.status = ?';
+        $params[] = $filters['status'];
+    }
+    if ($filters['scope'] === 'incoming') {
+        $manageable = warehouse_manageable_warehouses($config, false);
+        if (!warehouse_module_admin($config)) {
+            $ids = array_values(array_unique(array_map(static fn(array $row): int => (int)$row['id'], $manageable)));
+            if ($ids === []) {
+                return [];
+            }
+            $where[] = 'tr.target_warehouse_id IN (' . implode(',', array_fill(0, count($ids), '?')) . ')';
+            $params = array_merge($params, $ids);
+        }
+    } elseif ($filters['scope'] === 'outgoing') {
+        $manageable = warehouse_manageable_warehouses($config, false);
+        if (!warehouse_module_admin($config)) {
+            $ids = array_values(array_unique(array_map(static fn(array $row): int => (int)$row['id'], $manageable)));
+            if ($ids === []) {
+                return [];
+            }
+            $where[] = 'tr.source_warehouse_id IN (' . implode(',', array_fill(0, count($ids), '?')) . ')';
+            $params = array_merge($params, $ids);
+        }
+    }
+
+    if ($filters['warehouse_id'] > 0) {
+        if (!warehouse_module_admin($config) && !warehouse_user_can_view_warehouse($config, $filters['warehouse_id'])) {
+            return [];
+        }
+        $where[] = '(tr.source_warehouse_id = ? OR tr.target_warehouse_id = ?)';
+        $params[] = $filters['warehouse_id'];
+        $params[] = $filters['warehouse_id'];
+    }
+
+    if ($filters['q'] !== '') {
+        $like = '%' . $filters['q'] . '%';
+        $where[] = '(sw.name LIKE ? OR sw.code LIKE ? OR tw.name LIKE ? OR tw.code LIKE ? OR m.sku LIKE ? OR m.name LIKE ? OR COALESCE(tr.reference_no, "") LIKE ? OR COALESCE(tr.note, "") LIKE ? OR COALESCE(tr.decision_note, "") LIKE ?)';
+        array_push($params, $like, $like, $like, $like, $like, $like, $like, $like, $like);
+    }
+
+    $sql = "
+        SELECT tr.*, 
+               sw.name AS source_warehouse_name, sw.code AS source_warehouse_code,
+               tw.name AS target_warehouse_name, tw.code AS target_warehouse_code,
+               m.sku, m.name AS material_name, m.unit, m.category_name
+        FROM stock_transfers tr
+        INNER JOIN warehouses sw ON sw.id = tr.source_warehouse_id
+        INNER JOIN warehouses tw ON tw.id = tr.target_warehouse_id
+        INNER JOIN material_items m ON m.id = tr.material_id
+    ";
+    if ($where !== []) {
+        $sql .= ' WHERE ' . implode(' AND ', $where);
+    }
+    $sql .= ' ORDER BY tr.id DESC LIMIT ?';
+
+    $st = $pdo->prepare($sql);
+    $idx = 1;
+    foreach ($params as $value) {
+        $st->bindValue($idx++, $value);
+    }
+    $st->bindValue($idx, $limit, PDO::PARAM_INT);
+    $st->execute();
+    $rows = $st->fetchAll();
+
+    $userIds = [];
+    foreach ($rows as $row) {
+        foreach (['requested_by', 'accepted_by', 'rejected_by', 'cancelled_by'] as $field) {
+            $uid = (int)($row[$field] ?? 0);
+            if ($uid > 0) {
+                $userIds[$uid] = $uid;
+            }
+        }
+    }
+    $userMap = warehouse_resolved_auth_user_map($config, array_values($userIds));
+    foreach ($rows as &$row) {
+        foreach (['requested_by', 'accepted_by', 'rejected_by', 'cancelled_by'] as $field) {
+            $uid = (int)($row[$field] ?? 0);
+            $row[$field . '_name'] = $userMap[$uid]['resolved_name'] ?? ($uid > 0 ? ('User #' . $uid) : '');
+        }
+    }
+    unset($row);
+
+    return $rows;
+}
+
+function warehouse_transfer_create(array $config, int $sourceWarehouseId, int $targetWarehouseId, int $materialId, mixed $quantityInput, ?string $referenceNo = null, ?string $note = null): int {
+    $pdo = warehouse_pdo($config);
+
+    if ($sourceWarehouseId < 1 || $targetWarehouseId < 1) {
+        throw new RuntimeException('Forrás és cél raktár megadása kötelező.');
+    }
+    if ($sourceWarehouseId === $targetWarehouseId) {
+        throw new RuntimeException('A forrás és a cél raktár nem lehet azonos.');
+    }
+    if (!warehouse_user_can_manage_warehouse($config, $sourceWarehouseId)) {
+        throw new RuntimeException('A forrás raktárhoz nincs átadási jogosultságod.');
+    }
+
+    $source = warehouse_find($config, $sourceWarehouseId);
+    $target = warehouse_find($config, $targetWarehouseId);
+    $material = warehouse_material_find($config, $materialId);
+
+    if (!$source || !$target) {
+        throw new RuntimeException('A forrás vagy cél raktár nem található.');
+    }
+    if ((int)$source['is_active'] !== 1 || (int)$target['is_active'] !== 1) {
+        throw new RuntimeException('Csak aktív raktárak között lehet átadást indítani.');
+    }
+    if (!$material) {
+        throw new RuntimeException('A kiválasztott anyag nem található.');
+    }
+    if ((int)$material['is_active'] !== 1) {
+        throw new RuntimeException('Inaktív anyag nem adható át.');
+    }
+
+    $quantity = warehouse_decimal_input($quantityInput, false);
+    $referenceNo = trim((string)$referenceNo);
+    $note = trim((string)$note);
+
+    $currentQty = (float)warehouse_stock_current_quantity($config, $sourceWarehouseId, $materialId);
+    if ($currentQty < (float)$quantity - 0.0005) {
+        throw new RuntimeException('A forrás raktárban nincs elegendő készlet az átadás indításához.');
+    }
+
+    $st = $pdo->prepare('INSERT INTO stock_transfers (source_warehouse_id, target_warehouse_id, material_id, quantity, status, reference_no, note, requested_by) VALUES (?,?,?,?,?,?,?,?)');
+    $st->execute([
+        $sourceWarehouseId,
+        $targetWarehouseId,
+        $materialId,
+        $quantity,
+        'pending',
+        $referenceNo !== '' ? $referenceNo : null,
+        $note !== '' ? $note : null,
+        current_auth_user_id(),
+    ]);
+    $transferId = (int)$pdo->lastInsertId();
+
+    warehouse_audit($config, 'transfer.create', 'stock_transfer', $transferId, [
+        'reference' => warehouse_transfer_reference($transferId),
+        'source_warehouse_id' => $sourceWarehouseId,
+        'source_warehouse_name' => (string)$source['name'],
+        'target_warehouse_id' => $targetWarehouseId,
+        'target_warehouse_name' => (string)$target['name'],
+        'material_id' => $materialId,
+        'material_sku' => (string)$material['sku'],
+        'material_name' => (string)$material['name'],
+        'quantity' => $quantity,
+        'reference_no' => $referenceNo !== '' ? $referenceNo : null,
+        'note' => $note !== '' ? $note : null,
+    ]);
+
+    return $transferId;
+}
+
+function warehouse_transfer_accept(array $config, int $transferId, ?string $decisionNote = null): int {
+    $pdo = warehouse_pdo($config);
+    $transfer = warehouse_transfer_find($config, $transferId);
+    if (!$transfer) {
+        throw new RuntimeException('Az átadás nem található.');
+    }
+    if ((string)$transfer['status'] !== 'pending') {
+        throw new RuntimeException('Csak függőben lévő átadás fogadható el.');
+    }
+    $targetId = (int)$transfer['target_warehouse_id'];
+    if (!warehouse_user_can_manage_warehouse($config, $targetId)) {
+        throw new RuntimeException('A cél raktárhoz nincs elfogadási jogosultságod.');
+    }
+
+    $decisionNote = trim((string)$decisionNote);
+
+    $pdo->beginTransaction();
+    try {
+        $lockTransfer = $pdo->prepare('SELECT * FROM stock_transfers WHERE id=? FOR UPDATE');
+        $lockTransfer->execute([$transferId]);
+        $lockedTransfer = $lockTransfer->fetch();
+        if (!$lockedTransfer) {
+            throw new RuntimeException('Az átadás nem található.');
+        }
+        if ((string)$lockedTransfer['status'] !== 'pending') {
+            throw new RuntimeException('Az átadás időközben már feldolgozásra került.');
+        }
+
+        $sourceId = (int)$lockedTransfer['source_warehouse_id'];
+        $materialId = (int)$lockedTransfer['material_id'];
+        $qty = (float)$lockedTransfer['quantity'];
+        $qtyS = warehouse_decimal_string($qty);
+
+        $sourceState = warehouse_stock_sync_locked($pdo, $config, $sourceId, $materialId);
+        $sourceBefore = (float)$sourceState['quantity'];
+        if ($sourceBefore < $qty - 0.0005) {
+            throw new RuntimeException('A forrás raktárban nincs elegendő készlet az elfogadáshoz.');
+        }
+        $sourceAfter = $sourceBefore - $qty;
+        $sourceBeforeS = warehouse_decimal_string($sourceBefore);
+        $sourceAfterS = warehouse_decimal_string($sourceAfter);
+        if ((int)$sourceState['id'] > 0) {
+            $pdo->prepare('UPDATE warehouse_stock SET quantity=?, updated_by=? WHERE id=?')->execute([$sourceAfterS, current_auth_user_id(), (int)$sourceState['id']]);
+        } else {
+            throw new RuntimeException('A forrás raktári készletsor nem található.');
+        }
+
+        $targetState = warehouse_stock_sync_locked($pdo, $config, $targetId, $materialId);
+        $targetBefore = (float)$targetState['quantity'];
+        $targetAfter = $targetBefore + $qty;
+        $targetBeforeS = warehouse_decimal_string($targetBefore);
+        $targetAfterS = warehouse_decimal_string($targetAfter);
+        if ((int)$targetState['id'] > 0) {
+            $pdo->prepare('UPDATE warehouse_stock SET quantity=?, updated_by=? WHERE id=?')->execute([$targetAfterS, current_auth_user_id(), (int)$targetState['id']]);
+        } else {
+            $pdo->prepare('INSERT INTO warehouse_stock (warehouse_id, material_id, quantity, created_by, updated_by) VALUES (?,?,?,?,?)')->execute([$targetId, $materialId, $targetAfterS, current_auth_user_id(), current_auth_user_id()]);
+        }
+
+        $referenceNo = trim((string)($lockedTransfer['reference_no'] ?? ''));
+        if ($referenceNo === '') {
+            $referenceNo = warehouse_transfer_reference($transferId);
+        }
+        $baseNote = 'Raktárközi átadás #' . $transferId . ' [' . $transfer['source_warehouse_code'] . ' → ' . $transfer['target_warehouse_code'] . ']';
+        if ($decisionNote !== '') {
+            $baseNote .= ' | ' . $decisionNote;
+        }
+
+        $insMovement = $pdo->prepare('INSERT INTO stock_movements (warehouse_id, material_id, movement_type, quantity_change, quantity_before, quantity_after, reference_no, note, performed_by) VALUES (?,?,?,?,?,?,?,?,?)');
+        $insMovement->execute([
+            $sourceId,
+            $materialId,
+            'transfer_out',
+            warehouse_decimal_string(-1 * $qty),
+            $sourceBeforeS,
+            $sourceAfterS,
+            $referenceNo,
+            $baseNote,
+            current_auth_user_id(),
+        ]);
+        $sourceMovementId = (int)$pdo->lastInsertId();
+
+        $insMovement->execute([
+            $targetId,
+            $materialId,
+            'transfer_in',
+            $qtyS,
+            $targetBeforeS,
+            $targetAfterS,
+            $referenceNo,
+            $baseNote,
+            current_auth_user_id(),
+        ]);
+        $targetMovementId = (int)$pdo->lastInsertId();
+
+        $pdo->prepare('UPDATE stock_transfers SET status="accepted", accepted_by=?, accepted_at=NOW(), decision_note=? WHERE id=?')->execute([
+            current_auth_user_id(),
+            $decisionNote !== '' ? $decisionNote : null,
+            $transferId,
+        ]);
+
+        $pdo->commit();
+
+        warehouse_audit($config, 'transfer.accept', 'stock_transfer', $transferId, [
+            'reference' => warehouse_transfer_reference($transferId),
+            'source_warehouse_id' => $sourceId,
+            'target_warehouse_id' => $targetId,
+            'material_id' => $materialId,
+            'quantity' => $qtyS,
+            'source_movement_id' => $sourceMovementId,
+            'target_movement_id' => $targetMovementId,
+            'decision_note' => $decisionNote !== '' ? $decisionNote : null,
+        ]);
+
+        return $transferId;
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        throw $e;
+    }
+}
+
+function warehouse_transfer_reject(array $config, int $transferId, ?string $decisionNote = null): int {
+    $pdo = warehouse_pdo($config);
+    $transfer = warehouse_transfer_find($config, $transferId);
+    if (!$transfer) {
+        throw new RuntimeException('Az átadás nem található.');
+    }
+    if ((string)$transfer['status'] !== 'pending') {
+        throw new RuntimeException('Csak függőben lévő átadás utasítható el.');
+    }
+    $targetId = (int)$transfer['target_warehouse_id'];
+    if (!warehouse_user_can_manage_warehouse($config, $targetId)) {
+        throw new RuntimeException('A cél raktárhoz nincs elutasítási jogosultságod.');
+    }
+    $decisionNote = trim((string)$decisionNote);
+
+    $st = $pdo->prepare('UPDATE stock_transfers SET status="rejected", rejected_by=?, rejected_at=NOW(), decision_note=? WHERE id=? AND status="pending"');
+    $st->execute([current_auth_user_id(), $decisionNote !== '' ? $decisionNote : null, $transferId]);
+    if ($st->rowCount() < 1) {
+        throw new RuntimeException('Az átadás időközben már feldolgozásra került.');
+    }
+
+    warehouse_audit($config, 'transfer.reject', 'stock_transfer', $transferId, [
+        'reference' => warehouse_transfer_reference($transferId),
+        'decision_note' => $decisionNote !== '' ? $decisionNote : null,
+    ]);
+
+    return $transferId;
+}
+
+function warehouse_transfer_cancel(array $config, int $transferId, ?string $decisionNote = null): int {
+    $pdo = warehouse_pdo($config);
+    $transfer = warehouse_transfer_find($config, $transferId);
+    if (!$transfer) {
+        throw new RuntimeException('Az átadás nem található.');
+    }
+    if ((string)$transfer['status'] !== 'pending') {
+        throw new RuntimeException('Csak függőben lévő átadás törölhető.');
+    }
+    $sourceId = (int)$transfer['source_warehouse_id'];
+    if (!warehouse_user_can_manage_warehouse($config, $sourceId)) {
+        throw new RuntimeException('A forrás raktárhoz nincs törlési jogosultságod.');
+    }
+    $decisionNote = trim((string)$decisionNote);
+
+    $st = $pdo->prepare('UPDATE stock_transfers SET status="cancelled", cancelled_by=?, cancelled_at=NOW(), decision_note=? WHERE id=? AND status="pending"');
+    $st->execute([current_auth_user_id(), $decisionNote !== '' ? $decisionNote : null, $transferId]);
+    if ($st->rowCount() < 1) {
+        throw new RuntimeException('Az átadás időközben már feldolgozásra került.');
+    }
+
+    warehouse_audit($config, 'transfer.cancel', 'stock_transfer', $transferId, [
+        'reference' => warehouse_transfer_reference($transferId),
+        'decision_note' => $decisionNote !== '' ? $decisionNote : null,
+    ]);
+
+    return $transferId;
+}

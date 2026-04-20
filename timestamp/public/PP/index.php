@@ -1,0 +1,1 @@
+<?php require __DIR__.'/includes/init.php'; if (current_user($pdo)) redirect('jobs_list.php'); else redirect('login.php');

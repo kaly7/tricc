@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="hu">
+<head>
+  <meta charset="utf-8">
+  <style>
+    @page { margin: 12mm 12mm 20mm 12mm; footer: html_toolbookfooter; }
+    body { font-family: dejavusans, DejaVu Sans, sans-serif; font-size: 11pt; color: #111; }
+    .header { padding-bottom: 4mm; margin-bottom: 6mm; }
+    .box { border: 1px solid #111; padding: 4mm; margin: 4mm 0; }
+    .box h3 { margin: 0 0 2mm 0; font-size: 12pt; }
+    table.meta { width: 100%; border-collapse: collapse; }
+    table.meta td { padding: 1.5mm 0; vertical-align: top; }
+    .label { color: #555; width: 42mm; }
+    .assets { width: 100%; border-collapse: collapse; margin-top: 2mm; }
+    .assets th, .assets td { border: 1px solid #111; padding: 2.3mm; font-size: 9.4pt; vertical-align: top; }
+    .assets th { background: #f1f1f1; }
+    .assets.toolbook th:nth-child(1), .assets.toolbook td:nth-child(1) { width: 8mm; text-align: center; }
+    .assets.toolbook th:nth-child(3), .assets.toolbook td:nth-child(3) { width: 28mm; }
+    .assets.toolbook th:nth-child(4), .assets.toolbook td:nth-child(4) { width: 28mm; }
+    .assets.toolbook th:nth-child(5), .assets.toolbook td:nth-child(5) { width: 40mm; }
+    .assets.toolbook th:nth-child(6), .assets.toolbook td:nth-child(6) { width: 38mm; }
+    .logoimg { max-width: 42mm; max-height: 20mm; }
+    .signature-box { border: 1px solid #111; padding: 5mm 4mm 7mm 4mm; margin-top: 8mm; page-break-inside: avoid; }
+    .signature-title { font-size: 12pt; font-weight: 700; margin-bottom: 8mm; }
+    .signature-grid { width: 100%; border-collapse: collapse; }
+    .signature-grid td { width: 50%; vertical-align: bottom; padding-right: 8mm; }
+    .signature-line { margin-top: 14mm; border-top: 1px solid #111; height: 0; }
+    .signature-caption { padding-top: 2mm; font-size: 9pt; color: #555; text-align: center; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <table style="width:100%; border-collapse:collapse;">
+      <tr>
+        <td style="width:70%; vertical-align:top;">
+          <div style="font-size:14pt; font-weight:700; margin-bottom:2mm;">Perfect-Phone Kft</div>
+          <div style="font-size:10.5pt; line-height:1.5;">
+            7100 Szekszárd, Szent László u. 11<br>
+            Tel: 74/529-629<br>
+            E-mail: info@perfect-phone.hu
+          </div>
+        </td>
+        <td style="width:30%; text-align:right; vertical-align:top;">{{LOGO}}</td>
+      </tr>
+    </table>
+    <div style="border-top:2px solid #111; margin-top:4mm;"></div>
+  </div>
+
+  <div style="font-size:18pt; font-weight:700; margin-bottom:5mm;">Szerszámkönyv</div>
+
+  <div class="box">
+    <h3>Nyomtatás adatai</h3>
+    <table class="meta">
+      <tr><td class="label">Nyomtatás ideje</td><td>{{DOC_DATE}}</td></tr>
+      <tr><td class="label">Nyomtatta</td><td>{{PRINTED_BY}}</td></tr>
+      <tr><td class="label">Dolgozó</td><td>{{EMPLOYEE}}</td></tr>
+      <tr><td class="label">Dolgozó állapota</td><td>{{EMPLOYEE_STATUS}}</td></tr>
+      <tr><td class="label">Szűrés</td><td>{{FILTERS}}</td></tr>
+      <tr><td class="label">Eszközök darabszáma</td><td>{{ASSET_COUNT}}</td></tr>
+    </table>
+  </div>
+
+  <div class="box">
+    <h3>Eszközlista</h3>
+    {{ASSETS_TABLE}}
+  </div>
+
+  <div class="signature-box">
+    <div class="signature-title">Átvevő aláírása</div>
+    <table class="signature-grid">
+      <tr>
+        <td>
+          <div class="signature-line"></div>
+          <div class="signature-caption">Dátum</div>
+        </td>
+        <td>
+          <div class="signature-line"></div>
+          <div class="signature-caption">{{EMPLOYEE_SIGNATURE_NAME}} aláírása</div>
+        </td>
+      </tr>
+    </table>
+  </div>
+
+
+  <htmlpagefooter name="toolbookfooter">
+    <div style="border-top: 1px solid #999; padding-top: 2mm; font-size: 8.5pt; color: #555;">
+      <table style="width:100%; border-collapse:collapse;">
+        <tr>
+          <td style="width:70%; text-align:left;">Perfect-Phone - a dokumentum elektronikusan készült - www.perfect-phone.hu</td>
+          <td style="width:30%; text-align:right;">Oldal {PAGENO}/{nbpg}</td>
+        </tr>
+      </table>
+    </div>
+  </htmlpagefooter>
+</body>
+</html>

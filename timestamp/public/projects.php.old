@@ -1,0 +1,54 @@
+<?php
+require_once __DIR__ . '/../functions.php';
+require_login(); require_admin();
+$error=null; $ok=null;
+if ($_SERVER['REQUEST_METHOD']==='POST') {
+    check_csrf();
+    $name=trim($_POST['name']??''); $location=trim($_POST['location']??''); $note=trim($_POST['note']??''); $active=isset($_POST['active'])?1:0;
+    if ($name){
+        db()->prepare("INSERT INTO projects (name, location, note, active) VALUES (:n,:l,:no,:a)")
+          ->execute([':n'=>$name, ':l'=>$location, ':no'=>$note, ':a'=>$active]);
+        $ok='Projekt hozzáadva.';
+    } else { $error='A projekt neve kötelező.'; }
+}
+$projects=db()->query("SELECT * FROM projects ORDER BY active DESC, name")->fetchAll();
+include __DIR__ . '/common_header.php';
+?>
+<div class="card">
+  <h2>Projektek</h2>
+  <?php if ($error): ?><div class="error"><?= h($error) ?></div><?php endif; ?>
+  <?php if ($ok): ?><div class="notice"><?= h($ok) ?></div><?php endif; ?>
+  <div class="grid cols-2">
+    <div>
+      <h3>Új projekt</h3>
+      <form method="post">
+        <input type="hidden" name="csrf_token" value="<?= csrf_token() ?>">
+        <label>Név</label><input name="name" required>
+        <label>Helyszín</label><input name="location">
+        <label>Megjegyzés</label><textarea name="note"></textarea>
+        <label><input type="checkbox" name="active" checked> Aktív</label>
+        <div class="mt10"><button>Hozzáadás</button></div>
+      </form>
+    </div>
+    <div>
+      <h3>Lista</h3>
+      <div class="table-container">
+      <table class="table">
+        <thead><tr><th>Név</th><th>Helyszín</th><th>Megjegyzés</th><th>Aktív</th><th>Létrehozva</th></tr></thead>
+        <tbody>
+          <?php foreach ($projects as $p): ?>
+            <tr>
+              <td data-label="Név"><?= h($p['name']) ?></td>
+              <td data-label="Helyszín"><?= h($p['location']) ?></td>
+              <td data-label="Megjegyzés"><?= h($p['note']) ?></td>
+              <td data-label="Aktív"><?= $p['active']?'igen':'nem' ?></td>
+              <td data-label="Létrehozva"><?= h($p['created_at']) ?></td>
+            </tr>
+          <?php endforeach; ?>
+        </tbody>
+      </table>
+      </div>
+    </div>
+  </div>
+</div>
+<?php include __DIR__ . '/common_footer.php'; ?>

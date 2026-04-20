@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Mobil fénykép + helyadat bélyegzés</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 16px;
+      background: #f5f5f5;
+      color: #222;
+    }
+    .wrap {
+      max-width: 820px;
+      margin: 0 auto;
+      background: #fff;
+      padding: 16px;
+      border-radius: 12px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+    }
+    h1 {
+      font-size: 22px;
+      margin-top: 0;
+      margin-bottom: 10px;
+    }
+    p.note {
+      background: #eef6ff;
+      padding: 10px 12px;
+      border-radius: 8px;
+      line-height: 1.45;
+      margin-top: 0;
+    }
+    .row {
+      margin: 12px 0;
+    }
+    button, input[type="file"] {
+      font-size: 16px;
+    }
+    button {
+      padding: 10px 14px;
+      border: 0;
+      border-radius: 8px;
+      cursor: pointer;
+      background: #0b63f6;
+      color: white;
+    }
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    canvas {
+      width: 100%;
+      max-width: 100%;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      background: #fafafa;
+      margin-top: 12px;
+    }
+    .status {
+      margin-top: 8px;
+      padding: 10px;
+      background: #f0f0f0;
+      border-radius: 8px;
+      white-space: pre-wrap;
+      line-height: 1.45;
+    }
+    .small {
+      font-size: 13px;
+      color: #555;
+      line-height: 1.45;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Mobil fénykép + helyadat bélyegzés</h1>
+
+    <p class="note">
+    </p>
+
+    <div class="row">
+      <input id="photoInput" type="file" accept="image/*" capture="environment" />
+    </div>
+
+    <div class="row">
+      <button id="downloadBtn" disabled>Letöltés</button>
+    </div>
+
+    <div id="status" class="status">Válassz vagy készíts egy fényképet.</div>
+
+    <canvas id="canvas"></canvas>
+
+    <p class="small">
+    </p>
+
+    <p class="small">
+      Térképadat és címek: © OpenStreetMap by kaly
+    </p>
+  </div>
+
+  <script>
+    const photoInput = document.getElementById('photoInput');
+    const downloadBtn = document.getElementById('downloadBtn');
+    const statusBox = document.getElementById('status');
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+
+    let selectedFile = null;
+    let stampedBlob = null;
+
+    function setStatus(text) {
+      statusBox.textContent = text;
+    }
+
+    function pad(n) {
+      return String(n).padStart(2, '0');
+    }
+
+    function formatDate(d) {
+      return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+    }
+
+    function loadImageFromFile(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const img = new Image();
+          img.onload = () => resolve(img);
+          img.onerror = reject;
+          img.src = reader.result;
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+    }
+
+    function getLocation() {
+      return new Promise((resolve, reject) => {
+        if (!('geolocation' in navigator)) {
+          reject(new Error('A böngésző nem támogatja a geolokációt.'));
+          return;
+        }
+
+        navigator.geolocation.getCurrentPosition(
+          (pos) => resolve(pos),
+          (err) => reject(err),
+          {
+            enableHighAccuracy: true,
+            timeout: 15000,
+            maximumAge: 0
+          }
+        );
+      });
+    }
+
+    function reverseGeocode(lat, lon) {
+      return new Promise(async (resolve, reject) => {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 12000);
+
+        try {
+          const url = new URL('https://nominatim.openstreetmap.org/reverse');
+          url.searchParams.set('format', 'jsonv2');
+          url.searchParams.set('lat', lat);
+          url.searchParams.set('lon', lon);
+          url.searchParams.set('zoom', '18');
+          url.searchParams.set('addressdetails', '1');
+          url.searchParams.set('accept-language', (navigator.languages && navigator.languages.length ? navigator.languages.join(',') : (navigator.language || 'hu,en')));
+
+          const response = await fetch(url.toString(), {
+            method: 'GET',
+            headers: {
+              'Accept': 'application/json'
+            },
+            signal: controller.signal,
+            cache: 'no-store'
+          });
+
+          if (!response.ok) {
+            throw new Error(`Címlekérés sikertelen (${response.status})`);
+          }
+
+          const data = await response.json();
+          resolve(data);
+        } catch (err) {
+          reject(err);
+        } finally {
+          clearTimeout(timer);
+        }
+      });
+    }
+
+    function firstNonEmpty(...values) {
+      return values.find(v => typeof v === 'string' && v.trim() !== '') || '';
+    }
+
+    function sanitizePart(value) {
+      return typeof value === 'string' ? value.trim() : '';
+    }
+
+    function makeDisplayNameFallback(data) {
+      if (!data || !data.display_name) return '';
+      const parts = String(data.display_name)
+        .split(',')
+        .map(s => s.trim())
+        .filter(Boolean);
+
+      if (parts.length === 0) return '';
+      return parts.slice(0, 3).join(', ');
+    }
+
+    function buildPlaceLine(data) {
+      if (!data || !data.address) {
+        return {
+          label: 'Helyszín',
+          text: ''
+        };
+      }
+
+      const a = data.address;
+      const locality = firstNonEmpty(
+        sanitizePart(a.city),
+        sanitizePart(a.town),
+        sanitizePart(a.village),
+        sanitizePart(a.municipality),
+        sanitizePart(a.hamlet),
+        sanitizePart(a.city_district),
+        sanitizePart(a.county)
+      );
+
+      const smallerArea = firstNonEmpty(
+        sanitizePart(a.suburb),
+        sanitizePart(a.neighbourhood),
+        sanitizePart(a.quarter),
+        sanitizePart(a.borough),
+        sanitizePart(a.city_block),
+        sanitizePart(a.allotments)
+      );
+
+      const road = firstNonEmpty(
+        sanitizePart(a.road),
+        sanitizePart(a.pedestrian),
+        sanitizePart(a.footway),
+        sanitizePart(a.path),
+        sanitizePart(a.cycleway),
+        sanitizePart(a.residential)
+      );
+
+      const houseNumber = sanitizePart(a.house_number);
+
+      if (locality && road && houseNumber) {
+        return {
+          label: 'Cím',
+          text: `${locality}, ${road} ${houseNumber}`
+        };
+      }
+
+      if (locality && road) {
+        return {
+          label: 'Helyszín',
+          text: `${locality}, ${road}`
+        };
+      }
+
+      if (locality && smallerArea) {
+        return {
+          label: 'Helyszín',
+          text: `${locality}, ${smallerArea}`
+        };
+      }
+
+      if (locality) {
+        return {
+          label: 'Helyszín',
+          text: locality
+        };
+      }
+
+      const fallback = makeDisplayNameFallback(data);
+      return {
+        label: 'Helyszín',
+        text: fallback
+      };
+    }
+
+    function wrapText(text, maxWidth) {
+      const words = String(text).split(/\s+/);
+      const lines = [];
+      let line = '';
+
+      for (const word of words) {
+        const testLine = line ? `${line} ${word}` : word;
+        const width = ctx.measureText(testLine).width;
+        if (width > maxWidth && line) {
+          lines.push(line);
+          line = word;
+        } else {
+          line = testLine;
+        }
+      }
+      if (line) lines.push(line);
+      return lines;
+    }
+
+    function drawTextBlock(lines, imgWidth, imgHeight) {
+      const padding = Math.max(16, Math.round(imgWidth * 0.02));
+      const fontSize = Math.max(18, Math.round(imgWidth * 0.027));
+      const lineHeight = Math.round(fontSize * 1.35);
+
+      ctx.font = `bold ${fontSize}px Arial`;
+      const wrapped = [];
+      for (const line of lines) {
+        const subLines = wrapText(line, imgWidth - padding * 2);
+        wrapped.push(...subLines);
+      }
+
+      const boxHeight = padding * 2 + wrapped.length * lineHeight;
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.58)';
+      ctx.fillRect(0, imgHeight - boxHeight, imgWidth, boxHeight);
+
+      ctx.fillStyle = '#ffffff';
+      ctx.font = `bold ${fontSize}px Arial`;
+      ctx.textBaseline = 'top';
+
+      wrapped.forEach((line, i) => {
+        ctx.fillText(line, padding, imgHeight - boxHeight + padding + i * lineHeight);
+      });
+    }
+
+    async function processImage() {
+      if (!selectedFile) {
+        setStatus('Előbb válassz egy képet.');
+        return;
+      }
+
+      downloadBtn.disabled = true;
+      stampedBlob = null;
+
+      try {
+        setStatus('Kép betöltése...');
+        const img = await loadImageFromFile(selectedFile);
+
+        canvas.width = img.width;
+        canvas.height = img.height;
+        ctx.drawImage(img, 0, 0);
+
+        const nowText = formatDate(new Date());
+        const textLines = [`Dátum / idő: ${nowText}`];
+        let statusText = `Kiválasztott fájl: ${selectedFile.name}\n`;
+
+        try {
+          setStatus('GPS lekérése...');
+          const pos = await getLocation();
+          const { latitude, longitude, accuracy } = pos.coords;
+          const fixTime = formatDate(new Date(pos.timestamp || Date.now()));
+
+          textLines[0] = `Dátum / idő: ${fixTime}`;
+          textLines.push(`GPS: ${latitude.toFixed(6)}, ${longitude.toFixed(6)}`);
+          textLines.push(`Pontosság: ~${Math.round(accuracy)} m`);
+
+          statusText += `GPS rendben: ${latitude.toFixed(6)}, ${longitude.toFixed(6)}\n`;
+          statusText += `Pontosság: ~${Math.round(accuracy)} m\n`;
+
+          try {
+            setStatus('Cím lekérése koordinátából...');
+            const geocodeData = await reverseGeocode(latitude, longitude);
+            const placeLine = buildPlaceLine(geocodeData);
+
+            if (placeLine.text) {
+              textLines.push(`${placeLine.label}: ${placeLine.text}`);
+              statusText += `${placeLine.label}: ${placeLine.text}\n`;
+            } else {
+              textLines.push('Helyszín: nagyjából a koordináta alapján');
+              statusText += 'Helyszín: csak koordináta áll rendelkezésre\n';
+            }
+          } catch (geocodeErr) {
+            textLines.push('Helyszín: nagyjából a koordináta alapján');
+            statusText += `Címlekérés hiba: ${geocodeErr.message || geocodeErr}\n`;
+          }
+        } catch (gpsErr) {
+          textLines.push('GPS: NINCS ADAT');
+          textLines.push('Helyszín: NEM ELÉRHETŐ');
+          statusText += `GPS hiba: ${gpsErr.message || gpsErr}\n`;
+        }
+
+        drawTextBlock(textLines, img.width, img.height);
+        setStatus(statusText + '\nA bélyegzett kép elkészült.');
+
+        canvas.toBlob((blob) => {
+          stampedBlob = blob;
+          downloadBtn.disabled = !blob;
+        }, 'image/jpeg', 0.92);
+      } catch (err) {
+        const msg = err && err.message ? err.message : String(err);
+        setStatus('Hiba: ' + msg);
+      }
+    }
+
+    photoInput.addEventListener('change', (e) => {
+      selectedFile = e.target.files && e.target.files[0] ? e.target.files[0] : null;
+      stampedBlob = null;
+      downloadBtn.disabled = true;
+
+      if (selectedFile) {
+        setStatus(`Kiválasztott fájl: ${selectedFile.name}\nAutomatikus feldolgozás indul...`);
+        processImage();
+      } else {
+        setStatus('Válassz vagy készíts egy fényképet.');
+      }
+    });
+
+    downloadBtn.addEventListener('click', () => {
+      if (!stampedBlob) return;
+
+      const url = URL.createObjectURL(stampedBlob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'helyadattal_belyegzett_kep.jpg';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    });
+  </script>
+</body>
+</html>

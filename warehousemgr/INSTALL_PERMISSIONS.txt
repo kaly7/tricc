@@ -1,0 +1,13 @@
+Telepítés után javasolt jogosultságok:
+
+Projekt:
+  find /var/www/html/time_tracker_8788 -type d -exec chmod 755 {} \;
+  find /var/www/html/time_tracker_8788 -type f -exec chmod 644 {} \;
+  chown -R www-data:www-data /var/www/html/time_tracker_8788
+
+Írható mappák:
+  mkdir -p /var/www/html/time_tracker_8788/storage/mail
+  mkdir -p /var/www/html/time_tracker_8788/storage/logs
+  mkdir -p /var/www/html/time_tracker_8788/storage/mpdf
+  find /var/www/html/time_tracker_8788/storage -type d -exec chmod 775 {} \;
+  find /var/www/html/time_tracker_8788/storage -type f -exec chmod 664 {} \;

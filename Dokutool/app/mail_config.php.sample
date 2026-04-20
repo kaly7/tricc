@@ -1,0 +1,11 @@
+<?php
+return [
+  'method' => 'smtp',
+  'smtp_host' => 'smtp.example.com',
+  'smtp_port' => 587,
+  'smtp_user' => 'user@example.com',
+  'smtp_pass' => 'PASSWORD',
+  'smtp_secure' => 'tls',
+  'from_email' => 'no-reply@example.com',
+  'from_name'  => 'Dokutool'
+];

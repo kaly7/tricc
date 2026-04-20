@@ -1,0 +1,22 @@
+/* App finomhangolás Bootstrap fölé */
+
+:root{
+  --hr-card-radius: 12px;
+}
+
+.card { border-radius: var(--hr-card-radius); }
+
+/* Apró link-stílus, ha később kell */
+a.text-secondary:hover { text-decoration: underline; }
+
+/* Employee list state highlights */
+.employee-row-inactive td {
+  background-color: #f8d7da !important;
+  color: #842029;
+}
+.employee-row-expiring td {
+  background-color: #fff3cd !important;
+}
+.employee-row-expired td {
+  background-color: #f5c2c7 !important;
+}

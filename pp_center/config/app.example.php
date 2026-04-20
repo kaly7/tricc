@@ -1,0 +1,96 @@
+<?php
+return [
+    'app' => [
+        'name' => 'pp_center',
+        'base_url' => '',
+        'timezone' => 'Europe/Budapest',
+        'debug' => true,
+    ],
+    'db' => [
+        'host' => '127.0.0.1',
+        'port' => 3306,
+        'database' => 'pp_center',
+        'username' => 'ppdb',
+        'password' => 'abrakadabra',
+        'charset' => 'utf8mb4',
+    ],
+    'mattermost' => [
+        'incoming_webhook_url' => 'http://MM_SZERVER_VAGY_DOMAIN/hooks/replace_me',
+        'outgoing_token' => 'replace_me',
+        'default_channel' => 'esp-riasztas',
+        'enabled' => false,
+    ],
+    'mqtt' => [
+        'host' => '127.0.0.1',
+        'port' => 1883,
+        'client_id' => 'pp-bridge-worker',
+        'username' => 'ppadmin',
+        'password' => 'csereld_le',
+        'clean_session' => false,
+        'keep_alive' => 60,
+        'topics' => [
+            'pp/+/telemetry' => 0,
+            'pp/+/alert' => 1,
+            'pp/+/state/reported' => 1,
+            'pp/+/cmd/out' => 1,
+            'pp/+/lwt' => 1,
+        ],
+    ],
+    'devices' => [
+        'default_config' => [
+            'sampling_sec' => 180,
+            'heartbeat_sec' => 180,
+            'thresholds' => [
+                'temp_min' => 5,
+                'temp_max' => 28.5,
+                'humidity_min' => 20,
+                'humidity_max' => 70,
+                'airq_max' => 900,
+                'battery_low_pct' => 20,
+            ],
+            'contacts' => [
+                'c1_mode' => 'nc',
+                'c2_mode' => 'nc',
+                'c3_mode' => 'nc',
+                'c4_mode' => 'nc',
+            ],
+            'rules' => [
+                [
+                    'rule_id' => 'temp_warn',
+                    'type' => 'threshold',
+                    'sensor' => 'temperature',
+                    'operator' => '>=',
+                    'value' => 28.5,
+                    'for_sec' => 60,
+                    'actions' => ['mattermost'],
+                ],
+                [
+                    'rule_id' => 'temp_trend',
+                    'type' => 'trend_up',
+                    'sensor' => 'temperature',
+                    'delta' => 3,
+                    'window_sec' => 600,
+                    'actions' => ['mattermost'],
+                ],
+                [
+                    'rule_id' => 'battery_low',
+                    'type' => 'threshold',
+                    'sensor' => 'battery_pct',
+                    'operator' => '<=',
+                    'value' => 20,
+                    'for_sec' => 120,
+                    'actions' => ['mattermost'],
+                ],
+            ],
+            'contact_groups' => [
+                'group_1' => ['+36301234567'],
+                'group_2' => ['+36301111111'],
+            ],
+            'routes' => [
+                'temp_warn' => ['mattermost'],
+                'temp_trend' => ['mattermost'],
+                'battery_low' => ['mattermost', 'sms:group_1'],
+            ],
+        ],
+    ],
+];

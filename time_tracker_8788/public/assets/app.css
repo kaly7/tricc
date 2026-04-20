@@ -1,0 +1,301 @@
+/* Munkaidő modul – warehousemgr stílusára hangolva */
+:root{
+  --hr-card-radius: 12px;
+  --tt-border: #e6e9ef;
+  --tt-bg-soft: #f8fafc;
+  --tt-selected: #e8f1ff;
+}
+.card { border-radius: var(--hr-card-radius); }
+a.text-secondary:hover { text-decoration: underline; }
+
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: .75rem;
+}
+
+.calendar-weekdays { margin-bottom: .5rem; }
+
+.calendar-weekday {
+  font-size: .85rem;
+  color: #6c757d;
+  font-weight: 600;
+  text-align: center;
+}
+
+.calendar-day {
+  position: relative;
+  display: block;
+  text-decoration: none;
+  color: inherit;
+  border: 1px solid var(--tt-border);
+  border-radius: 14px;
+  background: #fff;
+  min-height: 118px;
+  padding: .85rem;
+  transition: .15s ease;
+}
+
+.calendar-day:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 .25rem .75rem rgba(0,0,0,.06);
+  color: inherit;
+}
+
+.calendar-day.empty {
+  background: transparent;
+  border-style: dashed;
+  min-height: 80px;
+}
+
+.calendar-day.locked::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border: 1px dashed rgba(17,24,39,.25);
+  border-radius: 14px;
+  pointer-events: none;
+}
+
+.calendar-day.selected {
+  outline: 3px solid #0d6efd;
+  outline-offset: -3px;
+  box-shadow: 0 0 0 3px rgba(13,110,253,.18);
+}
+
+.calendar-day.today {
+  box-shadow: inset 0 0 0 2px #3b82f6;
+}
+
+.calendar-day.selected.today {
+  box-shadow: inset 0 0 0 2px #3b82f6, 0 0 0 3px rgba(13,110,253,.18);
+}
+
+.day-top {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:.5rem;
+}
+
+.day-number {
+  font-size: 1.15rem;
+  font-weight: 700;
+}
+
+.day-lock {
+  font-size: .95rem;
+  line-height: 1;
+}
+
+.day-summary {
+  font-size: .9rem;
+  opacity: .9;
+}
+
+.tracker-sticky { top: 1rem; }
+
+.color-preview {
+  display:inline-block;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: .35rem;
+  border: 1px solid rgba(0,0,0,.15);
+  vertical-align: middle;
+}
+
+.calendar-day.weekend:not(.empty) {
+  border-style: dashed;
+  border-color: #94a3b8;
+  box-shadow: inset 0 0 0 9999px rgba(148,163,184,.10);
+}
+
+.calendar-day.weekend:not(.empty)::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 14px;
+  background: repeating-linear-gradient(
+    135deg,
+    rgba(255,255,255,.00) 0,
+    rgba(255,255,255,.00) 10px,
+    rgba(255,255,255,.20) 10px,
+    rgba(255,255,255,.20) 20px
+  );
+  pointer-events: none;
+}
+
+.calendar-day.weekend .day-top,
+.calendar-day.weekend .day-badges,
+.calendar-day.weekend .day-summary,
+.calendar-day.weekend .fw-semibold {
+  position: relative;
+  z-index: 1;
+}
+
+.day-summary-muted {
+  opacity: .85;
+}
+
+.month-summary-grid {
+  display:grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: .75rem;
+}
+
+.month-summary-card {
+  border:1px solid var(--tt-border);
+  border-radius: 12px;
+  padding: .9rem 1rem;
+  background: var(--tt-bg-soft);
+}
+
+.month-summary-label {
+  color:#6b7280;
+  font-size:.85rem;
+}
+
+.month-summary-value {
+  font-size:1.3rem;
+  font-weight:700;
+}
+
+.calendar-day.drop-target {
+  outline: 2px dashed #0d6efd;
+  outline-offset: -3px;
+}
+
+.draggable-entry-row.dragging {
+  opacity: .5;
+}
+
+.drag-badge {
+  cursor: grab;
+}
+
+/* Mobilbarátabb finomítások */
+@media (max-width: 991.98px) {
+  .calendar-grid { gap: .5rem; }
+  .calendar-day { min-height: 96px; padding: .6rem; }
+}
+
+@media (max-width: 767.98px) {
+  .calendar-grid {
+    grid-template-columns: repeat(7, minmax(44px, 1fr));
+    gap: .3rem;
+  }
+
+  .calendar-weekdays {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(44px, 1fr));
+    gap: .3rem;
+  }
+
+  .calendar-weekday {
+    font-size: .7rem;
+  }
+
+  .weekday-desktop{display:none;}
+  .weekday-mobile{display:inline;}
+
+  .calendar-day {
+    min-height: 74px;
+    padding: .35rem;
+    border-radius: 10px;
+  }
+
+  .day-number {
+    font-size: .95rem;
+  }
+
+  .day-summary {
+    font-size: .68rem;
+    margin-top: .35rem !important;
+    line-height: 1.15;
+  }
+
+  .calendar-day .fw-semibold {
+    font-size: .72rem;
+    margin-top: .15rem !important;
+    line-height: 1.15;
+  }
+
+  .month-summary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .table-responsive {
+    font-size: .86rem;
+  }
+
+  .btn,
+  .form-control,
+  .form-select {
+    min-height: 44px;
+  }
+}
+
+.week-marker-row td { background:#f8fafc; color:#334155; font-weight:700; }
+
+.day-badges {
+  display:flex;
+  flex-wrap:wrap;
+  gap:.25rem;
+}
+
+.calendar-badge {
+  display:inline-flex;
+  align-items:center;
+  padding:.15rem .45rem;
+  border-radius:999px;
+  font-size:.68rem;
+  font-weight:700;
+  letter-spacing:.02em;
+  border:1px solid rgba(0,0,0,.08);
+}
+
+.holiday-badge {
+  background: rgba(153,27,27,.12);
+  color:#991b1b;
+}
+
+.absence-badge {
+  background: rgba(22,101,52,.12);
+  color:#166534;
+}
+
+.calendar-day.holiday-day .day-number,
+.calendar-day.absence-day .day-number {
+  text-shadow: 0 1px 0 rgba(255,255,255,.18);
+}
+
+.week-marker-row td {
+  font-weight:700;
+  color:#475569;
+  background:#f8fafc !important;
+}
+
+.weekday-mobile{display:none;}
+.weekday-desktop{display:inline;}
+
+.day-top-right{display:flex;align-items:center;gap:.35rem;justify-content:flex-end;}
+.today-badge{background:#0d6efd;color:#fff;border-color:#0a58ca;box-shadow:0 1px 2px rgba(13,110,253,.25);}
+.calendar-day.today{outline:3px solid #2563eb;outline-offset:-3px;box-shadow:inset 0 0 0 2px #93c5fd,0 0 0 4px rgba(37,99,235,.16);}
+.calendar-day.selected.today{outline:3px solid #1d4ed8;outline-offset:-3px;box-shadow:inset 0 0 0 2px #93c5fd,0 0 0 5px rgba(29,78,216,.24);}
+
+.navbar .dropdown-menu .dropdown-item.active,
+.navbar .dropdown-menu .dropdown-item:active {
+  background:#e7f1ff;
+  color:#0a58ca;
+}
+.template-mode { transition: all .15s ease; }
+
+
+.entry-actions-row td {
+  background: #f8fafc;
+  border-top: 0;
+}
+
+.entry-actions-row .drag-badge {
+  cursor: grab;
+}

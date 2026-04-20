@@ -1,0 +1,252 @@
+<?php
+// ==== DEBUG BEKAPCS (teszt idejére) ====
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
+
+// public/actions/email_send_bulk.php
+require_once __DIR__.'/../../src/auth.php';     require_login_or_redirect();
+require_once __DIR__.'/../../src/db.php';
+require_once __DIR__.'/../../src/helpers.php';
+require_once __DIR__.'/../../src/mailer.php';
+require_once __DIR__.'/../../src/config.php';
+
+$u  = current_user();
+$db = db();
+
+// ---- Egyszerű fájlnapló ----
+$logDir = __DIR__ . '/../../storage/logs';
+if (!is_dir($logDir)) { @mkdir($logDir, 0775, true); }
+$logFile = $logDir . '/email_bulk.log';
+function bulk_log($msg) {
+    global $logFile;
+    @file_put_contents($logFile, '['.date('Y-m-d H:i:s').'] '.$msg.PHP_EOL, FILE_APPEND);
+}
+
+$userLabel = 'user#'.((int)($u['id'] ?? 0));
+if (!empty($u['name']))  { $userLabel .= ' '.$u['name']; }
+if (!empty($u['email'])) { $userLabel .= ' <'.$u['email'].'>'; }
+bulk_log("---- BULK START by {$userLabel} ----");
+bulk_log('POST: '.json_encode($_POST));
+bulk_log('GET : '.json_encode($_GET));
+
+try {
+    // CSRF
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !hash_equals(csrf_token(), $_POST['_csrf'] ?? '')) {
+        bulk_log('ERR: CSRF mismatch');
+        header('Location: ../records.php?err=csrf');
+        exit;
+    }
+
+    // sablon
+    $template_id = (int)($_POST['template_id'] ?? 0);
+    if ($template_id <= 0) {
+        bulk_log('ERR: no template_id');
+        header('Location: ../records.php?err=no_template');
+        exit;
+    }
+
+    // jogosultság
+    if (!is_admin()) {
+        $st = $db->prepare("SELECT 1 FROM email_template_permissions WHERE user_id=? AND template_id=?");
+        $st->execute([$u['id'], $template_id]);
+        if (!$st->fetchColumn()) {
+            bulk_log("ERR: no permission for template {$template_id}");
+            header('Location: ../records.php?err=no_permission');
+            exit;
+        }
+    }
+
+    // sablon betöltés
+    $tpl = $db->prepare("SELECT id, name, subject, body, fields_csv FROM email_templates WHERE id=?");
+    $tpl->execute([$template_id]);
+    $template = $tpl->fetch(PDO::FETCH_ASSOC);
+    if (!$template) {
+        bulk_log("ERR: template not found id={$template_id}");
+        header('Location: ../records.php?err=tpl_missing');
+        exit;
+    }
+    bulk_log("TEMPLATE: {$template['name']} (#{$template['id']})");
+
+    // címzettek – ha nincs helper, fallback aktív userekre
+    if (!function_exists('get_template_recipients')) {
+        function get_template_recipients(PDO $db, int $templateId): array {
+            // Fallback: összes aktív user (TESZT)
+            $emails = $db->query("SELECT email FROM users WHERE is_active=1")->fetchAll(PDO::FETCH_COLUMN);
+            return array_values(array_unique(array_filter(array_map('trim', $emails))));
+        }
+        bulk_log('WARN: get_template_recipients() fallback-ra esett');
+    }
+    $toEmails = get_template_recipients($db, $template_id);
+    bulk_log('RECIPIENTS: '.json_encode($toEmails));
+    if (empty($toEmails)) {
+        bulk_log('ERR: no_recipients');
+        header('Location: ../records.php?err=no_recipients');
+        exit;
+    }
+
+    // ====== UGYANAZ A SZŰRÉS, mint a listában ======
+    $q         = trim($_POST['q'] ?? '');
+    $pp_raw    = $_POST['pp_status_id'] ?? [];
+    $city_raw  = $_POST['city_id'] ?? [];
+    if (!is_array($pp_raw))   $pp_raw = [$pp_raw];
+    if (!is_array($city_raw)) $city_raw = [$city_raw];
+
+    $pp_ids   = array_values(array_unique(array_filter(array_map('intval', $pp_raw),  fn($v)=>$v>0)));
+    $city_ids = array_values(array_unique(array_filter(array_map('intval', $city_raw), fn($v)=>$v>0)));
+
+    $pp_mode   = $_POST['pp_mode']   ?? 'include'; if ($pp_mode!=='exclude') $pp_mode='include';
+    $city_mode = $_POST['city_mode'] ?? 'include'; if ($city_mode!=='exclude') $city_mode='include';
+
+    $include_arch    = isset($_POST['include_arch']) ? 1 : 0;
+    $include_deleted = (isset($_POST['include_deleted']) && is_admin()) ? 1 : 0;
+
+    $where = []; $p = [];
+    if (!$include_deleted || !is_admin()) $where[] = 'r.deleted_at IS NULL';
+    if (!$include_arch)                   $where[] = 'r.archived=0';
+
+    if (!empty($pp_ids)) {
+        $place = implode(',', array_fill(0, count($pp_ids), '?'));
+        $where[] = ($pp_mode==='exclude') ? "r.pp_status_id NOT IN ($place)" : "r.pp_status_id IN ($place)";
+        array_push($p, ...$pp_ids);
+    }
+    if (!empty($city_ids)) {
+        $place = implode(',', array_fill(0, count($city_ids), '?'));
+        $where[] = ($city_mode==='exclude') ? "r.city_id NOT IN ($place)" : "r.city_id IN ($place)";
+        array_push($p, ...$city_ids);
+    }
+    if ($q!=='') {
+        foreach (preg_split('/\s+/', $q) as $t) {
+            if ($t==='') continue;
+            $like = '%'.$t.'%';
+            $where[] = '(r.eventus LIKE ? OR r.address LIKE ? OR r.operation LIKE ? OR r.long_desc LIKE ?)';
+            array_push($p, $like, $like, $like, $like);
+        }
+    }
+    $wsql = $where ? ('WHERE '.implode(' AND ', $where)) : '';
+    bulk_log('WHERE: '.$wsql.' | params: '.json_encode($p));
+
+    $sql = "SELECT r.*, ps.name AS pp_name, c.name AS city_name
+            FROM records r
+            JOIN pp_status ps ON ps.id=r.pp_status_id
+            JOIN cities c ON c.id=r.city_id
+            $wsql
+            LIMIT 5000";
+    $st = $db->prepare($sql);
+    $st->execute($p);
+    $rows = $st->fetchAll(PDO::FETCH_ASSOC);
+    bulk_log('FOUND rows: '.count($rows));
+    if (!$rows) {
+        header('Location: ../records.php?msg=mail_bulk_none');
+        exit;
+    }
+
+    // --- opcionális PP-státusz feltétel a sablonhoz ---
+    $allowedStatuses = [];
+    try {
+	$allowedStatuses = [];
+	$q1 = $db->prepare("SELECT pp_status_id FROM email_template_status WHERE template_id=?");
+	$q1->execute([$template_id]);
+	foreach ($q1 as $row) {
+	    $allowedStatuses[(int)$row['pp_status_id']] = true;
+	}
+bulk_log('TPL STATUS FILTER: '.json_encode(array_keys($allowedStatuses)));    } catch (\Throwable $e) {
+        bulk_log('INFO: no email_template_statuses table, skipping status filter');
+    }
+
+    // Előkészítés
+    $fields = array_filter(array_map('trim', explode(',', (string)$template['fields_csv'])));
+    $ok = 0; $fail = 0; $errors = [];
+
+    // Duplikáció kezelés beállítás
+    $allowDup = defined('MAIL_ALLOW_DUPLICATE_SENDS') ? MAIL_ALLOW_DUPLICATE_SENDS : true;
+    bulk_log('ALLOW DUPLICATES: '.($allowDup ? 'YES' : 'NO'));
+
+    // INSERT st. előkészítése
+    $ins = $db->prepare("INSERT INTO email_sends (record_id, template_id, sent_by, sent_to, sent_at)
+                         VALUES (?,?,?,?, NOW())");
+
+
+
+$matchPreview = [];
+foreach ($rows as $_r) {
+  if (empty($allowedStatuses) || !empty($allowedStatuses[(int)$_r['pp_status_id']])) {
+    $matchPreview[] = (int)$_r['id'];
+  }
+}
+bulk_log('MATCHED RECORD IDS (after status filter): '.json_encode(array_slice($matchPreview,0,50)).(count($matchPreview)>50?' ...':''));
+
+    foreach ($rows as $r) {
+        $rid = (int)$r['id'];
+
+	if (!empty($allowedStatuses) && empty($allowedStatuses[(int)$r['pp_status_id']])) {
+	    bulk_log("SKIP record #{$rid}: pp_status_id={$r['pp_status_id']} not allowed by template");
+	    continue;
+	}
+        // subject/body helyőrzők
+        $map = [
+            'eventus'   => $r['eventus'],
+            'pp_status' => $r['pp_name'],
+            'issued_at' => $r['issued_at'],
+            'due_at'    => $r['due_at'],
+            'city'      => $r['city_name'],
+            'address'   => $r['address'],
+            'operation' => $r['operation'],
+            'long_desc' => $r['long_desc'],
+        ];
+
+        $body = $template['body'];
+        $subject = $template['subject'];
+        foreach ($fields as $f) {
+            $key = trim($f);
+            $val = (string)($map[$key] ?? '');
+            $body    = str_replace('{'.$key.'}', htmlspecialchars($val, ENT_QUOTES|ENT_SUBSTITUTE, 'UTF-8'), $body);
+            $subject = str_replace('{'.$key.'}', $val, $subject);
+        }
+
+        // Duplikáció ellenőrzés, ha nem engedélyezett
+        if (!$allowDup) {
+            $chk = $db->prepare("SELECT 1 FROM email_sends WHERE record_id=? AND template_id=? LIMIT 1");
+            $chk->execute([$rid, $template_id]);
+            if ($chk->fetchColumn()) {
+                bulk_log("Skip record #{$rid}: already sent earlier (dup off)");
+                log_change($db, $rid, (int)$u['id'], 'EMAIL_SENT_SKIPPED', '', 'már elküldve: '.$template['name']);
+                continue;
+            }
+        }
+
+        // küldés
+        $res = app_mail_send($toEmails, $subject, nl2br($body));
+        $rcptStr = implode(', ', $toEmails);
+
+        // rögzítés és naplózás
+        if ($res['fail'] === 0 && $res['ok'] > 0) {
+            foreach ($toEmails as $rcpt) {
+                try { $ins->execute([$rid, $template_id, (int)$u['id'], $rcpt]); }
+                catch (\Throwable $e) { /* ha duplázik, tesztben nem baj */ }
+            }
+            $ok++;
+            log_change($db, $rid, (int)$u['id'], 'EMAIL_SENT', '', "template: {$template['name']}; to: {$rcptStr}");
+            bulk_log("OK record #{$rid}: sent to {$rcptStr}");
+        } else {
+            $fail++;
+            $err  = implode(' | ', (array)$res['errors']);
+            log_change($db, $rid, (int)$u['id'], 'EMAIL_SEND_ERROR', '', $err ?: 'ismeretlen hiba');
+            $errors[] = "Record #{$rid}: ".$err;
+            bulk_log("FAIL record #{$rid}: ".$err);
+        }
+    }
+
+    bulk_log("SUMMARY ok={$ok}, fail={$fail}");
+    header('Location: ../records.php?msg=mail_bulk_done&ok='.$ok.'&fail='.$fail);
+    exit;
+
+} catch (\Throwable $e) {
+    bulk_log('FATAL: '.$e->getMessage().' @ '.$e->getFile().':'.$e->getLine());
+    // Mutassuk meg a böngészőben is (tesztkörnyezet)
+    http_response_code(500);
+    echo "<h3>Hiba a tömeges küldésben</h3><pre>";
+    echo htmlspecialchars($e->getMessage().' @ '.$e->getFile().':'.$e->getLine());
+    echo "</pre>";
+    exit;
+}

@@ -1,0 +1,15 @@
+{
+  "name": "oai/pp-center-starter",
+  "description": "Starter PHP/MySQL/MQTT/Mattermost control center for ESP devices",
+  "type": "project",
+  "require": {
+    "php": ">=8.1",
+    "ext-pdo": "*",
+    "php-mqtt/client": "*"
+  },
+  "autoload": {
+    "psr-4": {
+      "App\\": "app/"
+    }
+  }
+}

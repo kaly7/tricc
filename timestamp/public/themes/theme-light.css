@@ -1,0 +1,24 @@
+/* theme-light.css */
+:root{
+  --bg:#f7f8fa; --panel:#ffffff; --ink:#1b2733; --muted:#5c6b7a; --primary:#2363d1; --primary-600:#1d53b1; --border:#e3e7ef; --ring:#92b8ff;
+  --radius:12px; --gap:14px; --shadow:0 10px 24px rgba(0,0,0,.06);
+}
+*{box-sizing:border-box} body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;color:var(--ink);background:var(--bg)}
+.container{max-width:min(1100px,92vw);margin:0 auto;padding:16px}
+nav{position:sticky;top:0;background:#fffcc; background:rgba(255,255,255,.75);backdrop-filter:saturate(160%) blur(8px);border-bottom:1px solid var(--border)}
+.nav-inner{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.brand{font-weight:700}
+.nav-links{display:flex;gap:8px;flex-wrap:wrap}
+.nav-links a{text-decoration:none;color:var(--ink);padding:10px 12px;border-radius:10px}
+.nav-links a.active{background:var(--primary);color:#fff}
+.burger{display:none}@media(max-width:820px){.nav-links{display:none}.nav-links.open{display:flex;width:100%;margin-top:8px}.nav-inner{flex-wrap:wrap}.burger{display:block}}
+.card{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:16px;box-shadow:var(--shadow)}
+input,select,textarea{width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:10px}
+input:focus,select:focus,textarea:focus{border-color:var(--primary);box-shadow:0 0 0 4px color-mix(in oklab,var(--ring),transparent 70%)}
+button,.btn{padding:10px 14px;border-radius:10px;border:1px solid transparent;background:var(--primary);color:#fff;cursor:pointer}
+button.secondary,.btn.secondary{background:#fff;color:var(--ink);border-color:var(--border)}
+.table{width:100%;border-collapse:collapse}.table th,.table td{padding:10px;border-bottom:1px solid var(--border)}
+.table-container{overflow-x:auto}
+.calendar{border:1px solid var(--border);border-radius:12px;overflow:hidden;background:#fff}
+.calendar .head,.calendar .row{display:grid;grid-template-columns:repeat(7,1fr)}.calendar .cell{min-height:110px;padding:8px;border-top:1px solid var(--border)}
+.small{color:var(--muted)}.badge{display:inline-block;padding:2px 8px;border:1px solid var(--border);border-radius:999px}

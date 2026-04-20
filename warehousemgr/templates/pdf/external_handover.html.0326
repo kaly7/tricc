@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="hu">
+<head>
+  <meta charset="utf-8">
+  <style>
+    @page { margin: 12mm 12mm 14mm 12mm; }
+    body { font-family: dejavusans, DejaVu Sans, sans-serif; font-size: 11pt; color: #111; }
+    .header { padding-bottom: 4mm; margin-bottom: 6mm; }
+    .box { border: 1px solid #111; padding: 4mm; margin: 4mm 0; }
+    .box h3 { margin: 0 0 2mm 0; font-size: 12pt; }
+    table.meta { width: 100%; border-collapse: collapse; }
+    table.meta td { padding: 1.5mm 0; vertical-align: top; }
+    .label { color: #555; width: 42mm; }
+    .assets { width: 100%; border-collapse: collapse; margin-top: 2mm; }
+    .assets th, .assets td { border: 1px solid #111; padding: 2.5mm; font-size: 10.5pt; }
+    .assets th { background: #f1f1f1; }
+    .sigwrap { margin-top: 6mm; }
+    .sigimg { max-width: 72mm; max-height: 28mm; border: 1px solid #111; }
+    .logoimg { max-width: 42mm; max-height: 20mm; }
+    .muted { color: #555; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <table style="width:100%; border-collapse:collapse;">
+      <tr>
+        <td style="width:70%; vertical-align:top;">
+          <div style="font-size:14pt; font-weight:700; margin-bottom:2mm;">Perfect-Phone Kft</div>
+          <div style="font-size:10.5pt; line-height:1.5;">
+            7100 Szekszárd, Szent László u. 11<br>
+            Tel: 74/529-629<br>
+            E-mail: info@perfect-phone.hu
+          </div>
+        </td>
+        <td style="width:30%; text-align:right; vertical-align:top;">
+          {{LOGO}}
+        </td>
+      </tr>
+    </table>
+
+    <div style="border-top:2px solid #111; margin-top:4mm;"></div>
+  </div>
+
+  <div style="font-size:18pt; font-weight:700; margin-bottom:5mm;">{{TITLE}}</div>
+
+  <div class="box">
+    <h3>Átadás adatai</h3>
+    <table class="meta">
+      <tr><td class="label">Szállítólevél száma</td><td>{{REFERENCE_NO}}</td></tr>
+      <tr><td class="label">Átadás ideje</td><td>{{HANDOVER_AT}}</td></tr>
+      <tr><td class="label">Kiadta</td><td>{{HANDED_BY}}</td></tr>
+      <tr><td class="label">Forrás raktár</td><td>{{SOURCE_WAREHOUSE}}</td></tr>
+      <tr><td class="label">Partner raktár</td><td>{{TARGET_WAREHOUSE}}</td></tr>
+      <tr><td class="label">Partner</td><td>{{PARTNER_NAME}}</td></tr>
+      <tr><td class="label">Átvevő</td><td>{{RECEIVER_NAME}}</td></tr>
+      <tr><td class="label">Telefon</td><td>{{RECEIVER_PHONE}}</td></tr>
+      <tr><td class="label">Email</td><td>{{RECEIVER_EMAIL}}</td></tr>
+      <tr><td class="label">Projekt szám</td><td>{{PROJECT_NO}}</td></tr>
+      <tr><td class="label">Megjegyzés</td><td>{{NOTE}}</td></tr>
+    </table>
+  </div>
+
+  <div class="box">
+    <h3>Tételek</h3>
+    {{ITEMS_TABLE}}
+  </div>
+
+  <div class="sigwrap">
+    <div><b>Átvevő aláírása</b></div>
+    <div style="margin-top:2mm;">{{SIGNATURE}}</div>
+  </div>
+
+  <div style="margin-top:12mm;">
+    <div style="border-top:1px solid #111;"></div>
+    <div style="padding-top:3mm; font-size:9pt; color:#555; text-align:center;">{{FOOTER_NOTE}}</div>
+  </div>
+</body>
+</html>

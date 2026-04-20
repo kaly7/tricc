@@ -1,0 +1,456 @@
+<?php
+require_once __DIR__.'/../app/functions.php';
+require_once __DIR__.'/../app/auth.php';
+require_login();
+$u = current_user();
+$isAdmin = (($u['role'] ?? '') === 'admin');
+
+// User/Viewer: irány a saját eszközök
+if (!$isAdmin) {
+  header('Location: '.base_url('my_assets.php'));
+  exit;
+}
+
+$pdo = db();
+
+// --- Szűrők ---
+$q = trim((string)($_GET['q'] ?? ''));                 // megnevezés (töredék)
+$sku = trim((string)($_GET['sku'] ?? ''));             // cikkszám (töredék)
+$cat = (int)($_GET['category_id'] ?? 0);               // kategória (fa szűrés)
+$holderRaw = (string)($_GET['holder_id'] ?? '0');      // 0=összes, -1=senkinél, emp:<id>, ext:<id>
+$holder = (int)$holderRaw;
+$pageNo = max(1, (int)($_GET['page'] ?? 1));
+$perPage = 20;
+$offset = ($pageNo - 1) * $perPage;
+
+// Kategóriák teljes listája (fa dropdownhoz)
+$catRows = $pdo->query("
+  SELECT id, name, parent_id, sort_order
+  FROM categories
+  WHERE is_deleted=0
+  ORDER BY sort_order ASC, name ASC
+")->fetchAll(PDO::FETCH_ASSOC);
+
+// Tree index
+$byParent = [];
+foreach ($catRows as $r) {
+  $pid = (int)($r['parent_id'] ?? 0);
+  if ($pid < 0) $pid = 0;
+  $byParent[$pid][] = $r;
+}
+
+function render_cat_options(array $byParent, int $parentId, int $level, int $selectedId): void {
+  if (empty($byParent[$parentId])) return;
+  foreach ($byParent[$parentId] as $c) {
+    $id = (int)$c['id'];
+    $name = (string)$c['name'];
+    // beljebb kezdés: NBSP + fa jel
+    $indent = str_repeat("\xC2\xA0\xC2\xA0\xC2\xA0", max(0, $level)); // 3 NBSP per szint
+    $prefix = ($level > 0) ? $indent."↳ " : "";
+    $sel = ($id === $selectedId) ? "selected" : "";
+    echo '<option value="'.$id.'" '.$sel.'>'.$prefix.e($name)."</option>\n";
+    render_cat_options($byParent, $id, $level+1, $selectedId);
+  }
+}
+
+// HR dolgozók lista (kinél van szűrőhöz)
+$hrEmployees = [];
+try {
+  $hr = db_hr();
+  $hrEmployees = $hr->query("SELECT id, full_name, is_active FROM employees ORDER BY full_name")->fetchAll(PDO::FETCH_ASSOC);
+} catch (Throwable $e) {
+  $hrEmployees = [];
+}
+
+// Külsősök, akiknél aktív eszköz van
+$externalHolders = [];
+try {
+  $externalHolders = $pdo->query("SELECT DISTINCT eh.id, eh.company_name, eh.contact_name
+                                 FROM asset_external_assignments aea
+                                 JOIN external_holders eh ON eh.id=aea.external_holder_id
+                                 WHERE aea.status='active'
+                                 ORDER BY eh.company_name, eh.contact_name")->fetchAll(PDO::FETCH_ASSOC);
+} catch (Throwable $e) {
+  $externalHolders = [];
+}
+
+// Admin: külsősből visszavétel belső dolgozóhoz
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && (string)($_POST['action'] ?? '') === 'return_external') {
+  $assignId = (int)($_POST['ext_assignment_id'] ?? 0);
+  $toEmp = (int)($_POST['to_employee_id'] ?? 0);
+  if ($assignId <= 0 || $toEmp <= 0) {
+    flash_set('err', 'Hiányzó visszavételi adatok.');
+    header('Location: assets.php');
+    exit;
+  }
+
+  try {
+    $pdo->beginTransaction();
+    $st = $pdo->prepare("SELECT * FROM asset_external_assignments WHERE id=? AND status='active' LIMIT 1");
+    $st->execute([$assignId]);
+    $row = $st->fetch(PDO::FETCH_ASSOC);
+    if (!$row) throw new RuntimeException('Nincs aktív külsős átadás ezzel az azonosítóval.');
+
+    $assetId = (int)$row['asset_id'];
+    $pdo->prepare("UPDATE asset_external_assignments SET status='returned', returned_at=NOW(), returned_by_user_id=? WHERE id=?")
+        ->execute([(int)($u['id'] ?? 0), $assignId]);
+    $pdo->prepare("UPDATE assets SET current_employee_id=? WHERE id=?")->execute([$toEmp, $assetId]);
+
+    $pdo->commit();
+    flash_set('ok', 'Külsős átadás lezárva, eszköz visszavéve.');
+  } catch (Throwable $e) {
+    $pdo->rollBack();
+    flash_set('err', 'Visszavételi hiba: '.$e->getMessage());
+  }
+
+  header('Location: assets.php');
+  exit;
+}
+
+// WHERE építés
+$params = [];
+$where = "a.is_deleted=0";
+
+if ($q !== '') {
+  $where .= " AND a.name LIKE :q";
+  $params[':q'] = '%'.$q.'%';
+}
+if ($sku !== '') {
+  $where .= " AND a.sku LIKE :sku";
+  $params[':sku'] = '%'.$sku.'%';
+}
+if ($holderRaw === '-1') {
+  $where .= " AND (a.current_employee_id IS NULL OR a.current_employee_id=0)
+              AND NOT EXISTS (SELECT 1 FROM asset_external_assignments x WHERE x.asset_id=a.id AND x.status='active')";
+} elseif (str_starts_with($holderRaw, 'emp:')) {
+  $eid = (int)substr($holderRaw, 4);
+  if ($eid > 0) {
+    $where .= " AND a.current_employee_id = :holder_emp";
+    $params[':holder_emp'] = $eid;
+  }
+} elseif (str_starts_with($holderRaw, 'ext:')) {
+  $xid = (int)substr($holderRaw, 4);
+  if ($xid > 0) {
+    $where .= " AND EXISTS (SELECT 1 FROM asset_external_assignments x WHERE x.asset_id=a.id AND x.status='active' AND x.external_holder_id=:holder_ext)";
+    $params[':holder_ext'] = $xid;
+  }
+}
+if ($cat > 0) {
+  // Subtree (fa) szűrés
+  $where .= " AND EXISTS (
+    SELECT 1
+    FROM asset_category ac
+    WHERE ac.asset_id=a.id
+      AND ac.category_id IN (
+        WITH RECURSIVE cat_tree AS (
+          SELECT id FROM categories WHERE id=:cat AND is_deleted=0
+          UNION ALL
+          SELECT c.id
+          FROM categories c
+          JOIN cat_tree t ON c.parent_id = t.id
+          WHERE c.is_deleted=0
+        )
+        SELECT id FROM cat_tree
+      )
+  )";
+  $params[':cat'] = $cat;
+}
+
+// CSV export (ugyanazzal a szűréssel)
+if ((string)($_GET['export'] ?? '') === 'csv') {
+  $sql = "
+    SELECT a.*,
+      (SELECT GROUP_CONCAT(c.name ORDER BY c.name SEPARATOR ', ')
+         FROM asset_category ac
+         JOIN categories c ON c.id=ac.category_id
+        WHERE ac.asset_id=a.id AND c.is_deleted=0
+      ) AS categories,
+      (SELECT eh.company_name FROM asset_external_assignments x JOIN external_holders eh ON eh.id=x.external_holder_id WHERE x.asset_id=a.id AND x.status='active' ORDER BY x.id DESC LIMIT 1) AS ext_company,
+      (SELECT eh.contact_name FROM asset_external_assignments x JOIN external_holders eh ON eh.id=x.external_holder_id WHERE x.asset_id=a.id AND x.status='active' ORDER BY x.id DESC LIMIT 1) AS ext_contact
+    FROM assets a
+    WHERE $where
+    ORDER BY a.updated_at DESC, a.id DESC
+    LIMIT 5000
+  ";
+  $stmt = $pdo->prepare($sql);
+  $stmt->execute($params);
+  $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+  // HR map egyszerre
+  $empIds = [];
+  foreach ($rows as $r) {
+    $eid = (int)($r['current_employee_id'] ?? 0);
+    if ($eid > 0) $empIds[$eid] = true;
+  }
+  $empMap = [];
+  if ($empIds) {
+    try {
+      $hr = db_hr();
+      $in = implode(',', array_fill(0, count($empIds), '?'));
+      $st = $hr->prepare("SELECT id, full_name FROM employees WHERE id IN ($in)");
+      $st->execute(array_keys($empIds));
+      foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $e) {
+        $empMap[(int)$e['id']] = (string)$e['full_name'];
+      }
+    } catch (Throwable $e) {}
+  }
+
+  $fn = 'assetmgr_export_'.date('Ymd_His').'.csv';
+  header('Content-Type: text/csv; charset=UTF-8');
+  header('Content-Disposition: attachment; filename="'.$fn.'"');
+  echo "\xEF\xBB\xBF"; // UTF-8 BOM (Excel)
+
+  $out = fopen('php://output', 'w');
+  fputcsv($out, ['ID','Megnevezés','Cikkszám','QR','Kategóriák','Kinél van','Érték','Pénznem','Megjegyzés','Létrehozva','Frissítve'], ';');
+
+  foreach ($rows as $r) {
+    $eid = (int)($r['current_employee_id'] ?? 0);
+    $extCompany = trim((string)($r['ext_company'] ?? ''));
+    $extContact = trim((string)($r['ext_contact'] ?? ''));
+    if ($extCompany !== '' || $extContact !== '') {
+      $holderName = ($extCompany !== '') ? $extCompany : $extContact;
+    } else {
+      $holderName = $eid ? ($empMap[$eid] ?? ('#'.$eid)) : '';
+    }
+    fputcsv($out, [
+      (int)$r['id'],
+      (string)($r['name'] ?? ''),
+      (string)($r['sku'] ?? ''),
+      (string)($r['qr_value'] ?? ''),
+      (string)($r['categories'] ?? ''),
+      $holderName,
+      (string)($r['value_amount'] ?? ''),
+      (string)($r['value_currency'] ?? ''),
+      (string)($r['notes'] ?? ''),
+      (string)($r['created_at'] ?? ''),
+      (string)($r['updated_at'] ?? ''),
+    ], ';');
+  }
+  fclose($out);
+  exit;
+}
+
+// Összes darabszám (lapozáshoz)
+$stmtCnt = $pdo->prepare("SELECT COUNT(*) FROM assets a WHERE $where");
+$stmtCnt->execute($params);
+$total = (int)($stmtCnt->fetchColumn() ?: 0);
+$totalPages = max(1, (int)ceil($total / $perPage));
+
+// Lista (20/oldal)
+$sql = "
+  SELECT a.*,
+    (SELECT p.file_path FROM asset_photos p WHERE p.asset_id=a.id AND p.is_primary=1 ORDER BY p.id DESC LIMIT 1) AS primary_photo,
+    (SELECT GROUP_CONCAT(c.name ORDER BY c.name SEPARATOR ', ')
+       FROM asset_category ac
+       JOIN categories c ON c.id=ac.category_id
+      WHERE ac.asset_id=a.id AND c.is_deleted=0
+    ) AS categories,
+    (SELECT x.id FROM asset_external_assignments x WHERE x.asset_id=a.id AND x.status='active' ORDER BY x.id DESC LIMIT 1) AS ext_assignment_id,
+    (SELECT eh.company_name FROM asset_external_assignments x JOIN external_holders eh ON eh.id=x.external_holder_id WHERE x.asset_id=a.id AND x.status='active' ORDER BY x.id DESC LIMIT 1) AS ext_company,
+    (SELECT eh.contact_name FROM asset_external_assignments x JOIN external_holders eh ON eh.id=x.external_holder_id WHERE x.asset_id=a.id AND x.status='active' ORDER BY x.id DESC LIMIT 1) AS ext_contact
+  FROM assets a
+  WHERE $where
+  ORDER BY a.updated_at DESC, a.id DESC
+  LIMIT $perPage OFFSET $offset
+";
+$stmt = $pdo->prepare($sql);
+$stmt->execute($params);
+$rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+// HR map egyszerre a listához
+$empIds = [];
+foreach ($rows as $r) {
+  $eid = (int)($r['current_employee_id'] ?? 0);
+  if ($eid > 0) $empIds[$eid] = true;
+}
+$empMap = [];
+if ($empIds) {
+  try {
+    $hr = db_hr();
+    $in = implode(',', array_fill(0, count($empIds), '?'));
+    $st = $hr->prepare("SELECT id, full_name FROM employees WHERE id IN ($in)");
+    $st->execute(array_keys($empIds));
+    foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $e) {
+      $empMap[(int)$e['id']] = (string)$e['full_name'];
+    }
+  } catch (Throwable $e) {}
+}
+
+function photo_public_url(string $path): string {
+  $p = trim($path);
+  if ($p === '') return '';
+  if (preg_match('~^https?://~i', $p)) return $p;
+  $p = ltrim($p, '/');
+  if (substr($p, 0, 8) === 'storage/') return '/'.$p;
+  return '/storage/'.$p;
+}
+
+// Pagination link builder
+function build_query(array $over = []): string {
+  $q = $_GET;
+  foreach ($over as $k=>$v) {
+    if ($v === null) unset($q[$k]); else $q[$k] = $v;
+  }
+  return http_build_query($q);
+}
+
+$title = 'Eszközök';
+$page  = 'Eszközök';
+require __DIR__.'/_header.php';
+?>
+
+<div class="d-flex align-items-center justify-content-between mb-3">
+  <div>
+    <h4 class="mb-0">Eszközök</h4>
+    <div class="text-secondary small"><?= (int)$total ?> db • <?= (int)$perPage ?>/oldal</div>
+  </div>
+  <div class="d-flex gap-2">
+    <a class="btn btn-outline-secondary btn-sm" href="assets.php?<?= e(build_query(['export'=>'csv','page'=>1])) ?>">CSV export</a>
+    <a class="btn btn-primary btn-sm" href="asset_create.php">+ Új eszköz</a>
+  </div>
+</div>
+
+<form class="card shadow-sm mb-3" method="get">
+  <div class="card-body">
+    <div class="row g-2 align-items-end">
+      <div class="col-12 col-md-3">
+        <label class="form-label">Megnevezés</label>
+        <input class="form-control" name="q" value="<?= e($q) ?>" placeholder="">
+      </div>
+      <div class="col-12 col-md-2">
+        <label class="form-label">Cikkszám</label>
+        <input class="form-control" name="sku" value="<?= e($sku) ?>" placeholder="">
+      </div>
+      <div class="col-12 col-md-3">
+        <label class="form-label">Kategória</label>
+        <select class="form-select" name="category_id">
+          <option value="0">— összes —</option>
+          <?php render_cat_options($byParent, 0, 0, $cat); ?>
+        </select>
+        <!-- div class="form-text">Kategória szűrésnél az alkategóriák is benne vannak.</div-->
+      </div>
+      <div class="col-12 col-md-3">
+        <label class="form-label">Kinél van</label>
+        <select class="form-select" name="holder_id">
+          <option value="0" <?= $holderRaw==='0'?'selected':'' ?>>— összes —</option>
+          <option value="-1" <?= $holderRaw==='-1'?'selected':'' ?>>— senkinél —</option>
+          <?php foreach ($hrEmployees as $he): $hid=(int)$he['id']; $hv='emp:'.$hid; ?>
+            <option value="<?= e($hv) ?>" <?= $holderRaw===$hv?'selected':'' ?>>
+              <?= e((string)$he['full_name']) ?>
+            </option>
+          <?php endforeach; ?>
+          <?php foreach ($externalHolders as $xh): $xv='ext:'.(int)$xh['id']; ?>
+            <option value="<?= e($xv) ?>" <?= $holderRaw===$xv?'selected':'' ?>>
+              [KÜLSŐS] <?= e(trim(((string)$xh['company_name']).' / '.((string)$xh['contact_name']), ' /')) ?>
+            </option>
+          <?php endforeach; ?>
+        </select>
+      </div>
+      <div class="col-12 col-md-1 d-grid">
+        <button class="btn btn-outline-primary">Szűrés</button>
+      </div>
+      <div class="col-12 col-md-1 d-grid">
+        <a class="btn btn-outline-secondary" href="assets.php">Töröl</a>
+      </div>
+    </div>
+  </div>
+</form>
+
+<div class="table-responsive">
+  <table class="table table-hover align-middle">
+    <thead>
+      <tr>
+        <th style="width:72px">Kép</th>
+        <th>Megnevezés</th>
+        <th style="width:160px">Cikkszám</th>
+        <th style="width:220px">Kategória</th>
+        <th style="width:220px">Kinél van</th>
+        <th style="width:140px"></th>
+      </tr>
+    </thead>
+    <tbody>
+      <?php foreach ($rows as $r): ?>
+        <?php
+          $photo = (string)($r['primary_photo'] ?? '');
+          $photoUrl = $photo ? photo_public_url($photo) : '';
+          $eid = (int)($r['current_employee_id'] ?? 0);
+          $extAssignId = (int)($r['ext_assignment_id'] ?? 0);
+          $extHolder = trim(((string)($r['ext_company'] ?? '')).' / '.((string)($r['ext_contact'] ?? '')), ' /');
+          $holderName = $extHolder !== '' ? ('[KÜLSŐS] '.$extHolder) : ($eid ? ($empMap[$eid] ?? ('#'.$eid)) : '');
+        ?>
+        <tr>
+          <td>
+            <?php if ($photoUrl): ?>
+              <img src="<?= e($photoUrl) ?>" class="img-fluid rounded" style="max-height:48px;max-width:64px;object-fit:cover">
+            <?php endif; ?>
+          </td>
+          <td>
+            <div class="fw-semibold"><?= e($r['name'] ?? '') ?></div>
+            <div class="text-secondary small">#<?= (int)$r['id'] ?></div>
+          </td>
+          <td><?= e((string)($r['sku'] ?? '')) ?></td>
+          <td class="small"><?= e((string)($r['categories'] ?? '')) ?></td>
+          <td class="small"><?= $holderName ? e($holderName) : '' ?></td>
+          <td class="text-end">
+            <a class="btn btn-sm btn-outline-primary" href="asset_edit.php?id=<?= (int)$r['id'] ?>">Megnyit</a>
+            <?php if ($extAssignId > 0): ?>
+              <form method="post" class="mt-1">
+                <input type="hidden" name="action" value="return_external">
+                <input type="hidden" name="ext_assignment_id" value="<?= $extAssignId ?>">
+                <div class="input-group input-group-sm mt-1">
+                  <select class="form-select form-select-sm" name="to_employee_id" required>
+                    <option value="">Vissza kinek?</option>
+                    <?php foreach ($hrEmployees as $he): $hid=(int)$he['id']; ?>
+                      <option value="<?= $hid ?>"><?= e((string)$he['full_name']) ?></option>
+                    <?php endforeach; ?>
+                  </select>
+                  <button class="btn btn-success btn-sm" type="submit">Visszavétel</button>
+                </div>
+              </form>
+            <?php endif; ?>
+          </td>
+        </tr>
+      <?php endforeach; ?>
+      <?php if (!$rows): ?>
+        <tr><td colspan="6" class="text-center text-secondary py-4">Nincs találat.</td></tr>
+      <?php endif; ?>
+    </tbody>
+  </table>
+</div>
+
+<?php if ($totalPages > 1): ?>
+  <nav class="d-flex justify-content-center">
+    <ul class="pagination">
+      <?php
+        $prev = max(1, $pageNo-1);
+        $next = min($totalPages, $pageNo+1);
+      ?>
+      <li class="page-item <?= $pageNo<=1?'disabled':'' ?>">
+        <a class="page-link" href="assets.php?<?= e(build_query(['page'=>$prev])) ?>">«</a>
+      </li>
+
+      <?php
+        $start = max(1, $pageNo-3);
+        $end = min($totalPages, $pageNo+3);
+        if ($start > 1) {
+          echo '<li class="page-item"><a class="page-link" href="assets.php?'.e(build_query(['page'=>1])).'">1</a></li>';
+          if ($start > 2) echo '<li class="page-item disabled"><span class="page-link">…</span></li>';
+        }
+        for ($p=$start; $p<=$end; $p++) {
+          $active = ($p===$pageNo) ? 'active' : '';
+          echo '<li class="page-item '.$active.'"><a class="page-link" href="assets.php?'.e(build_query(['page'=>$p])).'">'.(int)$p.'</a></li>';
+        }
+        if ($end < $totalPages) {
+          if ($end < $totalPages-1) echo '<li class="page-item disabled"><span class="page-link">…</span></li>';
+          echo '<li class="page-item"><a class="page-link" href="assets.php?'.e(build_query(['page'=>$totalPages])).'">'.(int)$totalPages.'</a></li>';
+        }
+      ?>
+
+      <li class="page-item <?= $pageNo>=$totalPages?'disabled':'' ?>">
+        <a class="page-link" href="assets.php?<?= e(build_query(['page'=>$next])) ?>">»</a>
+      </li>
+    </ul>
+  </nav>
+<?php endif; ?>
+
+<?php require __DIR__.'/_footer.php'; ?>

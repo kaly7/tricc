@@ -1,0 +1,11 @@
+:root{
+  --bg:#121212; --panel:#161a1e; --text:#eaeff5; --muted:#b0bac6;
+  --accent:#f59e0b; --accent-2:#b45309; --border:#2b3138;
+  --input-bg:#0e1114; --input-border:#333b45; --shadow:0 6px 24px rgba(0,0,0,.35); --btn-bg:#1b2026;
+}
+body{background:
+  linear-gradient(0deg, rgba(255,255,255,0.03), rgba(0,0,0,0.03)),
+  repeating-linear-gradient(45deg, #14181c 0, #14181c 10px, #121519 10px, #121519 20px);
+  color:var(--text)
+}
+.card{border-style: solid; border-image: linear-gradient(90deg,#2b3138,#444c57,#2b3138) 1}

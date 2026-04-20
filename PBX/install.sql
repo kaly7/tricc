@@ -1,0 +1,55 @@
+-- NOTE: Auth is via Auth Center; the local users table is unused (can be removed later).
+
+-- PBX Registry v1 schema
+-- Create DB first: CREATE DATABASE pbxreg CHARACTER SET utf8mb4 COLLATE utf8mb4_hungarian_ci;
+-- Then: USE pbxreg;
+
+CREATE TABLE IF NOT EXISTS users (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  username VARCHAR(60) NOT NULL UNIQUE,
+  full_name VARCHAR(120) NOT NULL DEFAULT '',
+  password_hash VARCHAR(255) NOT NULL,
+  role ENUM('admin','editor','viewer') NOT NULL DEFAULT 'viewer',
+  is_active TINYINT(1) NOT NULL DEFAULT 1,
+  created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS manufacturers (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(120) NOT NULL UNIQUE,
+  is_archived TINYINT(1) NOT NULL DEFAULT 0,
+  created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Future tables (placeholder for v2+)
+CREATE TABLE IF NOT EXISTS catalog_items (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  category ENUM('pbx','endpoint') NOT NULL,
+  manufacturer_id INT NOT NULL,
+  model VARCHAR(160) NOT NULL,
+  doc_url VARCHAR(255) NOT NULL DEFAULT '',
+  notes TEXT NULL,
+  is_archived TINYINT(1) NOT NULL DEFAULT 0,
+  created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT fk_catalog_manufacturer FOREIGN KEY (manufacturer_id) REFERENCES manufacturers(id)
+    ON UPDATE CASCADE ON DELETE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS catalog_files (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  catalog_item_id INT NOT NULL,
+  original_name VARCHAR(255) NOT NULL,
+  stored_name VARCHAR(255) NOT NULL,
+  mime VARCHAR(120) NOT NULL DEFAULT '',
+  size_bytes BIGINT NOT NULL DEFAULT 0,
+  uploaded_by INT NULL,
+  is_archived TINYINT(1) NOT NULL DEFAULT 0,
+  created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_files_item FOREIGN KEY (catalog_item_id) REFERENCES catalog_items(id)
+    ON UPDATE CASCADE ON DELETE CASCADE,
+  CONSTRAINT fk_files_user FOREIGN KEY (uploaded_by) REFERENCES users(id)
+    ON UPDATE CASCADE ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

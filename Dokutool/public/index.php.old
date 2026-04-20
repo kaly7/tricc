@@ -1,0 +1,21 @@
+<?php 
+require __DIR__ . '/../app/db.php';
+require __DIR__ . '/../app/guard.php';
+include __DIR__ . '/header.php'; ?>
+  <div class="container">
+    <div class="card">
+      <h2>Funkciók</h2>
+      <nav>
+        <a class="btn" href="partners.php">Partnerek</a>
+        <a class="btn" href="fields.php">Partner mezők</a>
+        <a class="btn" href="projects.php">Projektek</a>
+	<a class="btn" href="images.php">Képek</a>
+	<a class="btn" href="templates.php">Sablonok</a>
+	<a class="btn" href="fonts.php">Fontok kezelése</a>
+        <a class="btn" href="generate.php">Generálás</a>
+        <a class="btn" href="users.php">Felhasználók</a>
+	<a class="btn" href="references.php">Hivatkozási segéd</a>
+      </nav>
+    </div>
+  </div>
+<?php include __DIR__ . '/footer.php'; ?>

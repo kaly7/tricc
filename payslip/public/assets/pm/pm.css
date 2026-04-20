@@ -1,0 +1,5 @@
+/* Projectmgr-like tweaks for Payslip (Bootstrap base) */
+body{background:#f8f9fa;}
+.navbar-brand{font-weight:700;letter-spacing:.2px;}
+.table thead th{font-size:.75rem;text-transform:uppercase;letter-spacing:.06em;}
+.badge-status{font-weight:600;}

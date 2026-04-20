@@ -1,0 +1,11 @@
+<?php
+use App\Auth;
+
+$host = $_SERVER['HTTP_HOST'] ?? ($_SERVER['SERVER_NAME'] ?? 'localhost');
+$hostNoPort = explode(':', (string)$host)[0];
+$authApps   = 'http://' . $hostNoPort . ':90/apps.php';
+$authLogout = 'http://' . $hostNoPort . ':90/logout.php';
+
+$moduleKey = Auth::currentModuleKey();
+$moduleQS  = ($moduleKey === 'vehicles') ? '?module=vehicles' : '?module=projectmgr';
+?>

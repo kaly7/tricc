@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="hu">
+<head>
+<meta charset="utf-8">
+<style>
+  body { font-family: dejavusans, sans-serif; color:#111827; font-size:7.4pt; }
+  h1 { font-size:12pt; margin:0 0 1.5mm 0; }
+  .subtle { color:#6b7280; font-size:7pt; margin-bottom:2.5mm; }
+  .summary { margin:0 0 3mm 0; }
+  .summary table { width:100%; border-collapse:collapse; }
+  .summary td { width:25%; border:1px solid #d1d5db; padding:1.4mm 1.7mm; background:#f8fafc; vertical-align:top; }
+  .summary .label { color:#6b7280; font-size:6.6pt; }
+  .summary .value { font-size:7.6pt; font-weight:700; margin-top:.4mm; }
+  .tbl { width:100%; border-collapse:collapse; }
+  .tbl th, .tbl td { border:1px solid #d1d5db; padding:1.1mm 1.3mm; vertical-align:top; }
+  .tbl thead th { background:#eef2f7; text-align:left; font-weight:700; font-size:7pt; }
+  .tbl td { font-size:7.1pt; }
+  .tbl td.num, .tbl th.num { text-align:right; white-space:nowrap; }
+  .tbl td code { font-size:6.7pt; }
+  .muted { color:#6b7280; font-size:6.6pt; margin-top:.3mm; }
+  .empty { text-align:center; color:#6b7280; padding:4mm 0; }
+  .detail-title { font-size:9pt; font-weight:700; margin:4mm 0 2mm 0; page-break-after:avoid; }
+  .detail-block { margin:0 0 3mm 0; page-break-inside:avoid; }
+  .detail-head { font-size:7.6pt; margin:0 0 1mm 0; }
+  .tbl.detail td, .tbl.detail th { padding:1mm 1.2mm; }
+  .match-row td { background:#fff8db; }
+  .chip { display:inline-block; font-size:6.3pt; font-weight:700; padding:.2mm .9mm; border:1px solid #d4a72c; background:#ffe69c; border-radius:2mm; }
+  .empty-block { border:1px solid #d1d5db; background:#f8fafc; color:#6b7280; padding:2mm; }
+</style>
+</head>
+<body>
+  <h1>{{TITLE}}</h1>
+  <div class="subtle">{{SUBTITLE}}</div>
+  <div class="summary">{{SUMMARY_BLOCK}}</div>
+  {{TABLE_BLOCK}}
+  {{DETAIL_BLOCK}}
+</body>
+</html>

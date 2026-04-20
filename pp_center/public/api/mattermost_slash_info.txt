@@ -1,0 +1,17 @@
+Mattermost custom slash command beállítás:
+
+Trigger szó: pp
+Request URL: http://<PP_CENTER_HOST>:8790/api/mattermost_slash.php
+Method: POST
+Autocomplete: opcionális
+
+Példák:
+/pp help
+/pp bridge status
+/pp status esp001
+/pp cfg show esp001
+/pp cfg push esp001
+/pp cmd esp001 get_status
+
+A config/config.php fájlban állítsd be:
+- mattermost.slash_token

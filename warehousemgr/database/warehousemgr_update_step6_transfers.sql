@@ -1,0 +1,30 @@
+USE warehousemgr;
+
+CREATE TABLE IF NOT EXISTS stock_transfers (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  source_warehouse_id INT UNSIGNED NOT NULL,
+  target_warehouse_id INT UNSIGNED NOT NULL,
+  material_id INT UNSIGNED NOT NULL,
+  quantity DECIMAL(14,3) NOT NULL,
+  status VARCHAR(20) NOT NULL DEFAULT 'pending',
+  reference_no VARCHAR(120) NULL,
+  note TEXT NULL,
+  decision_note TEXT NULL,
+  requested_by INT UNSIGNED NULL,
+  requested_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  accepted_by INT UNSIGNED NULL,
+  accepted_at TIMESTAMP NULL DEFAULT NULL,
+  rejected_by INT UNSIGNED NULL,
+  rejected_at TIMESTAMP NULL DEFAULT NULL,
+  cancelled_by INT UNSIGNED NULL,
+  cancelled_at TIMESTAMP NULL DEFAULT NULL,
+  PRIMARY KEY (id),
+  KEY idx_st_source (source_warehouse_id),
+  KEY idx_st_target (target_warehouse_id),
+  KEY idx_st_material (material_id),
+  KEY idx_st_status (status),
+  KEY idx_st_requested_at (requested_at),
+  CONSTRAINT fk_st_source FOREIGN KEY (source_warehouse_id) REFERENCES warehouses (id) ON DELETE CASCADE,
+  CONSTRAINT fk_st_target FOREIGN KEY (target_warehouse_id) REFERENCES warehouses (id) ON DELETE CASCADE,
+  CONSTRAINT fk_st_material FOREIGN KEY (material_id) REFERENCES material_items (id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

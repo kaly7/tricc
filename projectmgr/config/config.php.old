@@ -1,0 +1,17 @@
+<?php
+return [
+  'db' => [
+    'dsn'  => 'mysql:host=127.0.0.1;dbname=projectmgr;charset=utf8mb4',
+    'user' => 'ppdb',
+    'pass' => 'abrakadabra',
+    'options' => [
+      PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+      PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+    ],
+  ],
+  'storage_root' => dirname(__DIR__) . '/storage',
+  'upload_root'  => dirname(__DIR__) . '/storage/uploads',
+  'log_dir'      => dirname(__DIR__) . '/storage/logs',
+  'client_max_upload_mb' => 1024, // pl. 1 GB figyelmeztetési küszöb
+  'app_key'      => 'change_this_to_a_random_32_char_secret',
+];

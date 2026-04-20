@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Mobil kamera + GPS bélyegzés</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 16px;
+      background: #f5f5f5;
+      color: #222;
+    }
+    .wrap {
+      max-width: 760px;
+      margin: 0 auto;
+      background: #fff;
+      padding: 16px;
+      border-radius: 12px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+    }
+    h1 {
+      font-size: 22px;
+      margin-top: 0;
+    }
+    p.note {
+      background: #eef6ff;
+      padding: 10px 12px;
+      border-radius: 8px;
+      line-height: 1.45;
+    }
+    .row {
+      margin: 12px 0;
+    }
+    button, input[type="file"] {
+      font-size: 16px;
+    }
+    button {
+      padding: 10px 14px;
+      border: 0;
+      border-radius: 8px;
+      cursor: pointer;
+      background: #0b63f6;
+      color: white;
+    }
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    canvas {
+      width: 100%;
+      max-width: 100%;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      background: #fafafa;
+      margin-top: 12px;
+    }
+    .status {
+      margin-top: 8px;
+      padding: 10px;
+      background: #f0f0f0;
+      border-radius: 8px;
+      white-space: pre-wrap;
+    }
+    .small {
+      font-size: 13px;
+      color: #555;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Mobil fénykép + GPS bélyegzés</h1>
+
+    <p class="note">
+      Ez a minta mobilon a kamera megnyitására az <b>input file + capture</b> megoldást használja.
+      A kiválasztott vagy elkészített képre ráírja az időt, a koordinátát és a pontosságot.
+    </p>
+
+    <div class="row">
+      <input id="photoInput" type="file" accept="image/*" capture="environment" />
+    </div>
+
+    <div class="row">
+      <button id="stampBtn" disabled>Kép bélyegzése GPS-szel</button>
+      <button id="downloadBtn" disabled>Letöltés</button>
+    </div>
+
+    <div id="status" class="status">Válassz vagy készíts egy fényképet.</div>
+
+    <canvas id="canvas"></canvas>
+
+    <p class="small">
+      Tipp: ezt HTTPS alatt érdemes futtatni, különben a helyadat lekérése nem minden böngészőben fog működni.
+    </p>
+  </div>
+
+  <script>
+    const photoInput = document.getElementById('photoInput');
+    const stampBtn = document.getElementById('stampBtn');
+    const downloadBtn = document.getElementById('downloadBtn');
+    const statusBox = document.getElementById('status');
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+
+    let selectedFile = null;
+    let stampedBlob = null;
+
+    function setStatus(text) {
+      statusBox.textContent = text;
+    }
+
+    function pad(n) {
+      return String(n).padStart(2, '0');
+    }
+
+    function formatDate(d) {
+      return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+    }
+
+    function loadImageFromFile(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const img = new Image();
+          img.onload = () => resolve(img);
+          img.onerror = reject;
+          img.src = reader.result;
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+    }
+
+    function getLocation() {
+      return new Promise((resolve, reject) => {
+        if (!('geolocation' in navigator)) {
+          reject(new Error('A böngésző nem támogatja a geolokációt.'));
+          return;
+        }
+
+        navigator.geolocation.getCurrentPosition(
+          (pos) => resolve(pos),
+          (err) => reject(err),
+          {
+            enableHighAccuracy: true,
+            timeout: 15000,
+            maximumAge: 0
+          }
+        );
+      });
+    }
+
+    function drawMultilineText(lines, x, startY, lineHeight) {
+      lines.forEach((line, i) => {
+        ctx.fillText(line, x, startY + i * lineHeight);
+      });
+    }
+
+    async function stampImage() {
+      if (!selectedFile) {
+        setStatus('Előbb válassz egy képet.');
+        return;
+      }
+
+      stampBtn.disabled = true;
+      downloadBtn.disabled = true;
+      stampedBlob = null;
+
+      try {
+        setStatus('Kép betöltése...');
+        const img = await loadImageFromFile(selectedFile);
+
+        setStatus('GPS helyzet lekérése... Engedélyezd a helyadatot a telefonon.');
+        const pos = await getLocation();
+        const { latitude, longitude, accuracy } = pos.coords;
+        const timestamp = formatDate(new Date(pos.timestamp || Date.now()));
+
+        canvas.width = img.width;
+        canvas.height = img.height;
+        ctx.drawImage(img, 0, 0);
+
+        const lines = [
+          `Idő: ${timestamp}`,
+          `Lat: ${latitude.toFixed(6)}  Lon: ${longitude.toFixed(6)}`,
+          `Pontosság: ~${Math.round(accuracy)} m`
+        ];
+
+        const padding = Math.max(16, Math.round(img.width * 0.02));
+        const fontSize = Math.max(18, Math.round(img.width * 0.028));
+        const lineHeight = Math.round(fontSize * 1.4);
+        const boxHeight = padding * 2 + lines.length * lineHeight;
+
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
+        ctx.fillRect(0, img.height - boxHeight, img.width, boxHeight);
+
+        ctx.fillStyle = '#ffffff';
+        ctx.font = `bold ${fontSize}px Arial`;
+        ctx.textBaseline = 'top';
+        drawMultilineText(lines, padding, img.height - boxHeight + padding, lineHeight);
+
+        setStatus(
+          `Kész.\nKoordináta: ${latitude.toFixed(6)}, ${longitude.toFixed(6)}\nPontosság: ~${Math.round(accuracy)} m\nIdő: ${timestamp}`
+        );
+
+        canvas.toBlob((blob) => {
+          stampedBlob = blob;
+          downloadBtn.disabled = !blob;
+          stampBtn.disabled = false;
+        }, 'image/jpeg', 0.92);
+      } catch (err) {
+        stampBtn.disabled = false;
+        const msg = err && err.message ? err.message : String(err);
+        setStatus('Hiba: ' + msg);
+      }
+    }
+
+    photoInput.addEventListener('change', (e) => {
+      selectedFile = e.target.files && e.target.files[0] ? e.target.files[0] : null;
+      stampedBlob = null;
+      downloadBtn.disabled = true;
+      stampBtn.disabled = !selectedFile;
+
+      if (selectedFile) {
+        setStatus(`Kiválasztott fájl: ${selectedFile.name}`);
+      } else {
+        setStatus('Válassz vagy készíts egy fényképet.');
+      }
+    });
+
+    stampBtn.addEventListener('click', stampImage);
+
+    downloadBtn.addEventListener('click', () => {
+      if (!stampedBlob) return;
+
+      const url = URL.createObjectURL(stampedBlob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'gps_belyegzett_kep.jpg';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    });
+  </script>
+</body>
+</html>

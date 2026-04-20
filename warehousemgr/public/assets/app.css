@@ -1,0 +1,65 @@
+/* App finomhangolás Bootstrap fölé */
+
+:root{
+  --hr-card-radius: 12px;
+}
+
+.card { border-radius: var(--hr-card-radius); }
+
+/* Apró link-stílus, ha később kell */
+a.text-secondary:hover { text-decoration: underline; }
+
+/*
+ * A teljes rendszer szélesebb, "monitorbarát" tördelése.
+ * A régi fix Bootstrap container helyett container-fluid shell fut,
+ * de hagyunk kulturált belső margót, hogy ne tapadjon ki minden a szélére.
+ */
+.wm-shell{
+  padding-left: .9rem;
+  padding-right: .9rem;
+}
+
+@media (min-width: 992px){
+  .wm-shell{
+    padding-left: 1.15rem;
+    padding-right: 1.15rem;
+  }
+}
+
+@media (min-width: 1400px){
+  .wm-shell{
+    padding-left: 1.4rem;
+    padding-right: 1.4rem;
+  }
+}
+
+/* A zsúfoltabb oldalaknál a táblázatok és kártyák kapjanak több hasznos teret. */
+.wm-shell .card-body{
+  padding: .95rem;
+}
+
+.wm-shell .table-responsive{
+  overflow-x: auto;
+}
+
+@media (min-width: 1200px){
+  .wm-shell .table{
+    font-size: .94rem;
+  }
+
+  .wm-shell .table > :not(caption) > * > *{
+    padding: .45rem .55rem;
+  }
+
+  .wm-shell .form-label,
+  .wm-shell .col-form-label{
+    margin-bottom: .2rem;
+    font-size: .92rem;
+  }
+}
+
+/* Hosszabb szűrősoroknál hagyjuk, hogy a gombok és mezők szépen törjenek. */
+.wm-shell .d-flex.flex-wrap.gap-2,
+.wm-shell .d-flex.flex-wrap.gap-3{
+  align-items: end;
+}

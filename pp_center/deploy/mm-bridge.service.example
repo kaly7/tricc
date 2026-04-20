@@ -1,0 +1,15 @@
+[Unit]
+Description=PP MQTT Bridge Worker
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/var/www/html/pp_center
+ExecStart=/usr/bin/php /var/www/html/pp_center/cli/mqtt_worker.php
+Restart=always
+RestartSec=5
+User=www-data
+Group=www-data
+
+[Install]
+WantedBy=multi-user.target

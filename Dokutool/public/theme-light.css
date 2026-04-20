@@ -1,0 +1,6 @@
+:root{
+  --bg:#f7fafc; --panel:#ffffff; --text:#0b0f14; --muted:#506070;
+  --accent:#2563eb; --accent-2:#1d4ed8; --border:#e6e8eb;
+  --input-bg:#f7f9fb; --input-border:#d8dde3; --shadow:0 10px 30px rgba(2,6,12,.06); --btn-bg:#eef2f7;
+}
+body{background:var(--bg);color:var(--text)}

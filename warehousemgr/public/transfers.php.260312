@@ -1,0 +1,348 @@
+<?php
+declare(strict_types=1);
+require_once __DIR__ . '/../app/bootstrap.php';
+
+$title = 'Raktárközi átadások';
+$loggedIn = true;
+
+$manageableWarehouses = warehouse_manageable_warehouses($config, true);
+$allActiveWarehouses = warehouse_all_active_options($config);
+$activeMaterials = warehouse_material_select_options($config, true);
+$canManageAny = count($manageableWarehouses) > 0;
+$transferStockMap = warehouse_transfer_available_stock_map($config, array_map(static fn(array $row): int => (int)$row['id'], $manageableWarehouses));
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $action = (string)($_POST['action'] ?? '');
+
+    try {
+        if ($action === 'create_transfer') {
+            if (!$canManageAny) {
+                throw new RuntimeException('Nincs olyan raktárad, ahonnan átadást indíthatsz.');
+            }
+            $transferId = warehouse_transfer_create(
+                $config,
+                (int)($_POST['source_warehouse_id'] ?? 0),
+                (int)($_POST['target_warehouse_id'] ?? 0),
+                (int)($_POST['material_id'] ?? 0),
+                $_POST['quantity'] ?? '',
+                (string)($_POST['reference_no'] ?? ''),
+                (string)($_POST['note'] ?? '')
+            );
+            flash_set('msg', 'Átadás létrehozva: ' . warehouse_transfer_reference($transferId));
+            header('Location: /transfers.php');
+            exit;
+        }
+
+        if ($action === 'accept_transfer') {
+            warehouse_transfer_accept(
+                $config,
+                (int)($_POST['transfer_id'] ?? 0),
+                (string)($_POST['decision_note'] ?? '')
+            );
+            flash_set('msg', 'Az átadás elfogadva.');
+            header('Location: /transfers.php?scope=incoming&status=pending');
+            exit;
+        }
+
+        if ($action === 'reject_transfer') {
+            warehouse_transfer_reject(
+                $config,
+                (int)($_POST['transfer_id'] ?? 0),
+                (string)($_POST['decision_note'] ?? '')
+            );
+            flash_set('msg', 'Az átadás elutasítva.');
+            header('Location: /transfers.php?scope=incoming&status=pending');
+            exit;
+        }
+
+        if ($action === 'cancel_transfer') {
+            warehouse_transfer_cancel(
+                $config,
+                (int)($_POST['transfer_id'] ?? 0),
+                (string)($_POST['decision_note'] ?? '')
+            );
+            flash_set('msg', 'Az átadás törölve.');
+            header('Location: /transfers.php?scope=outgoing&status=pending');
+            exit;
+        }
+
+        throw new RuntimeException('Ismeretlen művelet.');
+    } catch (Throwable $e) {
+        flash_set('err', $e->getMessage());
+        header('Location: /transfers.php');
+        exit;
+    }
+}
+
+$msg = flash_get('msg');
+$err = flash_get('err');
+$filters = warehouse_transfer_filter_values($_GET);
+$rows = warehouse_transfer_search($config, $filters);
+$filterWarehouses = warehouse_accessible_warehouses($config, false);
+if (warehouse_module_admin($config)) {
+    $filterWarehouses = warehouse_all($config);
+}
+
+$pendingIncomingCount = count(warehouse_transfer_search($config, ['scope' => 'incoming', 'status' => 'pending'], 1000));
+$pendingOutgoingCount = count(warehouse_transfer_search($config, ['scope' => 'outgoing', 'status' => 'pending'], 1000));
+
+require __DIR__ . '/../app/views/layout/header.php';
+?>
+
+<div class="d-flex align-items-center justify-content-between mb-3">
+  <div>
+    <h1 class="h4 m-0">Raktárközi átadások</h1>
+    <div class="text-secondary small">Átadás indítása, cél oldali elfogadás vagy elutasítás, teljes naplózással.</div>
+  </div>
+  <div class="d-flex gap-2 flex-wrap justify-content-end">
+    <span class="badge bg-warning text-dark align-self-center">Bejövő függő: <?= (int)$pendingIncomingCount ?></span>
+    <span class="badge bg-secondary align-self-center">Kimenő függő: <?= (int)$pendingOutgoingCount ?></span>
+    <a class="btn btn-sm btn-outline-secondary" href="/stock_movements.php">Mozgásnapló</a>
+  </div>
+</div>
+
+<?php if ($msg): ?><div class="alert alert-success"><?= h($msg) ?></div><?php endif; ?>
+<?php if ($err): ?><div class="alert alert-danger"><?= h($err) ?></div><?php endif; ?>
+
+<?php if ($canManageAny): ?>
+  <div class="card shadow-sm mb-4">
+    <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-3">
+      <div>
+        <div class="fw-semibold">Új átadás indítása</div>
+        <div class="text-secondary small">A készlet csak elfogadáskor mozdul a cél raktárba.</div>
+      </div>
+      <button class="btn btn-sm btn-outline-secondary wm-panel-toggle" type="button" data-bs-toggle="collapse" data-bs-target="#transfer-create-panel" data-open-label="Elrejtés" data-closed-label="Megnyitás" aria-expanded="false">
+        <span class="wm-panel-toggle-label">Megnyitás</span>
+      </button>
+    </div>
+    <div id="transfer-create-panel" class="collapse" data-wm-panel="1" data-panel-key="transfers-create">
+      <div class="card-body">
+        <form method="post" class="row g-3">
+          <input type="hidden" name="action" value="create_transfer">
+          <div class="col-12 col-lg-4">
+            <label class="form-label">Forrás raktár</label>
+            <select class="form-select" name="source_warehouse_id" id="transfer_source_warehouse_id" required>
+              <option value="">— válassz —</option>
+              <?php foreach ($manageableWarehouses as $w): ?>
+                <option value="<?= (int)$w['id'] ?>"><?= h((string)$w['name']) ?> (<?= h((string)$w['code']) ?>)</option>
+              <?php endforeach; ?>
+            </select>
+          </div>
+          <div class="col-12 col-lg-4">
+            <label class="form-label">Cél raktár</label>
+            <select class="form-select" name="target_warehouse_id" required>
+              <option value="">— válassz —</option>
+              <?php foreach ($allActiveWarehouses as $w): ?>
+                <option value="<?= (int)$w['id'] ?>"><?= h((string)$w['name']) ?> (<?= h((string)$w['code']) ?>)</option>
+              <?php endforeach; ?>
+            </select>
+          </div>
+          <div class="col-12 col-lg-4">
+            <label class="form-label">Anyag</label>
+            <select class="form-select" name="material_id" id="transfer_material_id" required>
+              <option value="">— válassz —</option>
+              <?php foreach ($activeMaterials as $m): ?>
+                <option value="<?= (int)$m['id'] ?>" data-material-name="<?= h((string)$m['name']) ?>" data-material-sku="<?= h((string)$m['sku']) ?>" data-material-unit="<?= h((string)($m['unit'] ?? '')) ?>"><?= h((string)$m['name']) ?> [<?= h((string)$m['sku']) ?>]</option>
+              <?php endforeach; ?>
+            </select>
+          </div>
+          <div class="col-12">
+            <div id="transfer-stock-hint" class="alert alert-info py-2 px-3 small mb-0 d-none"></div>
+          </div>
+          <div class="col-12 col-md-4">
+            <label class="form-label">Mennyiség</label>
+            <input class="form-control" name="quantity" required placeholder="pl. 5 vagy 1,5">
+          </div>
+          <div class="col-12 col-md-4">
+            <label class="form-label">Hivatkozás</label>
+            <input class="form-control" name="reference_no" placeholder="belső bizonylat / igény">
+          </div>
+          <div class="col-12 col-md-4">
+            <label class="form-label">Megjegyzés</label>
+            <input class="form-control" name="note" placeholder="átadás oka, megjegyzés">
+          </div>
+          <div class="col-12">
+            <div class="small text-secondary">Átadás indításakor még nem mozdul a készlet. A tényleges készletcsökkentés és készletnövelés csak akkor történik meg, amikor a cél raktár elfogadja az átadást.</div>
+          </div>
+          <div class="col-12 d-flex justify-content-end">
+            <button class="btn btn-primary" type="submit">Átadás indítása</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+<?php endif; ?>
+
+<div class="card shadow-sm mb-4">
+  <div class="card-body">
+    <form method="get" class="row g-3 mb-3">
+      <div class="col-12 col-lg-3">
+        <label class="form-label">Nézet</label>
+        <select class="form-select" name="scope">
+          <option value="all" <?= $filters['scope'] === 'all' ? 'selected' : '' ?>>Összes</option>
+          <option value="incoming" <?= $filters['scope'] === 'incoming' ? 'selected' : '' ?>>Bejövő</option>
+          <option value="outgoing" <?= $filters['scope'] === 'outgoing' ? 'selected' : '' ?>>Kimenő</option>
+        </select>
+      </div>
+      <div class="col-12 col-lg-3">
+        <label class="form-label">Állapot</label>
+        <select class="form-select" name="status">
+          <option value="" <?= $filters['status'] === '' ? 'selected' : '' ?>>Összes</option>
+          <option value="pending" <?= $filters['status'] === 'pending' ? 'selected' : '' ?>>Függőben</option>
+          <option value="accepted" <?= $filters['status'] === 'accepted' ? 'selected' : '' ?>>Elfogadva</option>
+          <option value="rejected" <?= $filters['status'] === 'rejected' ? 'selected' : '' ?>>Elutasítva</option>
+          <option value="cancelled" <?= $filters['status'] === 'cancelled' ? 'selected' : '' ?>>Törölve</option>
+        </select>
+      </div>
+      <div class="col-12 col-lg-3">
+        <label class="form-label">Raktár</label>
+        <select class="form-select" name="warehouse_id">
+          <option value="0">— mind —</option>
+          <?php foreach ($filterWarehouses as $w): ?>
+            <option value="<?= (int)$w['id'] ?>" <?= $filters['warehouse_id'] === (int)$w['id'] ? 'selected' : '' ?>><?= h((string)$w['name']) ?> (<?= h((string)$w['code']) ?>)</option>
+          <?php endforeach; ?>
+        </select>
+      </div>
+      <div class="col-12 col-lg-2">
+        <label class="form-label">Keresés</label>
+        <input class="form-control" name="q" value="<?= h($filters['q']) ?>" placeholder="anyag, cikkszám...">
+      </div>
+      <div class="col-12 col-lg-1 d-flex align-items-end justify-content-end">
+        <button class="btn btn-primary w-100" type="submit">OK</button>
+      </div>
+    </form>
+
+    <div class="d-flex align-items-center justify-content-between mb-2">
+      <h2 class="h6 mb-0">Átadások listája</h2>
+      <div class="text-secondary small"><?= count($rows) ?> sor</div>
+    </div>
+
+    <div class="table-responsive">
+      <table class="table table-hover align-middle">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Átadás</th>
+            <th>Anyag</th>
+            <th class="text-end">Mennyiség</th>
+            <th>Állapot</th>
+            <th>Kezdeményezte</th>
+            <th>Döntés</th>
+          </tr>
+        </thead>
+        <tbody>
+          <?php foreach ($rows as $row): ?>
+            <?php
+              $canAcceptReject = (string)$row['status'] === 'pending' && warehouse_user_can_manage_warehouse($config, (int)$row['target_warehouse_id']);
+              $canCancel = (string)$row['status'] === 'pending' && warehouse_user_can_manage_warehouse($config, (int)$row['source_warehouse_id']);
+            ?>
+            <tr>
+              <td>
+                <div class="fw-bold">#<?= (int)$row['id'] ?></div>
+                <div class="text-secondary small"><?= h(warehouse_transfer_reference((int)$row['id'])) ?></div>
+                <?php if (!empty($row['reference_no'])): ?><div class="text-secondary small"><?= h((string)$row['reference_no']) ?></div><?php endif; ?>
+              </td>
+              <td>
+                <div><span class="text-secondary">Forrás:</span> <strong><?= h((string)$row['source_warehouse_name']) ?></strong> (<?= h((string)$row['source_warehouse_code']) ?>)</div>
+                <div><span class="text-secondary">Cél:</span> <strong><?= h((string)$row['target_warehouse_name']) ?></strong> (<?= h((string)$row['target_warehouse_code']) ?>)</div>
+                <?php if (!empty($row['note'])): ?><div class="small mt-1 text-secondary"><?= nl2br(h((string)$row['note'])) ?></div><?php endif; ?>
+                <div class="small text-secondary mt-1"><?= h((string)$row['requested_at']) ?></div>
+              </td>
+              <td>
+                <div><code><?= h((string)$row['sku']) ?></code></div>
+                <div class="fw-bold"><?= h((string)$row['material_name']) ?></div>
+                <div class="text-secondary small"><?= h((string)($row['category_name'] ?? '—')) ?></div>
+              </td>
+              <td class="text-end fw-bold"><?= h(warehouse_format_quantity($row['quantity'])) ?> <?= h((string)($row['unit'] ?? '')) ?></td>
+              <td>
+                <span class="badge <?= h(warehouse_transfer_badge_class((string)$row['status'])) ?>"><?= h(warehouse_transfer_status_label((string)$row['status'])) ?></span>
+              </td>
+              <td>
+                <div><?= h((string)($row['requested_by_name'] ?? '—')) ?></div>
+                <?php if (!empty($row['requested_at'])): ?><div class="small text-secondary"><?= h((string)$row['requested_at']) ?></div><?php endif; ?>
+              </td>
+              <td style="min-width: 280px;">
+                <?php if ((string)$row['status'] === 'accepted'): ?>
+                  <div class="small"><strong><?= h((string)($row['accepted_by_name'] ?? '')) ?></strong></div>
+                  <div class="small text-secondary"><?= h((string)($row['accepted_at'] ?? '')) ?></div>
+                <?php elseif ((string)$row['status'] === 'rejected'): ?>
+                  <div class="small"><strong><?= h((string)($row['rejected_by_name'] ?? '')) ?></strong></div>
+                  <div class="small text-secondary"><?= h((string)($row['rejected_at'] ?? '')) ?></div>
+                <?php elseif ((string)$row['status'] === 'cancelled'): ?>
+                  <div class="small"><strong><?= h((string)($row['cancelled_by_name'] ?? '')) ?></strong></div>
+                  <div class="small text-secondary"><?= h((string)($row['cancelled_at'] ?? '')) ?></div>
+                <?php endif; ?>
+
+                <?php if (!empty($row['decision_note'])): ?>
+                  <div class="small mt-1 text-secondary"><?= nl2br(h((string)$row['decision_note'])) ?></div>
+                <?php endif; ?>
+
+                <?php if ($canAcceptReject || $canCancel): ?>
+                  <div class="border rounded p-2 mt-2 bg-light">
+                    <form method="post" class="d-flex flex-column gap-2">
+                      <input type="hidden" name="transfer_id" value="<?= (int)$row['id'] ?>">
+                      <input class="form-control form-control-sm" name="decision_note" placeholder="megjegyzés / indoklás">
+                      <div class="d-flex gap-2 flex-wrap">
+                        <?php if ($canAcceptReject): ?>
+                          <button class="btn btn-sm btn-success" type="submit" name="action" value="accept_transfer">Elfogadás</button>
+                          <button class="btn btn-sm btn-outline-danger" type="submit" name="action" value="reject_transfer" onclick="return confirm('Biztosan elutasítod az átadást?');">Elutasítás</button>
+                        <?php endif; ?>
+                        <?php if ($canCancel): ?>
+                          <button class="btn btn-sm btn-outline-secondary" type="submit" name="action" value="cancel_transfer" onclick="return confirm('Biztosan törlöd a függő átadást?');">Törlés</button>
+                        <?php endif; ?>
+                      </div>
+                    </form>
+                  </div>
+                <?php endif; ?>
+              </td>
+            </tr>
+          <?php endforeach; ?>
+          <?php if (!$rows): ?>
+            <tr><td colspan="7" class="text-center text-secondary py-4">Nincs megjeleníthető átadás.</td></tr>
+          <?php endif; ?>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<?php require __DIR__ . '/../app/views/layout/footer.php'; ?>
+
+<?php if ($canManageAny): ?>
+<script>
+(() => {
+  const sourceSelect = document.getElementById('transfer_source_warehouse_id');
+  const materialSelect = document.getElementById('transfer_material_id');
+  const hintBox = document.getElementById('transfer-stock-hint');
+  const stockMap = <?= json_encode($transferStockMap, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;
+
+  function updateTransferStockHint() {
+    if (!sourceSelect || !materialSelect || !hintBox) return;
+
+    const warehouseId = sourceSelect.value;
+    const materialId = materialSelect.value;
+    if (!warehouseId || !materialId) {
+      hintBox.classList.add('d-none');
+      hintBox.textContent = '';
+      return;
+    }
+
+    const selectedOption = materialSelect.options[materialSelect.selectedIndex];
+    const materialName = selectedOption?.dataset.materialName || selectedOption?.textContent || '';
+    const sku = selectedOption?.dataset.materialSku || '';
+    const unit = selectedOption?.dataset.materialUnit || '';
+    const stockInfo = (stockMap[warehouseId] && stockMap[warehouseId][materialId]) ? stockMap[warehouseId][materialId] : null;
+    const qty = stockInfo ? stockInfo.display : '0';
+    const parts = [];
+    if (sku) parts.push('[' + sku + ']');
+    if (materialName) parts.push(materialName);
+    hintBox.textContent = 'A forrás raktár aktuális készlete: ' + parts.join(' · ') + ' = ' + qty + (unit ? ' ' + unit : '');
+    hintBox.classList.remove('d-none');
+  }
+
+  sourceSelect?.addEventListener('change', updateTransferStockHint);
+  materialSelect?.addEventListener('change', updateTransferStockHint);
+  updateTransferStockHint();
+})();
+</script>
+<?php endif; ?>

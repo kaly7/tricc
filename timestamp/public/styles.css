@@ -1,0 +1,177 @@
+
+/* Timesheet Industrial Theme (MIT)
+   Cross‑browser: Safari / Chrome / Firefox, mobile & tablet
+   Industrial vibe: neutral greys, grid lines, mono headings, strong focus
+   Works with existing markup (no PHP/HTML changes). Dark mode aware.
+*/
+
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body, h1, h2, h3, p, ul, ol, figure { margin: 0; }
+img { max-width: 100%; display: block; }
+button, input, select, textarea { font: inherit; }
+
+:root{
+  --bg: #f2f3f5;
+  --panel: #ffffff;
+  --ink: #1a1d21;
+  --muted: #5a626d;
+  --primary: #2f77d1;
+  --primary-700:#245ea7;
+  --accent: #ffcc33;
+  --danger: #c0392b;
+  --ok: #26834a;
+  --grid: #d8dadd;
+  --border: #c7cbd1;
+  --shadow: 0 1px 0 rgba(0,0,0,.04), 0 12px 28px rgba(0,0,0,.06);
+  --radius: 8px;
+  --gap: 12px;
+  --mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace;
+  --font: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", "Liberation Sans", sans-serif;
+}
+
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg: #0f1113;
+    --panel: #14171a;
+    --ink: #e5e7eb;
+    --muted: #9aa3ae;
+    --primary: #6aa6ff;
+    --primary-700:#4f86d9;
+    --accent: #ffbf1a;
+    --danger:#e06257;
+    --ok:#4caf72;
+    --grid: #2a2f36;
+    --border: #2b3138;
+    --shadow: 0 1px 0 rgba(0,0,0,.4), 0 16px 32px rgba(0,0,0,.55);
+  }
+}
+
+body{
+  font-family: var(--font);
+  color: var(--ink);
+  background: linear-gradient(180deg, var(--bg) 0%, color-mix(in oklab, var(--bg), #000 4%) 100%);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.container{ max-width: min(1200px, 94vw); margin: 0 auto; padding: clamp(12px, 2vw, 20px); }
+
+nav{
+  position: sticky; top: 0; z-index: 50;
+  background: color-mix(in oklab, var(--panel), var(--bg) 20%);
+  border-bottom: 2px solid var(--border);
+  box-shadow: 0 1px 0 rgba(0,0,0,.05);
+  backdrop-filter: saturate(140%) blur(8px);
+}
+.nav-inner{ display:flex; align-items:center; justify-content:space-between; gap: 10px; }
+.brand{ font-family: var(--mono); letter-spacing: .6px; padding: 10px 0; }
+.nav-links{ display:flex; flex-wrap:wrap; align-items:center; gap: 6px; }
+.nav-links a{
+  text-decoration: none; color: var(--ink);
+  padding: 10px 12px; border-radius: 6px; border: 1px solid transparent;
+}
+.nav-links a:hover{ border-color: var(--grid); background: color-mix(in oklab, var(--panel), var(--bg) 8%); }
+.nav-links a.active{ border-color: var(--primary); background: color-mix(in oklab, var(--primary), var(--panel) 84%); }
+
+.burger{ display:none; border:1px solid var(--border); background:var(--panel); border-radius:6px; padding:8px 10px; }
+@media (max-width: 820px){
+  .nav-links{ display:none }
+  .nav-links.open{ display:flex; width:100%; margin-top:8px }
+  .nav-inner{ flex-wrap: wrap }
+  .burger{ display:block }
+}
+
+.card{
+  background: var(--panel);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: clamp(12px, 2vw, 18px);
+}
+
+h1,h2,h3{ font-family: var(--mono); }
+h1{ font-size: clamp(1.4rem, 1.1rem + 1.4vw, 2.2rem) }
+h2{ font-size: clamp(1.15rem, 1.05rem + .8vw, 1.6rem) }
+h3{ font-size: clamp(1.05rem, 1rem + .5vw, 1.25rem) }
+
+.badge{
+  display:inline-flex; align-items:center; gap:6px;
+  font-size:.85rem; padding:3px 8px;
+  border-radius: 999px;
+  border: 1px dashed var(--grid);
+  background: color-mix(in oklab, var(--panel), var(--bg) 12%);
+}
+
+.grid{ display:grid; gap: var(--gap) }
+.grid.cols-2{ grid-template-columns: repeat(2, minmax(0,1fr)) }
+.grid.cols-3{ grid-template-columns: repeat(3, minmax(0,1fr)) }
+@media (max-width: 900px){ .grid.cols-3{ grid-template-columns:1fr } }
+@media (max-width: 700px){ .grid.cols-2{ grid-template-columns:1fr } }
+
+.flex{ display:flex; gap: var(--gap) }
+.flex.wrap{ flex-wrap: wrap }
+.spread{ display:flex; align-items:center; justify-content:space-between; gap:12px }
+.small{ font-size:.92rem; color: var(--muted) }
+.m0{ margin:0 } .mt6{ margin-top:6px } .mt10{ margin-top:10px } .mt16{ margin-top:16px }
+
+input[type=text], input[type=password], input[type=email], input[type=date], input[type=number], select, textarea{
+  width:100%; padding: 10px 12px; border: 1.5px solid var(--border); border-radius: 6px; background: var(--panel); color: var(--ink); outline: none;
+}
+textarea{ min-height: 100px; resize: vertical; }
+input:focus, select:focus, textarea:focus{ border-color: var(--primary); box-shadow: 0 0 0 3px color-mix(in oklab, var(--primary), transparent 70%); }
+
+button, .btn{
+  display:inline-flex; align-items:center; justify-content:center; gap:8px;
+  padding: 10px 14px; border-radius: 6px;
+  border: 1.5px solid var(--primary);
+  background: color-mix(in oklab, var(--primary), var(--panel) 84%);
+  color: var(--ink); cursor: pointer; font-weight: 700; letter-spacing: .2px;
+  transition: .15s transform, .25s background, .25s border-color;
+}
+button:hover, .btn:hover{ transform: translateY(-1px); border-color: var(--primary-700) }
+button.secondary, .btn.secondary{ background: var(--panel); border-color: var(--grid); }
+button.ghost{ background: transparent; border: 1px dashed var(--grid) }
+
+.notice{ padding:10px 12px; border: 1px dashed var(--ok); background: color-mix(in oklab, var(--ok), transparent 88%); border-radius: 6px }
+.error{ padding:10px 12px; border: 1px dashed var(--danger); background: color-mix(in oklab, var(--danger), transparent 88%); border-radius: 6px }
+
+.table-container{ width:100%; overflow-x:auto; background: var(--panel); border:1.5px solid var(--border); border-radius: 6px; box-shadow: var(--shadow) }
+.table{ width:100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.table thead th{
+  font-family: var(--mono); text-transform: uppercase; font-size: .82rem; letter-spacing: .06em;
+  background: linear-gradient(180deg, color-mix(in oklab, var(--panel), var(--bg) 6%), var(--panel));
+  border-bottom: 2px solid var(--grid); padding: 10px 10px; position: sticky; top: 0; z-index: 1;
+}
+.table td{ border-bottom: 1px solid var(--grid); padding: 10px; }
+.table tr:hover td{ background: color-mix(in oklab, var(--panel), var(--bg) 6%) }
+
+@media (max-width: 560px){
+  .table{ display:block } .table thead{ display:none } .table tbody{ display:block }
+  .table tr{ display:block; border-bottom: 1px solid var(--grid) }
+  .table td{ display:flex; justify-content:space-between; gap:12px }
+  .table td::before{ content: attr(data-label); color: var(--muted); font-weight:600; font-family: var(--mono) }
+}
+
+.calendar{ width:100%; border:1.5px solid var(--border); border-radius: 8px; overflow:hidden; background: var(--panel); box-shadow: var(--shadow) }
+.calendar .head, .calendar .row{ display:grid; grid-template-columns: repeat(7, minmax(0,1fr)); }
+.calendar .head div{
+  background: linear-gradient(180deg, color-mix(in oklab, var(--panel), var(--bg) 8%), var(--panel));
+  padding: 8px 10px; font-weight: 700; border-right: 1px solid var(--grid);
+}
+.calendar .head div:last-child{ border-right: 0 }
+.calendar .cell{
+  min-height: 110px; padding: 8px 8px; border-top: 1px solid var(--grid);
+  background-image: linear-gradient(0deg, transparent 0, transparent 31px, color-mix(in oklab, var(--grid), transparent 60%) 32px),
+                    linear-gradient(90deg, transparent 0, transparent calc(100% - 1px), color-mix(in oklab, var(--grid), transparent 50%) calc(100% - 1px));
+  background-size: 100% 32px, 100% 100%; background-repeat: repeat, no-repeat;
+}
+.calendar .cell .date{ font-size: .85rem; color: var(--muted); display:flex; align-items:center; gap:8px }
+.calendar .cell ul{ margin: 8px 0 0 16px; padding: 0 }
+.calendar .locked{ opacity: .55; }
+
+:focus-visible{ outline: 2px solid var(--accent); outline-offset: 2px }
+
+@media print{
+  nav{ display:none } .card{ box-shadow: none } .table thead th{ position: static }
+}

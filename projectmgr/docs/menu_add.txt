@@ -1,0 +1,12 @@
+Menüpont hozzáadása (javaslat)
+
+A menü általában a views/_layout_top.php vagy egy include-olt nav fájlban van.
+Tegyél be egy linket:
+  <a class="nav-link" href="/vehicles.php">Járművek</a>
+
+Oldalak:
+  /vehicles.php
+  /vehicle_create.php
+  /vehicle_edit.php?id=
+  /vehicle.php?id=
+  /vehicle_types.php   (admin: fajta menü bővítése)

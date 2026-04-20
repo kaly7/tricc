@@ -1,0 +1,4 @@
+SET NAMES utf8mb4;
+
+ALTER TABLE employees
+  ADD COLUMN taj VARCHAR(32) NULL AFTER tax_id;

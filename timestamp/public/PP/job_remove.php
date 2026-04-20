@@ -1,0 +1,1 @@
+<?php require __DIR__.'/includes/init.php'; require_login($pdo); $id=(int)($_GET['id']??0); if($id){$st0=$pdo->prepare('SELECT * FROM tasks WHERE id=?');$st0->execute([$id]);$before=$st0->fetch();$pdo->prepare('DELETE FROM tasks WHERE id=?')->execute([$id]);audit($pdo, current_user($pdo)['id'] ?? null, 'tasks', 'delete', $id, $before, null);} redirect('jobs_list.php');

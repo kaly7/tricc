@@ -1,0 +1,7 @@
+:root{
+  --bg:#0a0a0a; --panel:#0f0f10; --text:#f0f3f7; --muted:#98a2b3;
+  --accent:#22d3ee; --accent-2:#0ea5e9; --border:#1a1a1e;
+  --input-bg:#121317; --input-border:#232733; --shadow:0 20px 50px rgba(0,0,0,.5); --btn-bg:linear-gradient(135deg,#1e293b,#0f172a);
+}
+body{background:radial-gradient(1200px 600px at 20% -10%, rgba(34,211,238,.08), transparent 60%), var(--bg); color:var(--text)}
+.card{backdrop-filter: blur(6px); border-color:#20232e}

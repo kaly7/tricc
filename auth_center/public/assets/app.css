@@ -1,0 +1,10 @@
+/* App finomhangolás Bootstrap fölé */
+
+:root{
+  --hr-card-radius: 12px;
+}
+
+.card { border-radius: var(--hr-card-radius); }
+
+/* Apró link-stílus, ha később kell */
+a.text-secondary:hover { text-decoration: underline; }

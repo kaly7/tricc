@@ -1,0 +1,29 @@
+# Zip archívumok
+*.zip
+
+# PHP vendor mappák
+*/vendor/
+vendor/
+
+# Storage mappák teljesen kihagyva
+*/storage/
+storage/
+
+# Konfiguráció éles adatokkal
+*/config/config.php
+*/config/database.php
+
+# OS / IDE
+.DS_Store
+.idea/
+.vscode/
+
+# Temp / szemét
+*.tmp
+*.swp
+indes.html__
+t.html
+time_tracker_8788_hibas/
+time_tracker_8788_old/
+PBX_OLD/
+ware__/

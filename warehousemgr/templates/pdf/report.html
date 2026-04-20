@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="hu">
+<head>
+<meta charset="utf-8">
+<style>
+  body { font-family: dejavusans, sans-serif; color:#111827; font-size:9pt; }
+  .summary { margin: 0 0 5mm 0; }
+  .summary table { width:100%; border-collapse:collapse; }
+  .summary td { border:1px solid #d1d5db; padding:2.2mm; background:#f8fafc; }
+  .summary .label { color:#6b7280; font-size:8pt; }
+  .summary .value { font-size:11pt; font-weight:700; margin-top:.5mm; }
+  .employee-block { page-break-inside: avoid; margin-bottom: 6mm; }
+  .employee-block.page-break { page-break-after: always; }
+  .employee-head { margin: 0 0 2.5mm 0; }
+  .employee-name { font-size:11pt; font-weight:700; }
+  .employee-meta { color:#4b5563; font-size:8pt; margin-top:.8mm; }
+  .tbl { width:100%; border-collapse:collapse; margin-top:1.5mm; }
+  .tbl th, .tbl td { border:1px solid #d1d5db; padding:1.7mm 1.8mm; }
+  .tbl thead th { background:#eef2f7; text-align:left; }
+  .tbl.compact th, .tbl.compact td { padding:1.6mm 1.7mm; }
+  .week-marker td { background:#f8fafc; color:#334155; font-weight:700; }
+  .split { width:100%; margin-top:3mm; }
+  .split > div { width:49%; display:inline-block; vertical-align:top; }
+  .subhead { font-weight:700; margin:0 0 1.5mm 0; }
+</style>
+</head>
+<body>
+  {{SUMMARY_BLOCK}}
+  {{SECTIONS}}
+</body>
+</html>

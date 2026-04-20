@@ -1,0 +1,18 @@
+[Unit]
+Description=PP Center MQTT Bridge Worker
+After=network.target mosquitto.service mariadb.service
+Wants=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/var/www/html/pp_center
+ExecStart=/usr/bin/php /var/www/html/pp_center/cli/mqtt_worker.php
+Restart=always
+RestartSec=8
+User=www-data
+Group=www-data
+StandardOutput=append:/var/www/html/pp_center/storage/logs/mqtt-worker.log
+StandardError=append:/var/www/html/pp_center/storage/logs/mqtt-worker-error.log
+
+[Install]
+WantedBy=multi-user.target
