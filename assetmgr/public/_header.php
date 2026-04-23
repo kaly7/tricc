@@ -105,6 +105,7 @@ $qrUrl = 'https://'.$host.':9443/qr_demo.php';
             Bejelentkezve: <strong><?= e(($u['name'] ?? '') ?: ($u['email'] ?? '') ?: ($u['username'] ?? '')) ?></strong>
             (<span class="text-muted"><?= e($u['role'] ?? '') ?></span>)
           </span>
+          <a class="btn btn-outline-info btn-sm" href="<?= e(base_url('docs/assetmgr_kezikonyv.html')) ?>" target="_blank" title="Felhasználói kézikönyv">?</a>
           <a class="btn btn-outline-secondary btn-sm" href="<?= e(base_url('account.php')) ?>">Fiók</a>
           <a class="btn btn-outline-secondary btn-sm" href="<?= e(base_url('logout.php')) ?>">Kijelentkezés</a>
         </div>

@@ -1,0 +1,518 @@
+<!doctype html>
+<html lang="hu">
+<head>
+  <meta charset="utf-8">
+  <title>Eszköznyilvántartó – Felhasználói kézikönyv</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+
+    body {
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 10.5pt;
+      color: #212529;
+      background: #fff;
+      margin: 0;
+      padding: 0;
+      line-height: 1.5;
+    }
+
+    .container {
+      max-width: 820px;
+      margin: 0 auto;
+      padding: 14mm 12mm;
+    }
+
+    .cover {
+      text-align: center;
+      padding: 30px 0 24px;
+      border-bottom: 2px solid #212529;
+      margin-bottom: 28px;
+    }
+    .cover h1 { font-size: 22pt; margin: 0 0 6px; }
+    .cover .sub { font-size: 11pt; color: #6c757d; }
+    .cover .version { font-size: 9pt; color: #adb5bd; margin-top: 8px; }
+
+    .toc { margin-bottom: 28px; }
+    .toc h2 { font-size: 13pt; border-bottom: 1px solid #dee2e6; padding-bottom: 4px; margin-bottom: 10px; }
+    .toc ol { padding-left: 18px; margin: 0; }
+    .toc li { margin: 3px 0; font-size: 10pt; }
+    .toc a { color: #0d6efd; text-decoration: none; }
+    .toc a:hover { text-decoration: underline; }
+
+    h2.ch {
+      font-size: 14pt;
+      margin: 28px 0 10px;
+      padding: 6px 10px;
+      background: #f8f9fa;
+      border-left: 4px solid #0d6efd;
+      border-radius: 0 4px 4px 0;
+      page-break-after: avoid;
+    }
+    h3 { font-size: 11.5pt; margin: 18px 0 7px; color: #343a40; page-break-after: avoid; }
+    h4 { font-size: 10.5pt; margin: 14px 0 5px; color: #495057; page-break-after: avoid; }
+
+    p { margin: 0 0 8px; }
+    ul, ol { margin: 0 0 8px; padding-left: 20px; }
+    li { margin-bottom: 3px; }
+
+    .box {
+      border: 1px solid #dee2e6;
+      border-radius: 5px;
+      padding: 10px 14px;
+      margin: 10px 0;
+    }
+    .box.info   { border-color: #0dcaf0; background: #f0fdff; }
+    .box.warn   { border-color: #ffc107; background: #fffdf0; }
+    .box.tip    { border-color: #198754; background: #f0fff4; }
+    .box.danger { border-color: #dc3545; background: #fff5f5; }
+    .box-title  { font-weight: bold; font-size: 9.5pt; text-transform: uppercase; letter-spacing: .04em; margin-bottom: 4px; }
+    .box.info   .box-title { color: #087990; }
+    .box.warn   .box-title { color: #856404; }
+    .box.tip    .box-title { color: #146c43; }
+    .box.danger .box-title { color: #b02a37; }
+
+    table { width: 100%; border-collapse: collapse; margin: 10px 0; font-size: 9.5pt; }
+    th { background: #f8f9fa; padding: 5px 8px; text-align: left; border: 1px solid #dee2e6; font-weight: bold; }
+    td { padding: 4px 8px; border: 1px solid #e9ecef; vertical-align: top; }
+    tr:nth-child(even) td { background: #fafafa; }
+
+    .badge {
+      display: inline-block;
+      padding: 1px 7px;
+      border-radius: 12px;
+      font-size: 8.5pt;
+      font-weight: bold;
+      white-space: nowrap;
+    }
+    .badge-admin  { background: #dc3545; color: #fff; }
+    .badge-user   { background: #6c757d; color: #fff; }
+    .badge-ok     { background: #198754; color: #fff; }
+    .badge-warn   { background: #ffc107; color: #212529; }
+    .badge-danger { background: #dc3545; color: #fff; }
+
+    .steps { counter-reset: step; padding: 0; list-style: none; }
+    .steps li {
+      counter-increment: step;
+      padding: 5px 5px 5px 32px;
+      position: relative;
+      margin-bottom: 4px;
+    }
+    .steps li::before {
+      content: counter(step);
+      position: absolute; left: 0; top: 5px;
+      width: 22px; height: 22px;
+      background: #0d6efd; color: #fff;
+      border-radius: 50%;
+      font-size: 8.5pt; font-weight: bold;
+      display: flex; align-items: center; justify-content: center;
+    }
+
+    hr { border: none; border-top: 1px solid #dee2e6; margin: 20px 0; }
+
+    .screen-only { text-align: center; margin-bottom: 20px; }
+    .print-btn {
+      padding: 8px 22px; font-size: 10.5pt;
+      background: #0d6efd; color: #fff;
+      border: none; border-radius: 5px; cursor: pointer;
+    }
+
+    @page {
+      size: A4 portrait;
+      margin: 14mm 12mm 20mm 12mm;
+    }
+    @media print {
+      .screen-only { display: none !important; }
+      a::after { content: "" !important; }
+      body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      h2.ch, h3, h4 { page-break-after: avoid; }
+      .box, table { page-break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+
+  <div class="screen-only">
+    <button class="print-btn" onclick="window.print()">Nyomtatás / PDF mentés</button>
+  </div>
+
+  <div class="cover">
+    <h1>Eszköznyilvántartó</h1>
+    <div class="sub">Felhasználói kézikönyv</div>
+    <div class="version">Perfect-Phone 2026 &nbsp;|&nbsp; Belső használatra</div>
+  </div>
+
+  <div class="toc">
+    <h2>Tartalomjegyzék</h2>
+    <ol>
+      <li><a href="#bevezeto">Bevezető – mire való az Eszköznyilvántartó?</a></li>
+      <li><a href="#szerepkorok">Szerepkörök és jogosultságok</a></li>
+      <li><a href="#navigacio">Navigáció</a></li>
+      <li><a href="#eszkozok">Eszközök kezelése</a>
+        <ol>
+          <li><a href="#eszkoz_lista">Eszközlista és szűrés</a></li>
+          <li><a href="#eszkoz_letrehozas">Új eszköz felvétele</a></li>
+          <li><a href="#eszkoz_szerkesztes">Eszköz szerkesztése</a></li>
+          <li><a href="#eszkoz_foto">Fotók kezelése</a></li>
+          <li><a href="#eszkoz_history">Eszköztörténet</a></li>
+        </ol>
+      </li>
+      <li><a href="#atadasok">Eszközátadások</a>
+        <ol>
+          <li><a href="#atadas_dolgozonak">Átadás dolgozónak</a></li>
+          <li><a href="#atadas_raktarnak">Átadás raktárnak</a></li>
+          <li><a href="#atadas_kulsonek">Átadás külső partnernek</a></li>
+          <li><a href="#fuggo_atadasok">Függő átadások kezelése</a></li>
+          <li><a href="#visszavetel">Külsőstől visszavétel</a></li>
+        </ol>
+      </li>
+      <li><a href="#felulvizsgalat">Felülvizsgálat és kalibráció</a>
+        <ol>
+          <li><a href="#felulvizsgalat_beallitas">Felülvizsgálat bekapcsolása</a></li>
+          <li><a href="#felulvizsgalat_rogzites">Elvégzett felülvizsgálat rögzítése</a></li>
+          <li><a href="#felulvizsgalat_badgek">Státusz jelzők</a></li>
+          <li><a href="#felulvizsgalat_emlekeztetok">Automatikus emlékeztetők</a></li>
+        </ol>
+      </li>
+      <li><a href="#kategoriak">Kategóriák</a></li>
+      <li><a href="#raktar">Raktár funkciók</a>
+        <ol>
+          <li><a href="#raktar_keszlet">Raktárkészlet</a></li>
+          <li><a href="#raktar_beveletezes">Raktárba vétel</a></li>
+        </ol>
+      </li>
+      <li><a href="#szerszamkonyv">Szerszámkönyv nyomtatása</a></li>
+      <li><a href="#qr">QR-kód kezelés</a></li>
+    </ol>
+  </div>
+
+  <hr>
+
+  <!-- 1. Bevezető -->
+  <h2 class="ch" id="bevezeto">1. Bevezető – mire való az Eszköznyilvántartó?</h2>
+
+  <p>Az Eszköznyilvántartó modul a cég eszközeinek (szerszámok, mérőműszerek, gépek, IT eszközök stb.) nyilvántartására, mozgásának követésére és felülvizsgálati határidőinek kezelésére szolgál.</p>
+
+  <p>A modul fő funkciói:</p>
+  <ul>
+    <li>Eszközök rögzítése, szerkesztése, kategorizálása</li>
+    <li>Eszközök hozzárendelése dolgozóhoz, raktárhoz vagy külső partnerhez</li>
+    <li>Átadás–átvétel kezelése aláírással és megjegyzéssel</li>
+    <li>Felülvizsgálati / kalibrációs határidők nyilvántartása és emlékeztetők</li>
+    <li>Fotók és dokumentumok csatolása</li>
+    <li>QR-kódos azonosítás</li>
+    <li>Szerszámkönyv PDF nyomtatása dolgozónként</li>
+    <li>Teljes mozgástörténet visszakereshetősége</li>
+  </ul>
+
+
+  <!-- 2. Szerepkörök -->
+  <h2 class="ch" id="szerepkorok">2. Szerepkörök és jogosultságok</h2>
+
+  <p>A rendszerben kétféle szerepkör létezik:</p>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Funkció</th>
+        <th><span class="badge badge-user">user</span></th>
+        <th><span class="badge badge-admin">admin</span></th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr><td>Saját eszközök megtekintése</td><td>✓</td><td>✓</td></tr>
+      <tr><td>Összes eszköz listázása</td><td>—</td><td>✓</td></tr>
+      <tr><td>Új eszköz felvétele</td><td>—</td><td>✓</td></tr>
+      <tr><td>Eszköz szerkesztése, törlése</td><td>—</td><td>✓</td></tr>
+      <tr><td>Eszköz átadása (saját eszköz)</td><td>✓</td><td>✓</td></tr>
+      <tr><td>Függő átadás elfogadása / elutasítása</td><td>✓ *</td><td>✓</td></tr>
+      <tr><td>Külsős átadás és visszavétel</td><td>—</td><td>✓</td></tr>
+      <tr><td>Felülvizsgálat rögzítése</td><td>—</td><td>✓</td></tr>
+      <tr><td>Kategóriák kezelése</td><td>—</td><td>✓</td></tr>
+      <tr><td>Raktár kezelése, raktárba vétel</td><td>—</td><td>✓</td></tr>
+      <tr><td>Szerszámkönyv nyomtatása / küldése</td><td>—</td><td>✓</td></tr>
+    </tbody>
+  </table>
+
+  <p><small>* A saját nevére szóló átadásokat fogadhatja el a normál felhasználó is.</small></p>
+
+
+  <!-- 3. Navigáció -->
+  <h2 class="ch" id="navigacio">3. Navigáció</h2>
+
+  <table>
+    <thead><tr><th>Menüpont</th><th>Leírás</th><th>Jogosultság</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Nálam lévő eszközök</strong></td><td>A bejelentkezett felhasználónál nyilvántartott eszközök listája</td><td>mindenki</td></tr>
+      <tr><td><strong>Értesítések (harang)</strong></td><td>Bejövő átadási kérelmek, elfogadás/elutasítás jelzések</td><td>mindenki</td></tr>
+      <tr><td><strong>Eszközök</strong></td><td>Teljes eszközlista szűréssel, exporttal</td><td>admin</td></tr>
+      <tr><td><strong>Kategóriák</strong></td><td>Eszközkategória fa kezelése</td><td>admin</td></tr>
+      <tr><td><strong>Függő átadások</strong></td><td>Jóváhagyásra váró átadási kérelmek</td><td>admin</td></tr>
+      <tr><td><strong>Raktár / Raktárak</strong></td><td>Raktárak létrehozása, kezelése</td><td>admin</td></tr>
+      <tr><td><strong>Raktár / Raktárkészlet</strong></td><td>Raktárban tárolt eszközök listája</td><td>admin</td></tr>
+      <tr><td><strong>Raktár / Raktárba vétel</strong></td><td>Eszköz bevételezése raktárba</td><td>admin</td></tr>
+    </tbody>
+  </table>
+
+  <div class="box info">
+    <div class="box-title">Felülvizsgálat jelző a menüben</div>
+    Az <strong>Eszközök</strong> menüpont mellett piros badge jelenik meg, ha van lejárt vagy hamarosan esedékes felülvizsgálat. A szám a lejárt + 30 napon belüli tételek összege.
+  </div>
+
+
+  <!-- 4. Eszközök -->
+  <h2 class="ch" id="eszkozok">4. Eszközök kezelése</h2>
+
+  <h3 id="eszkoz_lista">4.1 Eszközlista és szűrés</h3>
+
+  <p>Az <strong>Eszközök</strong> oldal az összes rögzített eszközt listázza. Szűrési lehetőségek:</p>
+
+  <table>
+    <thead><tr><th>Szűrő</th><th>Leírás</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Keresés (név)</strong></td><td>Szabad szöveges keresés az eszköz megnevezésére</td></tr>
+      <tr><td><strong>Cikkszám</strong></td><td>Részleges cikkszám keresés</td></tr>
+      <tr><td><strong>Kategória</strong></td><td>Fa struktúrájú kategória legördülő (alszintek is szűrhetők)</td></tr>
+      <tr><td><strong>Kinél van</strong></td><td>Dolgozó, külső partner, raktár vagy „senkinél" szerint szűr</td></tr>
+    </tbody>
+  </table>
+
+  <p>Az eszközlistából CSV-be exportálható az aktuális szűrés eredménye.</p>
+
+  <div class="box info">
+    <div class="box-title">Felülvizsgálat összesítő</div>
+    Az eszközlista tetején három szám látható: <span class="badge badge-danger">lejárt</span>, <span class="badge badge-warn">30 napon belüli</span>, <span class="badge badge-ok">rendben</span>. Ezekre kattintva szűrhető a lista.
+  </div>
+
+  <h3 id="eszkoz_letrehozas">4.2 Új eszköz felvétele</h3>
+
+  <ol class="steps">
+    <li>Kattints az <strong>„+ Új eszköz"</strong> gombra az eszközlistán.</li>
+    <li>Töltsd ki a kötelező mezőket (Megnevezés, Kategória).</li>
+    <li>Opcionálisan add meg a cikkszámot, értéket, QR azonosítót és megjegyzést.</li>
+    <li>Kapcsold be a <strong>„Felülvizsgálat szükséges"</strong> opciót, ha az eszköz rendszeres ellenőrzést igényel.</li>
+    <li>Kattints a <strong>„Mentés"</strong> gombra.</li>
+  </ol>
+
+  <h4>Eszköz adatai</h4>
+  <table>
+    <thead><tr><th>Mező</th><th>Leírás</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Megnevezés *</strong></td><td>Az eszköz neve</td></tr>
+      <tr><td>Cikkszám</td><td>Gyártói vagy belső azonosító</td></tr>
+      <tr><td>Kategória</td><td>Fa struktúrájú besorolás</td></tr>
+      <tr><td>Érték / Pénznem</td><td>Tájékoztató jellegű könyv szerinti érték</td></tr>
+      <tr><td>QR (szöveg)</td><td>QR-kód tartalom – ha üresen hagyod, automatikusan generálódik</td></tr>
+      <tr><td>Megjegyzés</td><td>Szabad szöveges megjegyzés</td></tr>
+      <tr><td>Felülvizsgálat szükséges</td><td>Ha be van kapcsolva, felülvizsgálati határidő kezelhető az eszközhöz</td></tr>
+    </tbody>
+  </table>
+
+  <h3 id="eszkoz_szerkesztes">4.3 Eszköz szerkesztése</h3>
+
+  <p>Az eszköz sorában a <strong>„Szerkesztés"</strong> gombra kattintva megnyílik a szerkesztő felület. Itt módosíthatók az adatok, kezelhető az átadás, rögzíthetők a felülvizsgálatok és tölthetők fel fotók.</p>
+
+  <h3 id="eszkoz_foto">4.4 Fotók kezelése</h3>
+
+  <p>Az eszköz szerkesztő felületén feltölthető egy vagy több fotó. Az első feltöltött fotó automatikusan elsődleges lesz (ez jelenik meg a listában). Az elsődleges fotó bármikor megváltoztatható.</p>
+
+  <h3 id="eszkoz_history">4.5 Eszköztörténet</h3>
+
+  <p>Minden eszközhöz teljes mozgástörténet érhető el az <strong>„Előzmények"</strong> gombbal: ki, mikor, kinek adta át, milyen megjegyzéssel. Az előzmények visszamenőleg nem szerkeszthetők.</p>
+
+
+  <!-- 5. Átadások -->
+  <h2 class="ch" id="atadasok">5. Eszközátadások</h2>
+
+  <p>Eszközt át lehet adni dolgozónak, raktárnak vagy külső partnernek. Az átadás kétlépéses: a küldő indítja, a fogadó elfogadja (kivéve raktárba adás és külsős átadás, ahol azonnali).</p>
+
+  <h3 id="atadas_dolgozonak">5.1 Átadás dolgozónak</h3>
+
+  <ol class="steps">
+    <li>Nyisd meg az eszközt szerkesztésre, vagy a listából válaszd az <strong>„Átadás"</strong> műveletet.</li>
+    <li>Válaszd a <strong>„Kiadás dolgozónak"</strong> opciót.</li>
+    <li>Válaszd ki a dolgozót a listából.</li>
+    <li>Opcionálisan írj megjegyzést (pl. tartozékok, állapot).</li>
+    <li>Kattints az <strong>„Átadás"</strong> gombra.</li>
+  </ol>
+
+  <p>Az átadás <strong>„Átadásra vár"</strong> állapotba kerül. A fogadó dolgozó értesítést kap, és elfogadhatja vagy elutasíthatja.</p>
+
+  <h3 id="atadas_raktarnak">5.2 Átadás raktárnak</h3>
+
+  <ol class="steps">
+    <li>Válaszd az <strong>„Átadás raktárnak"</strong> opciót.</li>
+    <li>Válaszd ki a célraktárt.</li>
+    <li>Kattints a <strong>„Rögzítés"</strong> gombra.</li>
+  </ol>
+
+  <p>A raktárba adás azonnali – nincs elfogadási lépés. Az eszköz azonnal a kiválasztott raktár állományába kerül.</p>
+
+  <h3 id="atadas_kulsonek">5.3 Átadás külső partnernek</h3>
+
+  <ol class="steps">
+    <li>Válaszd az <strong>„Átadás külsős partnernek"</strong> opciót (csak admin).</li>
+    <li>Válaszd ki a partnert (cégnév, kapcsolattartó).</li>
+    <li>Add meg a szállítólevél számot és a megjegyzést (opcionális).</li>
+    <li>Aláírás: a képernyőn digitálisan aláírható a dokumentum.</li>
+    <li>Kattints a <strong>„Kiadás"</strong> gombra.</li>
+  </ol>
+
+  <p>A külsős kiadás azonnali és átadási note is generálódik hozzá.</p>
+
+  <h3 id="fuggo_atadasok">5.4 Függő átadások kezelése</h3>
+
+  <p>A <strong>Függő átadások</strong> oldalon láthatók az összes folyamatban lévő átadási kérelem. A fogadó fél:</p>
+
+  <table>
+    <thead><tr><th>Művelet</th><th>Eredmény</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Elfogad</strong></td><td>Az eszköz átkerül a fogadóhoz. Az átadás lezárul.</td></tr>
+      <tr><td><strong>Elutasít</strong></td><td>Az eszköz visszamarad az előző tulajdonosnál. Megjegyzés adható.</td></tr>
+    </tbody>
+  </table>
+
+  <div class="box tip">
+    <div class="box-title">Értesítések</div>
+    Bejövő átadáskor a harang ikon mellett badge jelenik meg a menüben. Az <strong>Értesítések</strong> oldalon listázva vannak a bejövő kérelmek.
+  </div>
+
+  <h3 id="visszavetel">5.5 Külsőstől visszavétel</h3>
+
+  <p>Ha egy korábban külső partnernek kiadott eszközt visszavesznek, az <strong>„Külsőstől visszavétel"</strong> műveletet kell használni (csak admin). Az eszköz a kiválasztott belső dolgozóhoz vagy raktárba kerül vissza, és visszavételi értesítő generálódik.</p>
+
+
+  <!-- 6. Felülvizsgálat -->
+  <h2 class="ch" id="felulvizsgalat">6. Felülvizsgálat és kalibráció</h2>
+
+  <p>Azok az eszközök, amelyeknél be van kapcsolva a <strong>„Felülvizsgálat / kalibráció szükséges"</strong> opció, nyomon követhető határidővel rendelkeznek.</p>
+
+  <h3 id="felulvizsgalat_beallitas">6.1 Felülvizsgálat bekapcsolása</h3>
+
+  <ol class="steps">
+    <li>Nyisd meg az eszközt szerkesztésre.</li>
+    <li>Kapcsold be a <strong>„Felülvizsgálat / kalibráció szükséges"</strong> jelölőnégyzetet.</li>
+    <li>Mentsd el az eszközt.</li>
+  </ol>
+
+  <p>Ettől kezdve az eszköz szerkesztő felületén megjelenik a felülvizsgálati szekció.</p>
+
+  <h3 id="felulvizsgalat_rogzites">6.2 Elvégzett felülvizsgálat rögzítése</h3>
+
+  <ol class="steps">
+    <li>Az eszköz szerkesztő oldalán görgess a <strong>„Felülvizsgálatok"</strong> szekcióhoz.</li>
+    <li>Add meg az elvégzés dátumát.</li>
+    <li>Válaszd ki a következő időközt (pl. 12 hónap) <em>vagy</em> add meg kézzel a következő dátumot.</li>
+    <li>Írj megjegyzést (opcionális).</li>
+    <li>Csatolj dokumentumot (pl. kalibrációs bizonylat PDF) – opcionális.</li>
+    <li>Kattints a <strong>„Mentés"</strong> gombra.</li>
+  </ol>
+
+  <h4>Időköz beállítás</h4>
+  <table>
+    <thead><tr><th>Mező</th><th>Leírás</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Elvégzés dátuma</strong></td><td>Mikor volt az utolsó felülvizsgálat</td></tr>
+      <tr><td><strong>Következő időköze</strong></td><td>Pl. 6 hónap, 1 év – ebből automatikusan számolja a következő dátumot</td></tr>
+      <tr><td><strong>Következő dátuma (kézi)</strong></td><td>Ha nem időköz alapú, direktben megadható</td></tr>
+      <tr><td><strong>Megjegyzés</strong></td><td>Pl. „Siemens kalibrátor, tanúsítványszám: X123"</td></tr>
+      <tr><td><strong>Dokumentum</strong></td><td>PDF, JPG stb. – kalibrációs bizonylat csatolható</td></tr>
+    </tbody>
+  </table>
+
+  <h3 id="felulvizsgalat_badgek">6.3 Státusz jelzők</h3>
+
+  <table>
+    <thead><tr><th>Jelző</th><th>Jelentés</th></tr></thead>
+    <tbody>
+      <tr><td><span class="badge badge-danger">Lejárt</span></td><td>A következő felülvizsgálat dátuma már elmúlt</td></tr>
+      <tr><td><span class="badge badge-warn">Hamarosan</span></td><td>30 napon belül esedékes a következő felülvizsgálat</td></tr>
+      <tr><td><span class="badge badge-ok">Rendben</span></td><td>Több mint 30 nap van hátra</td></tr>
+    </tbody>
+  </table>
+
+  <h3 id="felulvizsgalat_emlekeztetok">6.4 Automatikus emlékeztetők</h3>
+
+  <p>A rendszer automatikus email emlékeztetőt küld a közelgő és lejárt felülvizsgálatokról. Az emlékeztető a CLI szkript (<code>cli/inspection_reminder.php</code>) futtatásával generálódik, amelyet időzített feladatként (cron) kell beállítani.</p>
+
+  <div class="box info">
+    <div class="box-title">Cron beállítás (ajánlott)</div>
+    <code>0 7 * * * php /var/www/html/assetmgr/cli/inspection_reminder.php</code><br>
+    Minden reggel 7 órakor fut és emailt küld az esedékes felülvizsgálatokról.
+  </div>
+
+
+  <!-- 7. Kategóriák -->
+  <h2 class="ch" id="kategoriak">7. Kategóriák</h2>
+
+  <p>A kategóriák fa struktúrájúak – egy kategóriának lehet szülő kategóriája, így tetszőleges mélységű hierarchia építhető (pl. <em>Mérőeszközök → Hőmérők → Digitális hőmérők</em>).</p>
+
+  <h4>Kategória kezelése (admin)</h4>
+  <ul>
+    <li><strong>Új kategória</strong> – Adj meg nevet és opcionálisan szülő kategóriát</li>
+    <li><strong>Szerkesztés</strong> – Név és szülő módosítható</li>
+    <li><strong>Törlés</strong> – Csak üres (eszköz nélküli) kategória törölhető</li>
+  </ul>
+
+  <div class="box tip">
+    <div class="box-title">Szűrés a listában</div>
+    Az eszközlistán a kategória szűrő az alszinteket is beleérti – ha pl. „Mérőeszközök"-re szűrsz, az összes alkategória eszközei megjelennek.
+  </div>
+
+
+  <!-- 8. Raktár -->
+  <h2 class="ch" id="raktar">8. Raktár funkciók</h2>
+
+  <h3 id="raktar_keszlet">8.1 Raktárkészlet</h3>
+
+  <p>A <strong>Raktárkészlet</strong> oldalon látható, hogy melyik eszköz melyik raktárban van. Szűrhető raktár és keresőszó szerint.</p>
+
+  <h3 id="raktar_beveletezes">8.2 Raktárba vétel</h3>
+
+  <p>Ha egy eszköz kívülről érkezik (pl. javításból visszajött, vásárlás), a <strong>„Raktárba vétel"</strong> funkcióval rögzíthető. Az eszköz azonnal a kiválasztott raktár állományába kerül.</p>
+
+  <ol class="steps">
+    <li>Nyisd meg a <strong>Raktár → Raktárba vétel</strong> oldalt.</li>
+    <li>Válaszd ki az eszközt és a célraktárt.</li>
+    <li>Adj meg megjegyzést (opcionális).</li>
+    <li>Kattints a <strong>„Rögzítés"</strong> gombra.</li>
+  </ol>
+
+
+  <!-- 9. Szerszámkönyv -->
+  <h2 class="ch" id="szerszamkonyv">9. Szerszámkönyv nyomtatása</h2>
+
+  <p>A <strong>Szerszámkönyv</strong> egy PDF dokumentum, amely egy adott dolgozónál nyilvántartott összes eszközt listázza fotókkal és adatokkal együtt. Aláírható átadási bizonylatként is használható.</p>
+
+  <h4>Nyomtatás / küldés (admin)</h4>
+  <ul>
+    <li><strong>Szerszámkönyv nyomtatása</strong> – PDF megnyílik a böngészőben, onnan menthető vagy nyomtatható</li>
+    <li><strong>PDF küldése archívumba</strong> – A generált PDF elmentődik az eszközök archívumába is</li>
+  </ul>
+
+  <div class="box warn">
+    <div class="box-title">Feltétel</div>
+    A gomb csak akkor aktív, ha a kiválasztott dolgozónál legalább egy eszköz van nyilvántartva.
+  </div>
+
+
+  <!-- 10. QR-kód -->
+  <h2 class="ch" id="qr">10. QR-kód kezelés</h2>
+
+  <p>Minden eszközhöz automatikusan generálódik egy egyedi QR-kód. A QR-kód tartalmát az eszköz adatlapján a <strong>„QR (szöveg)"</strong> mezőben lehet megtekinteni vagy felülírni.</p>
+
+  <ul>
+    <li>A QR-kód kinyomtatható az eszköz adatlapjáról</li>
+    <li>Mobilról beolvasva közvetlenül az eszköz adatlapjára navigál</li>
+    <li>Azonosítóként használható leltározáshoz</li>
+  </ul>
+
+  <hr>
+
+  <p style="color:#6c757d; font-size:9pt; text-align:center;">
+    Perfect-Phone 2026 – Eszköznyilvántartó &nbsp;|&nbsp; Belső használatra &nbsp;|&nbsp; Kézikönyv készült: 2026-04-24
+  </p>
+
+</div>
+</body>
+</html>
