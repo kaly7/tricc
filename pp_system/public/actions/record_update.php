@@ -29,11 +29,22 @@ $payload = [
 ];
 
 $due = calc_due($payload['issued_at']);
-$payload['due_at']=$due;
+$payload['due_at'] = $due;
 
-$sql = 'UPDATE records SET eventus=?, pp_status_id=?, issued_at=?, due_at=?, city_id=?, address=?, operation=?, long_desc=?, archived=?, updated_by=? WHERE id=?';
+$geoLat = $old['gps_lat'];
+$geoLng = $old['gps_lng'];
+if ($payload['address'] !== $old['address'] || $payload['city_id'] !== (int)$old['city_id']) {
+    $cityName = db()->prepare('SELECT name FROM cities WHERE id=?');
+    $cityName->execute([$payload['city_id']]);
+    $cityName = (string)($cityName->fetchColumn() ?? '');
+    $geo = geocode_address(trim($cityName . ' ' . $payload['address'])) ?? geocode_address($cityName);
+    $geoLat = $geo['lat'] ?? null;
+    $geoLng = $geo['lng'] ?? null;
+}
+
+$sql = 'UPDATE records SET eventus=?, pp_status_id=?, issued_at=?, due_at=?, city_id=?, address=?, operation=?, long_desc=?, archived=?, updated_by=?, gps_lat=?, gps_lng=? WHERE id=?';
 $params = [
-  $payload['eventus'],$payload['pp_status_id'],$payload['issued_at'],$payload['due_at'],$payload['city_id'],$payload['address'],$payload['operation'],$payload['long_desc'],$payload['archived'],current_user()['id'],$id
+  $payload['eventus'],$payload['pp_status_id'],$payload['issued_at'],$payload['due_at'],$payload['city_id'],$payload['address'],$payload['operation'],$payload['long_desc'],$payload['archived'],current_user()['id'],$geoLat,$geoLng,$id
 ];
 db()->prepare($sql)->execute($params);
 

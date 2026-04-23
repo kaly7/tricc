@@ -5,4 +5,5 @@ if (!hash_equals($_SESSION['csrf'], $_POST['_csrf'] ?? '')) { header('Location: 
 $email = trim($_POST['email'] ?? '');
 $pass  = (string)($_POST['password'] ?? '');
 if (!$email || !$pass || !login_user($email, $pass)) { header('Location: login.php?err=1'); exit; }
-header('Location: records.php'); exit;
+$u = current_user();
+header('Location: '.($u && $u['role']==='worker' ? 'my_om_jobs.php' : 'records.php')); exit;

@@ -33,7 +33,6 @@ $st->execute([$jobId, $u['id'], $workDate, $timeFrom, $timeTo, $minutes, $note !
 $logMsg = 'Munkaidő rögzítve: ' . $workDate . ' ' . $timeFrom . ' - ' . $timeTo;
 if ($minutes) $logMsg .= ' (' . $minutes . ' perc)';
 if ($note !== '') $logMsg .= ' | ' . $note;
-$st = $db->prepare('INSERT INTO om_job_logs (job_id, user_id, log_type, message) VALUES (?,?,?,?)');
-$st->execute([$jobId, $u['id'], 'work_report', $logMsg]);
+log_om_job_event($db, $jobId, $u['id'], 'work_report', $logMsg);
 
 header('Location: ../my_om_job.php?id=' . $jobId . '&msg=' . urlencode('Munkaidő elmentve.'));

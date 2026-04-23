@@ -84,6 +84,44 @@
         </div>
       </div>
 
+      <!-- Bankszámla -->
+      <div class="col-12">
+        <div class="border rounded p-3">
+          <h6 class="text-muted mb-3">Bankszámla</h6>
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label">Bankszámlaszám</label>
+              <input class="form-control" type="text" name="bank_account" id="bank_account"
+                     value="<?= h($emp['bank_account'] ?? '') ?>"
+                     placeholder="12345678-12345678-12345678">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Bank neve</label>
+              <input class="form-control" type="text" name="bank_name" id="bank_name"
+                     value="<?= h($emp['bank_name'] ?? '') ?>"
+                     placeholder="automatikusan kitöltve">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Munkaviszony -->
+      <div class="col-12">
+        <div class="border rounded p-3">
+          <h6 class="text-muted mb-3">Munkaviszony</h6>
+          <div class="row g-3">
+            <div class="col-md-4">
+              <label class="form-label">Belépés dátuma</label>
+              <input class="form-control" type="date" name="hired_on" value="<?= h($emp['hired_on'] ?? '') ?>">
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">Kilépés dátuma</label>
+              <input class="form-control" type="date" name="left_on" value="<?= h($emp['left_on'] ?? '') ?>">
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- Lakcím -->
       <div class="col-12">
         <div class="border rounded p-3">
@@ -216,29 +254,33 @@
     </div>
   </div>
 
-<div class="mt-3 d-flex gap-2">
-      <button class="btn btn-primary" type="submit">Mentés</button>
-      <a class="btn btn-outline-secondary" href="/employees">Mégse</a>
+<div class="mt-3 border-top pt-3 d-flex align-items-center justify-content-between gap-2">
+      <!-- Bal: törlés + inaktivál -->
+      <div class="d-flex gap-2">
+        <?php if (!empty($is_admin)): ?>
+          <button type="submit" form="form-delete-<?= (int)$emp['id'] ?>" class="btn btn-outline-danger"
+                  onclick="return confirm('Biztosan véglegesen törlöd a dolgozót és a kapcsolódó adatait?')">Törlés</button>
+        <?php endif; ?>
+        <button type="submit" form="form-toggle-<?= (int)$emp['id'] ?>"
+                class="btn btn-outline-secondary"
+                onclick="return confirm('Biztosan módosítod a dolgozó állapotát?')"><?= ((int)($emp['is_active'] ?? 1) === 1) ? 'Inaktivál' : 'Aktivál' ?></button>
+      </div>
+      <!-- Jobb: mentés -->
+      <div class="d-flex gap-2">
+        <a class="btn btn-outline-secondary" href="/employees">Mégse</a>
+        <button class="btn btn-primary" type="submit">Mentés</button>
+      </div>
     </div>
-<div class="mt-4 border-top pt-3">
-  <h6 class="text-muted mb-3">Műveletek</h6>
-  <div class="d-flex gap-2 flex-wrap">
-    <form method="post" action="/employees_toggle" class="d-inline" onsubmit="return confirm('Biztosan módosítod a dolgozó állapotát?');">
-      <input type="hidden" name="_csrf" value="<?= h($csrf) ?>">
-      <input type="hidden" name="id" value="<?= (int)$emp['id'] ?>">
-      <button class="btn btn-outline-secondary" type="submit"><?= ((int)($emp['is_active'] ?? 1) === 1) ? 'Inaktivál' : 'Aktivál' ?></button>
-    </form>
+  </div>
+</form>
 
-    <?php if (($_SESSION['user']['role'] ?? '') === 'admin'): ?>
-      <form method="post" action="/employees_delete" class="d-inline" onsubmit="return confirm('Biztosan véglegesen törlöd a dolgozót és a kapcsolódó adatait?');">
-        <input type="hidden" name="_csrf" value="<?= h($csrf) ?>">
-        <input type="hidden" name="id" value="<?= (int)$emp['id'] ?>">
-        <button class="btn btn-danger" type="submit">Törlés</button>
-      </form>
-    <?php endif; ?>
-  </div>
-</div>
-  </div>
+<form id="form-delete-<?= (int)$emp['id'] ?>" method="post" action="/employees_delete">
+  <input type="hidden" name="_csrf" value="<?= h($csrf) ?>">
+  <input type="hidden" name="id" value="<?= (int)$emp['id'] ?>">
+</form>
+<form id="form-toggle-<?= (int)$emp['id'] ?>" method="post" action="/employees_toggle">
+  <input type="hidden" name="_csrf" value="<?= h($csrf) ?>">
+  <input type="hidden" name="id" value="<?= (int)$emp['id'] ?>">
 </form>
 
 <!-- Dokumentumok blokk a szerkesztés oldalon -->
@@ -295,3 +337,69 @@
     </div>
   <?php endif; ?>
 </div>
+
+<script>
+(function(){
+  var banks = {
+    '100': 'Magyar Nemzeti Bank (MNB)',
+    '101': 'OTP Bank',
+    '102': 'MBH Bank (MKB)',
+    '103': 'UniCredit Bank',
+    '104': 'K&H Bank',
+    '105': 'CIB Bank',
+    '106': 'Fundamenta-Lakáskassza',
+    '107': 'CIB Bank',
+    '109': 'Magyar Export-Import Bank',
+    '116': 'Erste Bank',
+    '117': 'OTP Bank',
+    '120': 'Raiffeisen Bank',
+    '121': 'Erste Bank (George)',
+    '122': 'UniCredit Bank',
+    '123': 'Citibank',
+    '125': 'Budapest Bank (BB)',
+    '131': 'MBH Bank',
+    '141': 'FHB Bank',
+    '147': 'MBH Bank (ex-Sberbank)',
+    '154': 'OBERBANK',
+    '155': 'Gránit Bank',
+    '156': 'Gránit Bank',
+    '157': 'KDB Bank',
+    '162': 'Commerzbank',
+    '164': 'Cetelem Bank',
+    '167': 'MBH Bank (ex-MKB)',
+    '172': 'MBH Bank (Takarék)',
+    '173': 'MBH Bank',
+    '174': 'MBH Bank',
+    '176': 'Erste Bank',
+    '177': 'MBH Bank',
+    '178': 'OTP Bank',
+    '179': 'OTP Bank',
+    '184': 'OTP Jelzálogbank',
+    '189': 'UniCredit Jelzálogbank',
+    '219': 'Magnet Bank',
+    '239': 'Budapest Bank',
+    '314': 'Cofidis',
+    '523': 'Gránit Bank',
+    '526': 'Gránit Bank'
+  };
+
+  function detectBank(val) {
+    var digits = val.replace(/[\s\-]/g, '');
+    if (digits.toUpperCase().startsWith('HU') && digits.length >= 6) {
+      digits = digits.substring(4);
+    }
+    var prefix3 = digits.substring(0, 3);
+    var prefix2 = digits.substring(0, 2);
+    return banks[prefix3] || banks[prefix2] || '';
+  }
+
+  var accInput = document.getElementById('bank_account');
+  var nameInput = document.getElementById('bank_name');
+  if (accInput && nameInput) {
+    accInput.addEventListener('input', function() {
+      var detected = detectBank(this.value.trim());
+      if (detected) nameInput.value = detected;
+    });
+  }
+})();
+</script>

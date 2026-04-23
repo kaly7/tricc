@@ -292,11 +292,17 @@ if ($_SERVER['REQUEST_METHOD']==='POST'){
                   // [vehicle_id => ['plate'=>string,'count'=>int,'km_updates'=>[['from'=>int,'to'=>int]]]]
                   $vehSummary = [];
 
+                  // Részletes log gyűjtés
+                  $logUnmatched = []; // ['row'=>int, 'plate'=>string]
+                  $logDupes     = []; // ['row'=>int, 'plate'=>string, 'dt'=>string]
+                  $logSkipped   = []; // ['row'=>int, 'reason'=>string]
+
                   $ins = $pdo->prepare("INSERT INTO vehicle_fuel_entries
                     (import_id, vehicle_id, fueled_at, odometer_km, fuel_product, quantity_l, unit_price_huf, gross_huf, station_name, station_id, country, slip_id, invoice_no, card_no, raw_row_hash, created_by)
                     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)");
 
-                  $vehSt = $pdo->prepare("SELECT id FROM vehicles WHERE license_plate=? LIMIT 1");
+                  // Normalizált rendszám keresés: szóközök, kötőjelek, pontok eltávolítva mindkét oldalon
+                  $vehSt = $pdo->prepare("SELECT id FROM vehicles WHERE REPLACE(REPLACE(REPLACE(UPPER(license_plate),' ',''),'-',''),'.','')=? LIMIT 1");
                   $vehOdoSt = $pdo->prepare("SELECT odometer_km FROM vehicles WHERE id=? LIMIT 1");
                   $vehUpdOdoSt = $pdo->prepare("UPDATE vehicles SET odometer_km=? WHERE id=?");
 
@@ -333,7 +339,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST'){
                     $rowsTotal++;
 
                     $plate = trim((string)$maybePlate);
-                    if ($plate===''){ $rowsSkip++; continue; }
+                    if ($plate===''){ $rowsSkip++; $logSkipped[] = ['row'=>$r, 'reason'=>'Üres rendszám']; continue; }
                     $plateNorm = strtoupper(preg_replace('/[^A-Z0-9]/','', $plate));
 
                     $dtRaw = $maybeDt;
@@ -343,7 +349,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST'){
                       // maybe already 'Y-m-d H:i:s'
                       if (preg_match('/^\d{4}-\d{2}-\d{2}/', (string)$dtRaw)) $dt = (string)$dtRaw;
                     }
-                    if (!$dt){ $rowsSkip++; continue; }
+                    if (!$dt){ $rowsSkip++; $logSkipped[] = ['row'=>$r, 'reason'=>'Érvénytelen dátum: '.htmlspecialchars((string)$dtRaw)]; continue; }
 
                     $kmVal = null;
                     $kmRaw = $getCell($r, $map['km']);
@@ -371,8 +377,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST'){
 
                     $vehId = 0;
                     $vehSt->execute([$plateNorm]); $vehId = (int)($vehSt->fetchColumn() ?: 0);
-                    if (!$vehId){ $vehSt->execute([trim($plate)]); $vehId = (int)($vehSt->fetchColumn() ?: 0); }
-                    if (!$vehId){ $rowsUnmatched++; continue; }
+                    if (!$vehId){ $rowsUnmatched++; $logUnmatched[] = ['row'=>$r, 'plate'=>$plate]; continue; }
 
                     $rawHash = hash('sha256', json_encode([$plateNorm,$dt,$kmVal,$prod,$qtyVal,$grossVal,$station,$slip,$card], JSON_UNESCAPED_UNICODE));
 
@@ -406,8 +411,14 @@ if ($_SERVER['REQUEST_METHOD']==='POST'){
                         }
                       }
                     } catch (PDOException $e){
-                      if (strpos($e->getMessage(), 'Duplicate') !== false) $dupes++;
-                      else { pm_log("insert err ".$e->getMessage()); $rowsSkip++; }
+                      if (strpos($e->getMessage(), 'Duplicate') !== false) {
+                        $dupes++;
+                        $logDupes[] = ['row'=>$r, 'plate'=>$plate, 'dt'=>$dt];
+                      } else {
+                        pm_log("insert err ".$e->getMessage());
+                        $rowsSkip++;
+                        $logSkipped[] = ['row'=>$r, 'reason'=>'DB hiba: '.$e->getMessage()];
+                      }
                     }
                   }
 
@@ -459,7 +470,76 @@ if ($_SERVER['REQUEST_METHOD']==='POST'){
                   // Sort vehicle list by plate for nicer UI
                   $vehList = array_values($vehSummary);
                   usort($vehList, fn($a,$b)=>strcmp($a['plate'],$b['plate']));
-                  $result = ['import_id'=>$importId,'file'=>$orig,'rows_total'=>$rowsTotal,'imported'=>$rowsOk,'unmatched'=>$rowsUnmatched,'skipped'=>$rowsSkip,'dupes'=>$dupes, 'vehicles'=>$vehList];
+
+                  // Részletes log fájl írása
+                  $logLines = [];
+                  $logLines[] = '=== ÜZEMANYAG IMPORT ÖSSZEGZÉS ===';
+                  $logLines[] = 'Import ID : '.$importId;
+                  $logLines[] = 'Fájl      : '.$orig;
+                  $logLines[] = 'Feltöltő  : '.($u['name'] ?? $u['email'] ?? $u['id']);
+                  $logLines[] = 'Időpont   : '.date('Y-m-d H:i:s');
+                  $logLines[] = '';
+                  $logLines[] = 'ÖSSZESÍTŐ:';
+                  $logLines[] = '  Összes sor       : '.$rowsTotal;
+                  $logLines[] = '  Sikeresen importált: '.$rowsOk;
+                  $logLines[] = '  Már megvolt (dupla): '.$dupes;
+                  $logLines[] = '  Ismeretlen rendszám: '.$rowsUnmatched;
+                  $logLines[] = '  Egyéb kihagyott  : '.$rowsSkip;
+                  $logLines[] = '';
+                  if ($logUnmatched) {
+                    $logLines[] = 'ISMERETLEN RENDSZÁMOK ('.count($logUnmatched).' db):';
+                    $grouped = [];
+                    foreach ($logUnmatched as $e) { $grouped[$e['plate']][] = $e['row']; }
+                    foreach ($grouped as $pl => $rows) {
+                      $logLines[] = '  '.$pl.' (sor: '.implode(', ', $rows).')';
+                    }
+                    $logLines[] = '';
+                  }
+                  if ($logDupes) {
+                    $logLines[] = 'MÁR IMPORTÁLT (DUPLA) TÉTELEK ('.count($logDupes).' db):';
+                    foreach ($logDupes as $e) {
+                      $logLines[] = '  Sor '.$e['row'].': '.$e['plate'].' – '.$e['dt'];
+                    }
+                    $logLines[] = '';
+                  }
+                  if ($logSkipped) {
+                    $logLines[] = 'KIHAGYOTT SOROK ('.count($logSkipped).' db):';
+                    foreach ($logSkipped as $e) {
+                      $logLines[] = '  Sor '.$e['row'].': '.$e['reason'];
+                    }
+                    $logLines[] = '';
+                  }
+                  if ($vehList) {
+                    $logLines[] = 'ÉRINTETT JÁRMŰVEK:';
+                    foreach ($vehList as $v) {
+                      $kmInfo = '';
+                      if (!empty($v['km_updates'])) {
+                        $last = end($v['km_updates']);
+                        $kmInfo = ' | km: '.$last['from'].' → '.$last['to'];
+                      }
+                      $logLines[] = '  '.$v['plate'].' – '.$v['count'].' tétel'.$kmInfo;
+                    }
+                  }
+                  $logLines[] = '=== VÉGE ===';
+                  $logContent = implode(PHP_EOL, $logLines).PHP_EOL;
+                  $logFile = dirname(__DIR__).'/storage/logs/fuel_import_'.$importId.'_'.date('Ymd_His').'.log';
+                  @file_put_contents($logFile, $logContent);
+                  pm_log("summary written to ".basename($logFile));
+
+                  $result = [
+                    'import_id'  => $importId,
+                    'file'       => $orig,
+                    'rows_total' => $rowsTotal,
+                    'imported'   => $rowsOk,
+                    'unmatched'  => $rowsUnmatched,
+                    'skipped'    => $rowsSkip,
+                    'dupes'      => $dupes,
+                    'vehicles'   => $vehList,
+                    'log_unmatched' => $logUnmatched,
+                    'log_dupes'     => $logDupes,
+                    'log_skipped'   => $logSkipped,
+                    'log_file'      => basename($logFile),
+                  ];
                 }
 
               } catch (Throwable $e) {
@@ -482,18 +562,28 @@ require dirname(__DIR__).'/views/_flash.php';
 </div>
 
 <?php if ($error): ?><div class="alert alert-danger"><?= $error ?></div><?php endif; ?>
-<?php if ($result): ?>
-  <div class="alert alert-success">
-    <div><strong>Import kész.</strong></div>
-    <div class="small">
-      Import ID: <?= (int)$result['import_id'] ?> • Sorok: <?= (int)$result['rows_total'] ?> • Importált: <?= (int)$result['imported'] ?> • Ismeretlen rendszám: <?= (int)$result['unmatched'] ?> • Kihagyott: <?= (int)$result['skipped'] ?> • Dupla: <?= (int)$result['dupes'] ?>
+<?php if ($result):
+  $hasProblems = ($result['unmatched'] > 0 || $result['skipped'] > 0 || $result['dupes'] > 0);
+  $alertClass  = $hasProblems ? 'alert-warning' : 'alert-success';
+?>
+  <div class="alert <?= $alertClass ?> mb-3">
+    <div class="fw-bold mb-1"><?= $hasProblems ? 'Import kész – figyelj a figyelmeztetésekre!' : 'Import sikeresen kész.' ?></div>
+    <div class="d-flex flex-wrap gap-3 small">
+      <span>Import ID: <strong><?= (int)$result['import_id'] ?></strong></span>
+      <span>Összes sor: <strong><?= (int)$result['rows_total'] ?></strong></span>
+      <span class="text-success">✔ Importálva: <strong><?= (int)$result['imported'] ?></strong></span>
+      <?php if ($result['dupes'] > 0): ?><span class="text-secondary">⟳ Már megvolt: <strong><?= (int)$result['dupes'] ?></strong></span><?php endif; ?>
+      <?php if ($result['unmatched'] > 0): ?><span class="text-danger">✘ Ismeretlen rendszám: <strong><?= (int)$result['unmatched'] ?></strong></span><?php endif; ?>
+      <?php if ($result['skipped'] > 0): ?><span class="text-warning">⚠ Kihagyott: <strong><?= (int)$result['skipped'] ?></strong></span><?php endif; ?>
     </div>
-    <div class="small text-muted">Beolvasás: PhpSpreadsheet</div>
+    <?php if (!empty($result['log_file'])): ?>
+      <div class="small text-muted mt-1">Log: <code><?= htmlspecialchars($result['log_file']) ?></code></div>
+    <?php endif; ?>
   </div>
 
   <?php if (!empty($result['vehicles'])): ?>
     <div class="card p-0 mb-3">
-      <div class="card-header"><strong>Érintett járművek (rendszámok)</strong></div>
+      <div class="card-header"><strong>✔ Sikeresen importált járművek</strong></div>
       <table class="table table-sm table-striped m-0 align-middle">
         <thead>
           <tr>
@@ -505,28 +595,83 @@ require dirname(__DIR__).'/views/_flash.php';
         <tbody>
         <?php foreach ($result['vehicles'] as $v):
           $kmUps = $v['km_updates'] ?? [];
-          $kmTxt = '';
-          if (is_array($kmUps) && count($kmUps)>0) {
+          $kmTxt = '—';
+          if (is_array($kmUps) && count($kmUps) > 0) {
             $last = $kmUps[count($kmUps)-1];
-            $kmTxt = 'Igen ('.$last['from'].' → '.$last['to'].')';
-            if (count($kmUps)>1) $kmTxt .= ' +'.(count($kmUps)-1).' további';
-          } else {
-            $kmTxt = '—';
+            $kmTxt = $last['from'].' → '.$last['to'].' km';
+            if (count($kmUps) > 1) $kmTxt .= ' (+'.(count($kmUps)-1).' felülírás)';
           }
         ?>
           <tr>
             <td><strong><?= htmlspecialchars($v['plate'] ?? '') ?></strong></td>
             <td class="text-end"><?= (int)($v['count'] ?? 0) ?></td>
-            <td><?= htmlspecialchars($kmTxt) ?></td>
+            <td class="small text-muted"><?= htmlspecialchars($kmTxt) ?></td>
           </tr>
         <?php endforeach; ?>
         </tbody>
       </table>
-      <div class="card-footer small text-muted">
-        Megjegyzés: ha a sorban a Km nem 0 volt, akkor a jármű <code>odometer_km</code> mezője felül lett írva.
-      </div>
     </div>
   <?php endif; ?>
+
+  <?php if (!empty($result['log_unmatched'])): ?>
+    <?php
+      // Rendszámok csoportosítva sorok listájával
+      $unmGrouped = [];
+      foreach ($result['log_unmatched'] as $e) { $unmGrouped[$e['plate']][] = $e['row']; }
+    ?>
+    <div class="card p-0 mb-3 border-danger">
+      <div class="card-header bg-danger-subtle text-danger"><strong>✘ Ismeretlen rendszámok (<?= count($unmGrouped) ?> egyedi)</strong></div>
+      <table class="table table-sm m-0 align-middle">
+        <thead><tr><th>Rendszám az XLS-ben</th><th>Sorok</th></tr></thead>
+        <tbody>
+        <?php foreach ($unmGrouped as $pl => $rows): ?>
+          <tr>
+            <td><code><?= htmlspecialchars($pl) ?></code></td>
+            <td class="small text-muted"><?= implode(', ', $rows) ?></td>
+          </tr>
+        <?php endforeach; ?>
+        </tbody>
+      </table>
+      <div class="card-footer small text-muted">Ezekhez a rendszámokhoz nincs egyező jármű az adatbázisban. Ellenőrizd a rendszám helyesírását!</div>
+    </div>
+  <?php endif; ?>
+
+  <?php if (!empty($result['log_dupes'])): ?>
+    <div class="card p-0 mb-3 border-secondary">
+      <div class="card-header bg-secondary-subtle"><strong>⟳ Már importált (duplikált) tételek (<?= count($result['log_dupes']) ?> db)</strong></div>
+      <table class="table table-sm m-0 align-middle">
+        <thead><tr><th>Sor</th><th>Rendszám</th><th>Dátum</th></tr></thead>
+        <tbody>
+        <?php foreach ($result['log_dupes'] as $e): ?>
+          <tr>
+            <td class="text-muted"><?= (int)$e['row'] ?></td>
+            <td><code><?= htmlspecialchars($e['plate']) ?></code></td>
+            <td class="small"><?= htmlspecialchars($e['dt']) ?></td>
+          </tr>
+        <?php endforeach; ?>
+        </tbody>
+      </table>
+      <div class="card-footer small text-muted">Ezek a tételek egy korábbi importban már szerepeltek, nem kerültek be újra.</div>
+    </div>
+  <?php endif; ?>
+
+  <?php if (!empty($result['log_skipped'])): ?>
+    <div class="card p-0 mb-3 border-warning">
+      <div class="card-header bg-warning-subtle"><strong>⚠ Kihagyott sorok (<?= count($result['log_skipped']) ?> db)</strong></div>
+      <table class="table table-sm m-0 align-middle">
+        <thead><tr><th>Sor</th><th>Ok</th></tr></thead>
+        <tbody>
+        <?php foreach ($result['log_skipped'] as $e): ?>
+          <tr>
+            <td class="text-muted"><?= (int)$e['row'] ?></td>
+            <td class="small"><?= htmlspecialchars($e['reason']) ?></td>
+          </tr>
+        <?php endforeach; ?>
+        </tbody>
+      </table>
+    </div>
+  <?php endif; ?>
+
 <?php endif; ?>
 
 <div class="card p-3">

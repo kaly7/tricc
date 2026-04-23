@@ -74,8 +74,16 @@ $qrUrl = 'https://'.$host.':9443/qr_demo.php';
         <!-- Technológiai demó menüpont (HTTPS:9443) -->
         <!-- li class="nav-item"><a class="nav-link" href="<?= e($qrUrl) ?>">QR teszt</a></li -->
 
-        <?php if ($isAdmin): ?>
-          <li class="nav-item"><a class="nav-link" href="<?= e(base_url('assets.php')) ?>">Eszközök</a></li>
+        <?php if ($isAdmin):
+          $navInspRed = 0;
+          try {
+            $navPdo = db();
+            $navLatest = "(SELECT next_date FROM asset_inspections WHERE asset_id=a.id ORDER BY inspection_date DESC, id DESC LIMIT 1)";
+            $navSt = $navPdo->query("SELECT COUNT(*) FROM assets a WHERE a.is_deleted=0 AND a.inspection_required=1 AND $navLatest < CURDATE()");
+            $navInspRed = (int)($navSt->fetchColumn() ?: 0);
+          } catch (Throwable $e) {}
+        ?>
+          <li class="nav-item"><a class="nav-link" href="<?= e(base_url('assets.php')) ?>">Eszközök<?php if ($navInspRed > 0): ?> <span class="badge bg-danger ms-1"><?= $navInspRed ?></span><?php endif; ?></a></li>
           <li class="nav-item"><a class="nav-link" href="<?= e(base_url('categories.php')) ?>">Kategóriák</a></li>
           <li class="nav-item"><a class="nav-link" href="<?= e(base_url('pending_transfers.php')) ?>">Függő átadások</a></li>
         <?php endif; ?>

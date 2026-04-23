@@ -1,151 +1,272 @@
 <?php
-// print-friendly employee card (browser print -> PDF)
-$e = $employee ?? [];
+$e        = $employee ?? [];
 $division = $e['division_name'] ?? ($e['company_division'] ?? '');
-$profile = $e['profile_image_path'] ?? '';
-$imgUrl = '';
+$profile  = $e['profile_image_path'] ?? '';
+$imgUrl   = '';
 if (!empty($profile)) {
-  // profile_image_path starts with /uploads/...
   $imgUrl = rtrim((string)($baseUrl ?? ''), '/') . (str_starts_with($profile, '/') ? $profile : '/' . $profile);
 }
 
 function h($s){ return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
 
 $today = date('Y-m-d');
+
+// Extra mezők: van-e valami megjelenítendő?
+$hasExtra = false;
+if (!empty($fields) && !empty($field_values)) {
+  foreach ($fields as $f) {
+    $fid  = (int)$f['id'];
+    $val  = $field_values[$fid]['value'] ?? '';
+    $show = (int)($field_values[$fid]['show'] ?? 1);
+    if ($show === 1 && trim((string)$val) !== '') { $hasExtra = true; break; }
+  }
+}
 ?><!doctype html>
 <html lang="hu">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Karton PDF – <?= h($e['full_name'] ?? '') ?></title>
-  <link href="/assets/bootstrap/bootstrap.min.css" rel="stylesheet">
+  <title>Karton – <?= h($e['full_name'] ?? '') ?></title>
   <style>
-    body{background:#fff;}
-    .section{border:1px solid #dee2e6; border-radius:.5rem; padding:1rem; margin-bottom:1rem;}
-    .label{color:#6c757d; width:32%;}
-    .kv td,.kv th{padding:.35rem .5rem;}
-    .photo{width:120px; height:120px; object-fit:cover; border-radius:.5rem; border:1px solid #dee2e6;}
-    @media print{
-      .no-print{display:none !important;}
-      a[href]:after{content:"";}
-      body{ -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-      .section{page-break-inside: avoid;}
+    /* ---- Alap ---- */
+    *, *::before, *::after { box-sizing: border-box; }
+    body {
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 10pt;
+      color: #212529;
+      background: #fff;
+      margin: 0;
+      padding: 0;
+    }
+    .container { max-width: 800px; margin: 0 auto; padding: 12mm 10mm; }
+
+    /* ---- Szekciók ---- */
+    .section {
+      border: 1px solid #ced4da;
+      border-radius: 5px;
+      padding: 10px 12px;
+      margin-bottom: 10px;
+    }
+    .section-title {
+      font-size: 8pt;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+      color: #6c757d;
+      font-weight: bold;
+      margin: 0 0 7px 0;
+      padding-bottom: 4px;
+      border-bottom: 1px solid #e9ecef;
+    }
+
+    /* ---- Fejléc ---- */
+    .header-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+      margin-bottom: 10px;
+    }
+    .header-photo img {
+      width: 90px;
+      height: 90px;
+      object-fit: cover;
+      border-radius: 5px;
+      border: 1px solid #ced4da;
+      display: block;
+    }
+    .header-photo .no-photo {
+      width: 90px;
+      height: 90px;
+      background: #f8f9fa;
+      border: 1px solid #ced4da;
+      border-radius: 5px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #adb5bd;
+      font-size: 8pt;
+    }
+    .header-info h2 { margin: 0 0 3px 0; font-size: 16pt; }
+    .header-info .sub { color: #6c757d; font-size: 9pt; }
+    .status-active   { color: #198754; font-weight: bold; }
+    .status-inactive { color: #dc3545; font-weight: bold; }
+
+    /* ---- Adattábla (kulcs-érték) ---- */
+    .kv { width: 100%; border-collapse: collapse; }
+    .kv tr td, .kv tr th { padding: 3px 5px; vertical-align: top; }
+    .kv .lbl { width: 35%; color: #495057; font-weight: normal; }
+    .kv .val { font-weight: bold; }
+    .kv tr:nth-child(even) td,
+    .kv tr:nth-child(even) th { background: #f8f9fa; }
+
+    /* ---- Grid (2 oszlopos) ---- */
+    .grid2 { display: flex; flex-wrap: wrap; gap: 4px 0; }
+    .grid2 .cell { width: 50%; padding: 2px 5px; }
+    .grid2 .cell.full { width: 100%; }
+    .cell .lbl { font-size: 8.5pt; color: #6c757d; display: block; }
+    .cell .val { font-weight: bold; }
+
+    /* ---- Dokumentum táblázat ---- */
+    .doc-table { width: 100%; border-collapse: collapse; font-size: 9pt; }
+    .doc-table th { background: #f8f9fa; padding: 4px 6px; text-align: left; border-bottom: 1px solid #ced4da; }
+    .doc-table td { padding: 3px 6px; border-bottom: 1px solid #e9ecef; vertical-align: top; }
+    .exp-ok      { color: #6c757d; }
+    .exp-soon    { color: #856404; font-weight: bold; }
+    .exp-expired { color: #dc3545; font-weight: bold; }
+
+    /* ---- Nyomtatógomb (csak képernyőn) ---- */
+    .screen-only { margin-bottom: 14px; }
+
+    /* ---- Lábléc / oldalszám ---- */
+    .print-footer {
+      font-size: 8pt;
+      color: #6c757d;
+      border-top: 1px solid #e9ecef;
+      padding-top: 5px;
+      margin-top: 14px;
+    }
+
+    /* ---- Nyomtatási szabályok ---- */
+    @media print {
+      .screen-only { display: none !important; }
+      a::after { content: "" !important; }
+      body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .section { page-break-inside: avoid; }
+    }
+
+    @page {
+      size: A4 portrait;
+      margin: 14mm 12mm 20mm 12mm;
+      @bottom-right {
+        content: counter(page) ". oldal / " counter(pages);
+        font-size: 8pt;
+        color: #6c757d;
+      }
+      @bottom-left {
+        content: "<?= addslashes(h($e['full_name'] ?? '')) ?> – HR karton";
+        font-size: 8pt;
+        color: #6c757d;
+      }
     }
   </style>
 </head>
 <body>
-<div class="container my-3">
-  <div class="d-flex justify-content-between align-items-center mb-3 no-print">
-    <div>
-      <button type="button" class="btn btn-sm btn-outline-secondary" onclick="window.close()">Bezárás</button>
+<div class="container">
+
+  <!-- Nyomtatógombok (csak képernyőn) -->
+  <div class="screen-only">
+    <button onclick="window.print()" style="padding:6px 16px;font-size:10pt;cursor:pointer;">Nyomtatás / PDF mentés</button>
+    <button onclick="window.close()" style="padding:6px 16px;font-size:10pt;cursor:pointer;margin-left:6px;">Bezárás</button>
+  </div>
+
+  <!-- Fejléc -->
+  <div class="header-row">
+    <div class="header-photo">
+      <?php if ($imgUrl): ?>
+        <img src="<?= h($imgUrl) ?>" alt="Profilkép">
+      <?php else: ?>
+        <div class="no-photo">Nincs kép</div>
+      <?php endif; ?>
     </div>
-    <div class="d-flex gap-2">
-      <button class="btn btn-sm btn-primary" onclick="window.print()">Nyomtatás / PDF mentés</button>
+    <div class="header-info">
+      <h2><?= h($e['full_name'] ?? '') ?></h2>
+      <div class="sub">Készült: <?= h($today) ?></div>
+      <?php if (!empty($division)): ?>
+        <div class="sub">Divízió: <strong><?= h($division) ?></strong></div>
+      <?php endif; ?>
+      <div class="sub" style="margin-top:3px;">
+        Állapot:
+        <?php if ((int)($e['is_active'] ?? 1) === 1): ?>
+          <span class="status-active">Aktív</span>
+        <?php else: ?>
+          <span class="status-inactive">Inaktív</span>
+        <?php endif; ?>
+      </div>
     </div>
   </div>
 
-  <div class="d-flex align-items-start gap-3 mb-3">
-    <?php if ($imgUrl): ?>
-      <img class="photo" src="<?= h($imgUrl) ?>" alt="Profilkép">
-    <?php endif; ?>
-    <div class="flex-grow-1">
-      <h3 class="m-0"><?= h($e['full_name'] ?? '') ?></h3>
-      <div class="text-muted">Készült: <?= h($today) ?></div>
-      <?php if (!empty($division)): ?>
-        <div class="mt-1"><span class="badge bg-light text-dark border">Divízió: <?= h($division) ?></span></div>
+  <!-- Személyes adatok -->
+  <div class="section">
+    <div class="section-title">Személyes adatok</div>
+    <div class="grid2">
+      <div class="cell"><span class="lbl">Születési név</span><span class="val"><?= h($e['birth_name'] ?? '—') ?></span></div>
+      <div class="cell"><span class="lbl">Anyja neve</span><span class="val"><?= h($e['mother_name'] ?? '—') ?></span></div>
+      <div class="cell"><span class="lbl">Születési hely</span><span class="val"><?= h($e['birth_place'] ?? '—') ?></span></div>
+      <div class="cell"><span class="lbl">Születési dátum</span><span class="val"><?= h($e['birth_date'] ?? '—') ?></span></div>
+    </div>
+  </div>
+
+  <!-- Céges / azonosító -->
+  <div class="section">
+    <div class="section-title">Céges / azonosító</div>
+    <div class="grid2">
+      <div class="cell"><span class="lbl">Adóazonosító</span><span class="val"><?= h($e['tax_id'] ?? '—') ?></span></div>
+      <div class="cell"><span class="lbl">TAJ szám</span><span class="val"><?= h($e['taj'] ?? '—') ?></span></div>
+      <div class="cell"><span class="lbl">Céges törzsszám</span><span class="val"><?= h($e['company_emp_no'] ?? '—') ?></span></div>
+      <div class="cell"><span class="lbl">Divízió</span><span class="val"><?= h($division ?: '—') ?></span></div>
+    </div>
+  </div>
+
+  <!-- Bankszámla -->
+  <div class="section">
+    <div class="section-title">Bankszámla</div>
+    <div class="grid2">
+      <div class="cell"><span class="lbl">Bankszámlaszám</span><span class="val"><?= h($e['bank_account'] ?? '—') ?></span></div>
+      <div class="cell"><span class="lbl">Bank neve</span><span class="val"><?= h($e['bank_name'] ?? '—') ?></span></div>
+    </div>
+  </div>
+
+  <!-- Munkaviszony -->
+  <div class="section">
+    <div class="section-title">Munkaviszony</div>
+    <div class="grid2">
+      <div class="cell"><span class="lbl">Belépés dátuma</span><span class="val"><?= h($e['hired_on'] ?? '—') ?></span></div>
+      <div class="cell"><span class="lbl">Kilépés dátuma</span><span class="val"><?= h($e['left_on'] ?? '—') ?></span></div>
+    </div>
+  </div>
+
+  <!-- Lakcím -->
+  <div class="section">
+    <div class="section-title">Lakcím</div>
+    <div class="grid2">
+      <div class="cell"><span class="lbl">Irányítószám</span><span class="val"><?= h($e['addr_zip'] ?? '—') ?></span></div>
+      <div class="cell"><span class="lbl">Település</span><span class="val"><?= h($e['addr_city'] ?? '—') ?></span></div>
+      <div class="cell full"><span class="lbl">Cím</span><span class="val"><?= h($e['addr_line'] ?? '—') ?></span></div>
+    </div>
+  </div>
+
+  <!-- Kapcsolat -->
+  <div class="section">
+    <div class="section-title">Kapcsolat</div>
+    <div class="grid2">
+      <div class="cell"><span class="lbl">Email</span><span class="val"><?= h($e['email'] ?? '—') ?></span></div>
+      <div class="cell"><span class="lbl">Telefon</span><span class="val"><?= h($e['phone'] ?? '—') ?></span></div>
+      <?php if (!empty($e['notes'])): ?>
+        <div class="cell full"><span class="lbl">Megjegyzés</span><span class="val"><?= nl2br(h($e['notes'])) ?></span></div>
       <?php endif; ?>
     </div>
   </div>
 
-  <div class="section">
-    <h5 class="m-0 mb-2">Alapadatok</h5>
-    <table class="table table-sm kv mb-0">
-      <tbody>
-        <tr><th class="label">Születési név</th><td><?= h($e['birth_name'] ?? '') ?></td></tr>
-        <tr><th class="label">Anyja neve</th><td><?= h($e['mother_name'] ?? '') ?></td></tr>
-        <tr><th class="label">Születési hely, idő</th><td><?= h($e['birth_place'] ?? '') ?><?= !empty($e['birth_date']) ? ' – ' . h($e['birth_date']) : '' ?></td></tr>
-        <tr><th class="label">Adóazonosító</th><td><?= h($e['tax_id'] ?? '') ?></td></tr>
-        <tr><th class="label">TAJ szám</th><td><?= h($e['taj'] ?? '') ?></td></tr>
-        <tr><th class="label">Céges törzsszám</th><td><?= h($e['company_emp_no'] ?? '') ?></td></tr>
-        <tr><th class="label">Email</th><td><?= h($e['email'] ?? '') ?></td></tr>
-        <tr><th class="label">Telefon</th><td><?= h($e['phone'] ?? '') ?></td></tr>
-        <tr><th class="label">Lakcím</th><td><?= h(($e['addr_zip'] ?? '').' '.($e['addr_city'] ?? '').', '.($e['addr_line'] ?? '')) ?></td></tr>
-      </tbody>
-    </table>
-  </div>
-
-  <?php if (!empty($e['notes'])): ?>
-  <div class="section">
-    <h5 class="m-0 mb-2">Megjegyzés</h5>
-    <div><?= nl2br(h($e['notes'])) ?></div>
-  </div>
-  <?php endif; ?>
-
-  <?php
-    $hasExtra = false;
-    if (!empty($fields) && !empty($field_values)) {
-      foreach ($fields as $f) {
-        $fid = (int)$f['id'];
-        $val = $field_values[$fid]['value'] ?? '';
-        $show = (int)($field_values[$fid]['show'] ?? 1);
-        if ($show === 1 && trim((string)$val) !== '') { $hasExtra = true; break; }
-      }
-    }
-  ?>
+  <!-- Extra mezők -->
   <?php if ($hasExtra): ?>
   <div class="section">
-    <h5 class="m-0 mb-2">Egyéb adatok</h5>
-    <table class="table table-sm kv mb-0">
+    <div class="section-title">Egyéb adatok</div>
+    <table class="kv">
       <tbody>
         <?php foreach (($fields ?? []) as $f): ?>
           <?php
-            $fid = (int)$f['id'];
-            $val = $field_values[$fid]['value'] ?? '';
+            $fid  = (int)$f['id'];
+            $val  = $field_values[$fid]['value'] ?? '';
             $show = (int)($field_values[$fid]['show'] ?? 1);
-            if ($show !== 1) continue;
-            if (trim((string)$val) === '') continue;
-
+            if ($show !== 1 || trim((string)$val) === '') continue;
             $type = $f['field_type'] ?? 'text';
             $disp = $val;
-            if (in_array($type, ['multiselect'], true)) {
+            if ($type === 'multiselect') {
               $arr = json_decode((string)$val, true);
               if (is_array($arr)) $disp = implode(', ', $arr);
             }
           ?>
-          <tr><th class="label"><?= h($f['name'] ?? '') ?></th><td><?= nl2br(h((string)$disp)) ?></td></tr>
-        <?php endforeach; ?>
-      </tbody>
-    </table>
-  </div>
-  <?php endif; ?>
-
-  <?php if (!empty($docs)): ?>
-  <div class="section">
-    <h5 class="m-0 mb-2">Dokumentumok</h5>
-    <table class="table table-sm mb-0">
-      <thead>
-        <tr>
-          <th>Megnevezés</th>
-          <th>Feltöltve</th>
-          <th>Lejárat</th>
-        </tr>
-      </thead>
-      <tbody>
-        <?php foreach ($docs as $d): ?>
-          <?php
-            $exp = $d['expires_at'] ?? null;
-            $cls = '';
-            if (!empty($exp)) {
-              $ts = strtotime((string)$exp);
-              $days = (int)floor(($ts - time())/86400);
-              if ($days < 0) $cls = 'table-danger';
-              elseif ($days <= 30) $cls = 'table-warning';
-            }
-          ?>
-          <tr class="<?= h($cls) ?>">
-            <td><?= h($d['doc_type_name'] ?? ($d['doc_type'] ?? '')) ?><?= !empty($d['title']) ? ' – ' . h($d['title']) : '' ?></td>
-            <td><?= h(substr((string)($d['created_at'] ?? ''),0,10)) ?></td>
-            <td><?= h($exp ?? '') ?></td>
+          <tr>
+            <td class="lbl"><?= h($f['name'] ?? '') ?></td>
+            <td class="val"><?= nl2br(h((string)$disp)) ?></td>
           </tr>
         <?php endforeach; ?>
       </tbody>
@@ -153,10 +274,48 @@ $today = date('Y-m-d');
   </div>
   <?php endif; ?>
 
-  <div class="text-muted small mb-4">
-    Perfect-Phone 2026 – HR
+  <!-- Dokumentumok -->
+  <?php if (!empty($docs)): ?>
+  <div class="section">
+    <div class="section-title">Dokumentumok</div>
+    <table class="doc-table">
+      <thead>
+        <tr>
+          <th>Típus / Megnevezés</th>
+          <th>Feltöltve</th>
+          <th>Lejárat</th>
+        </tr>
+      </thead>
+      <tbody>
+        <?php foreach ($docs as $d):
+          $exp  = $d['expires_at'] ?? null;
+          $expCls = 'exp-ok';
+          $expVal = $exp ?? '—';
+          if (!empty($exp)) {
+            $ts   = strtotime((string)$exp);
+            $days = (int)floor(($ts - time()) / 86400);
+            if ($days < 0)      $expCls = 'exp-expired';
+            elseif ($days <= 30) $expCls = 'exp-soon';
+          }
+          $label = ($d['doc_type_name'] ?? ($d['doc_type'] ?? ''));
+          if (!empty($d['title'])) $label .= ' – ' . $d['title'];
+        ?>
+          <tr>
+            <td><?= h($label) ?></td>
+            <td><?= h(substr((string)($d['created_at'] ?? ''), 0, 10)) ?></td>
+            <td class="<?= $expCls ?>"><?= h($expVal) ?></td>
+          </tr>
+        <?php endforeach; ?>
+      </tbody>
+    </table>
   </div>
+  <?php endif; ?>
+
+  <!-- Lábléc -->
+  <div class="print-footer">
+    Perfect-Phone 2026 – HR &nbsp;|&nbsp; <?= h($e['full_name'] ?? '') ?> &nbsp;|&nbsp; Nyomtatva: <?= h($today) ?>
+  </div>
+
 </div>
-<script src="/assets/bootstrap/bootstrap.bundle.min.js"></script>
 </body>
 </html>

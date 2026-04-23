@@ -3,6 +3,11 @@ require_once __DIR__ . '/../../src/db.php';
 require_once __DIR__ . '/../../src/helpers.php';
 require_once __DIR__ . '/../../src/config.php';
 
+if (!defined('AI_IMPORT_API_KEY'))            define('AI_IMPORT_API_KEY',            'csereld-le-egy-sajat-titkos-kulcsra');
+if (!defined('AI_IMPORT_CREATED_BY'))         define('AI_IMPORT_CREATED_BY',         9);
+if (!defined('AI_IMPORT_DEFAULT_STATUS_NAME')) define('AI_IMPORT_DEFAULT_STATUS_NAME', 'Új');
+if (!defined('AI_IMPORT_LOG'))                define('AI_IMPORT_LOG',                __DIR__ . '/../../storage/logs/ai_import.log');
+
 header('Content-Type: application/json; charset=utf-8');
 
 function ai_log(string $status, string $note, ?array $payload = null, ?string $eventus = null, ?int $recordId = null): void {
@@ -107,8 +112,16 @@ try {
         json_out(400, ['ok' => false, 'error' => 'Hiányzó kötelező mező']);
     }
 
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $issued_at) || !strtotime($issued_at)) {
+        ai_log('error', 'Érvénytelen issued_at dátum', $data, $eventus ?: null);
+        json_out(400, ['ok' => false, 'error' => 'Érvénytelen issued_at dátum (YYYY-MM-DD szükséges)']);
+    }
+
     if ($due_at === '') {
         $due_at = calc_due($issued_at);
+    } elseif (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $due_at) || !strtotime($due_at)) {
+        ai_log('error', 'Érvénytelen due_at dátum', $data, $eventus ?: null);
+        json_out(400, ['ok' => false, 'error' => 'Érvénytelen due_at dátum (YYYY-MM-DD szükséges)']);
     }
 
     $db = db();
@@ -125,10 +138,14 @@ try {
     $city_id = find_or_create_city($db, $cityName);
     $pp_status_id = find_status_id($db, $pp_status);
 
+    $geo = geocode_address(trim($cityName . ' ' . $address)) ?? geocode_address($cityName);
+
+    $db->beginTransaction();
+
     $st = $db->prepare("
         INSERT INTO records
-        (eventus, pp_status_id, issued_at, due_at, city_id, address, operation, long_desc, archived, created_by)
-        VALUES (?,?,?,?,?,?,?,?,0,?)
+        (eventus, pp_status_id, issued_at, due_at, city_id, address, operation, long_desc, archived, created_by, marvin_pending, gps_lat, gps_lng)
+        VALUES (?,?,?,?,?,?,?,?,0,?,1,?,?)
     ");
     $st->execute([
         $eventus,
@@ -139,17 +156,16 @@ try {
         $address,
         $operation,
         $long_desc !== '' ? $long_desc : null,
-        AI_IMPORT_CREATED_BY
+        AI_IMPORT_CREATED_BY,
+        $geo['lat'] ?? null,
+        $geo['lng'] ?? null,
     ]);
 
     $recordId = (int)$db->lastInsertId();
 
-    // napló a record_changes-be
-    try {
-        log_change($db, $recordId, AI_IMPORT_CREATED_BY, 'ai_import', '', 'AI importból létrehozva');
-    } catch (Throwable $e) {
-        @file_put_contents(AI_IMPORT_LOG, "[WARN] record_changes log hiba: ".$e->getMessage()."\n", FILE_APPEND);
-    }
+    log_change($db, $recordId, AI_IMPORT_CREATED_BY, 'ai_import', '', 'AI (Marvin) importból létrehozva');
+
+    $db->commit();
 
     ai_log('ok', 'Rekord létrehozva', $data, $eventus, $recordId);
 
@@ -160,6 +176,9 @@ try {
     ]);
 
 } catch (Throwable $e) {
+    if (isset($db) && $db->inTransaction()) {
+        $db->rollBack();
+    }
     ai_log('error', $e->getMessage(), $data ?? null, $eventus ?? null);
     json_out(500, ['ok' => false, 'error' => $e->getMessage()]);
 }

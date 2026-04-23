@@ -21,8 +21,9 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
   $cur = trim((string)($_POST['value_currency'] ?? 'HUF')) ?: 'HUF';
   $note = trim((string)($_POST['note'] ?? '')) ?: null;
 
-  $pdo->prepare("INSERT INTO assets (name,sku,qr_value,value_amount,value_currency,note) VALUES (?,?,?,?,?,?)")
-      ->execute([$name,$sku,$qr,$val,$cur,$note]);
+  $inspReq = isset($_POST['inspection_required']) ? 1 : 0;
+  $pdo->prepare("INSERT INTO assets (name,sku,qr_value,value_amount,value_currency,note,inspection_required) VALUES (?,?,?,?,?,?,?)")
+      ->execute([$name,$sku,$qr,$val,$cur,$note,$inspReq]);
   $id = (int)$pdo->lastInsertId();
 
   $cat_ids = $_POST['categories'] ?? [];
@@ -80,6 +81,12 @@ require __DIR__.'/_header.php';
           <div class="col-12">
             <label class="form-label">Megjegyzés</label>
             <textarea class="form-control" name="note" rows="3"></textarea>
+          </div>
+          <div class="col-12">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" name="inspection_required" id="inspection_required" value="1">
+              <label class="form-check-label" for="inspection_required">Felülvizsgálat / kalibráció szükséges</label>
+            </div>
           </div>
         </div>
       </div>

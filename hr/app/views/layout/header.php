@@ -44,9 +44,10 @@ $isAdmin = ($u['role'] ?? '') === 'admin';
         <?php endif; ?>
       </ul>
 
-      <div class="d-flex align-items-center">
+      <div class="d-flex align-items-center gap-2">
         <?php if ($loggedIn): ?>
-          <span class="navbar-text me-3">Bejelentkezve: <?= h($u['name'] ?? '') ?></span>
+          <a class="btn btn-sm btn-outline-secondary" href="/docs/hr_kezikonyv.html" target="_blank" title="Kézikönyv">?</a>
+          <span class="navbar-text">Bejelentkezve: <?= h($u['name'] ?? '') ?></span>
 
           <form method="post" action="/logout" class="m-0">
             <input type="hidden" name="_csrf" value="<?= h($_SESSION['_csrf'] ?? '') ?>">

@@ -23,14 +23,19 @@ foreach ($_FILES['photos']['tmp_name'] as $i => $tmp) {
 
     $relPath = 'storage/om_photos/' . $job_id . '/' . basename($target);
 
+    $gpsLat = isset($_POST['gps_lat']) && $_POST['gps_lat'] !== '' ? (float)$_POST['gps_lat'] : null;
+    $gpsLng = isset($_POST['gps_lng']) && $_POST['gps_lng'] !== '' ? (float)$_POST['gps_lng'] : null;
+
     db()->prepare("
-        INSERT INTO om_job_photos (job_id, user_id, file_path, original_name)
-        VALUES (?,?,?,?)
+        INSERT INTO om_job_photos (job_id, user_id, file_path, original_name, gps_lat, gps_lng)
+        VALUES (?,?,?,?,?,?)
     ")->execute([
         $job_id,
-        $_SESSION['user']['id'],
+        current_user()['id'],
         $relPath,
-        $name
+        $name,
+        $gpsLat,
+        $gpsLng
     ]);
 }
 

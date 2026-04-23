@@ -1,0 +1,439 @@
+<!doctype html>
+<html lang="hu">
+<head>
+  <meta charset="utf-8">
+  <title>Munkaidő-nyilvántartás – Felhasználói kézikönyv</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+
+    body {
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 10.5pt;
+      color: #212529;
+      background: #fff;
+      margin: 0; padding: 0;
+      line-height: 1.5;
+    }
+    .container { max-width: 820px; margin: 0 auto; padding: 14mm 12mm; }
+
+    .cover {
+      text-align: center;
+      padding: 30px 0 24px;
+      border-bottom: 2px solid #212529;
+      margin-bottom: 28px;
+    }
+    .cover h1 { font-size: 22pt; margin: 0 0 6px; }
+    .cover .sub { font-size: 11pt; color: #6c757d; }
+    .cover .version { font-size: 9pt; color: #adb5bd; margin-top: 8px; }
+
+    .toc { margin-bottom: 28px; }
+    .toc h2 { font-size: 13pt; border-bottom: 1px solid #dee2e6; padding-bottom: 4px; margin-bottom: 10px; }
+    .toc ol { padding-left: 18px; margin: 0; }
+    .toc li { margin: 3px 0; font-size: 10pt; }
+    .toc a { color: #0d6efd; text-decoration: none; }
+
+    h2.ch {
+      font-size: 14pt; margin: 28px 0 10px;
+      padding: 6px 10px;
+      background: #f8f9fa;
+      border-left: 4px solid #0d6efd;
+      border-radius: 0 4px 4px 0;
+      page-break-after: avoid;
+    }
+    h3 { font-size: 11.5pt; margin: 18px 0 7px; color: #343a40; page-break-after: avoid; }
+    h4 { font-size: 10.5pt; margin: 14px 0 5px; color: #495057; page-break-after: avoid; }
+
+    p { margin: 0 0 8px; }
+    ul, ol { margin: 0 0 8px; padding-left: 20px; }
+    li { margin-bottom: 3px; }
+
+    .box { border: 1px solid #dee2e6; border-radius: 5px; padding: 10px 14px; margin: 10px 0; }
+    .box.info   { border-color: #0dcaf0; background: #f0fdff; }
+    .box.warn   { border-color: #ffc107; background: #fffdf0; }
+    .box.tip    { border-color: #198754; background: #f0fff4; }
+    .box.danger { border-color: #dc3545; background: #fff5f5; }
+    .box-title  { font-weight: bold; font-size: 9.5pt; text-transform: uppercase; letter-spacing: .04em; margin-bottom: 4px; }
+    .box.info   .box-title { color: #087990; }
+    .box.warn   .box-title { color: #856404; }
+    .box.tip    .box-title { color: #146c43; }
+    .box.danger .box-title { color: #b02a37; }
+
+    table { width: 100%; border-collapse: collapse; margin: 10px 0; font-size: 9.5pt; }
+    th { background: #f8f9fa; padding: 5px 8px; text-align: left; border: 1px solid #dee2e6; font-weight: bold; }
+    td { padding: 4px 8px; border: 1px solid #e9ecef; vertical-align: top; }
+    tr:nth-child(even) td { background: #fafafa; }
+
+    .badge {
+      display: inline-block; padding: 1px 7px; border-radius: 12px;
+      font-size: 8.5pt; font-weight: bold; white-space: nowrap;
+    }
+    .badge-admin  { background: #dc3545; color: #fff; }
+    .badge-leader { background: #fd7e14; color: #fff; }
+    .badge-user   { background: #6c757d; color: #fff; }
+
+    .steps { counter-reset: step; padding: 0; list-style: none; }
+    .steps li {
+      counter-increment: step;
+      padding: 5px 5px 5px 32px; position: relative; margin-bottom: 4px;
+    }
+    .steps li::before {
+      content: counter(step);
+      position: absolute; left: 0; top: 5px;
+      width: 22px; height: 22px;
+      background: #0d6efd; color: #fff; border-radius: 50%;
+      font-size: 8.5pt; font-weight: bold;
+      display: flex; align-items: center; justify-content: center;
+    }
+
+    hr { border: none; border-top: 1px solid #dee2e6; margin: 20px 0; }
+
+    .screen-only { text-align: center; margin-bottom: 20px; }
+    .print-btn {
+      padding: 8px 22px; font-size: 10.5pt;
+      background: #0d6efd; color: #fff;
+      border: none; border-radius: 5px; cursor: pointer;
+    }
+
+    @page {
+      size: A4 portrait;
+      margin: 14mm 12mm 20mm 12mm;
+      @bottom-right {
+        content: counter(page) ". oldal / " counter(pages);
+        font-size: 8pt; color: #6c757d;
+      }
+      @bottom-left {
+        content: "Munkaidő-nyilvántartás – Felhasználói kézikönyv";
+        font-size: 8pt; color: #6c757d;
+      }
+    }
+    @media print {
+      .screen-only { display: none !important; }
+      a::after { content: "" !important; }
+      body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      h2.ch, h3, h4 { page-break-after: avoid; }
+      .box, table { page-break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+
+  <div class="screen-only">
+    <button class="print-btn" onclick="window.print()">Nyomtatás / PDF mentés</button>
+  </div>
+
+  <div class="cover">
+    <h1>Munkaidő-nyilvántartás</h1>
+    <div class="sub">Felhasználói kézikönyv</div>
+    <div class="version">Perfect-Phone 2026 &nbsp;|&nbsp; Belső használatra</div>
+  </div>
+
+  <div class="toc">
+    <h2>Tartalomjegyzék</h2>
+    <ol>
+      <li><a href="#bevezeto">Bevezető – mire való a modul?</a></li>
+      <li><a href="#szerepkorok">Szerepkörök és jogosultságok</a></li>
+      <li><a href="#navigacio">Navigáció</a></li>
+      <li><a href="#naptar">Naptár – munkaidő rögzítése</a>
+        <ol>
+          <li><a href="#naptar_nezet">A naptár nézet</a></li>
+          <li><a href="#bejegyzes_rogzites">Bejegyzés rögzítése</a></li>
+          <li><a href="#bejegyzes_tipusok">Bejegyzés típusok</a></li>
+          <li><a href="#tavol">Egész napos távollét rögzítése</a></li>
+          <li><a href="#szerkesztes_torles">Szerkesztés és törlés</a></li>
+          <li><a href="#lezart_nap">Lezárt napok</a></li>
+        </ol>
+      </li>
+      <li><a href="#riport">Riport</a></li>
+      <li><a href="#csapatom">Csapatom (csoportvezető)</a></li>
+      <li><a href="#admin">Adminisztrátori funkciók</a>
+        <ol>
+          <li><a href="#csoportok">Csoportok kezelése</a></li>
+          <li><a href="#sablonok">Sablonok</a></li>
+          <li><a href="#tavollettipusok">Távollét típusok</a></li>
+          <li><a href="#unnepnapok">Ünnepnapok</a></li>
+          <li><a href="#napszinek">Nap színek</a></li>
+          <li><a href="#jarmuvek">Járművek</a></li>
+          <li><a href="#idoszak_lezaras">Időszak lezárása</a></li>
+          <li><a href="#audit_naplo">Audit napló</a></li>
+        </ol>
+      </li>
+    </ol>
+  </div>
+
+  <hr>
+
+  <!-- 1. Bevezető -->
+  <h2 class="ch" id="bevezeto">1. Bevezető – mire való a modul?</h2>
+
+  <p>A Munkaidő-nyilvántartás modul a dolgozók napi munkaidejének és távolléteinek rögzítésére, áttekintésére és riportolására szolgál. Havi naptár nézetben rögzíthetők a munkanapok, utazások, egyéb bejegyzések, valamint az egész napos távollétek (szabadság, betegszabadság stb.).</p>
+
+  <p>A modul fő funkciói:</p>
+  <ul>
+    <li>Napi munkaidő rögzítése (kezdés, befejezés, szünet, megjegyzés)</li>
+    <li>Utazási idő nyilvántartása járművel</li>
+    <li>Egész napos távollétek jelölése (szabadság, beteg, stb.)</li>
+    <li>Havi riport saját és csapat szinten</li>
+    <li>Csoportvezetői áttekintő nézet</li>
+    <li>Időszakok lezárása (módosítás megakadályozása)</li>
+  </ul>
+
+  <div class="box info">
+    <div class="box-title">Kapcsolat a HR modullal</div>
+    A Munkaidő-nyilvántartás a HR modul dolgozói adatbázisához kapcsolódik. A bejelentkező felhasználó neve és adatai automatikusan a HR-ben tárolt törzsadatból jönnek.
+  </div>
+
+
+  <!-- 2. Szerepkörök -->
+  <h2 class="ch" id="szerepkorok">2. Szerepkörök és jogosultságok</h2>
+
+  <p>A rendszerben háromféle szerepkör létezik:</p>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Funkció</th>
+        <th><span class="badge badge-user">user</span></th>
+        <th><span class="badge badge-leader">csoportvezető</span></th>
+        <th><span class="badge badge-admin">admin</span></th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr><td>Saját munkaidő megtekintése</td><td>✓</td><td>✓</td><td>✓</td></tr>
+      <tr><td>Saját bejegyzés rögzítése / szerkesztése</td><td>✓</td><td>✓</td><td>✓</td></tr>
+      <tr><td>Saját riport</td><td>✓</td><td>✓</td><td>✓</td></tr>
+      <tr><td>Csapatom áttekintő (saját csoport)</td><td>—</td><td>✓</td><td>✓</td></tr>
+      <tr><td>Csoporttag riportja</td><td>—</td><td>✓</td><td>✓</td></tr>
+      <tr><td>Bármely dolgozó naptárának megtekintése</td><td>—</td><td>—</td><td>✓</td></tr>
+      <tr><td>Bármely dolgozó bejegyzéseinek szerkesztése</td><td>—</td><td>—</td><td>✓</td></tr>
+      <tr><td>Csoportok kezelése</td><td>—</td><td>—</td><td>✓</td></tr>
+      <tr><td>Sablonok, távollét típusok, ünnepnapok</td><td>—</td><td>—</td><td>✓</td></tr>
+      <tr><td>Időszak lezárása / felnyitása</td><td>—</td><td>—</td><td>✓</td></tr>
+      <tr><td>Audit napló</td><td>—</td><td>—</td><td>✓</td></tr>
+    </tbody>
+  </table>
+
+
+  <!-- 3. Navigáció -->
+  <h2 class="ch" id="navigacio">3. Navigáció</h2>
+
+  <table>
+    <thead><tr><th>Menüpont</th><th>Leírás</th><th>Jogosultság</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Naptár</strong></td><td>Havi nézet, bejegyzések rögzítése és szerkesztése</td><td>mindenki</td></tr>
+      <tr><td><strong>Riport</strong></td><td>Összesített munkaidő-riport, szűrhető időszak és dolgozó szerint</td><td>mindenki (saját); csoportvezető + admin: mások is</td></tr>
+      <tr><td><strong>Csapatom</strong></td><td>Csoportvezetői áttekintő – csapat rögzítési állapota hónapra</td><td>csoportvezető, admin</td></tr>
+      <tr><td><strong>Csoportok</strong> (legördülő)</td><td>Csoportok, csoporttagok, csoportvezetők kezelése</td><td>admin</td></tr>
+      <tr><td><strong>Beállítások</strong> (legördülő)</td><td>Sablonok, nap színek, távollét típusok, ünnepnapok, járművek</td><td>admin</td></tr>
+      <tr><td><strong>Napló</strong></td><td>Audit napló – minden felhasználói művelet</td><td>admin</td></tr>
+    </tbody>
+  </table>
+
+
+  <!-- 4. Naptár -->
+  <h2 class="ch" id="naptar">4. Naptár – munkaidő rögzítése</h2>
+
+  <h3 id="naptar_nezet">4.1 A naptár nézet</h3>
+
+  <p>A naptár havi bontásban mutatja a rögzített bejegyzéseket. Bal oldalt a hónap napjai láthatók, jobb oldalt a kiválasztott naphoz tartozó bejegyzések és a rögzítési űrlap.</p>
+
+  <ul>
+    <li>A <strong>hónap váltása</strong> a naptár tetején lévő nyilakkal vagy hónap-választóval történik.</li>
+    <li>Egy <strong>napra kattintva</strong> az annak a naphoz tartozó bejegyzések és az űrlap jelenik meg jobbra.</li>
+    <li>Az <strong>ünnepnapok</strong> és a <strong>hétvégék</strong> eltérő színnel jelennek meg.</li>
+    <li>A nap cellájában látszanak az aznapi bejegyzések összesítve (pl. összes munkaidő, utazás).</li>
+    <li>Admin módban a naptár tetején található legördülő listából bármely dolgozó naptárja megtekinthető.</li>
+  </ul>
+
+  <h3 id="bejegyzes_rogzites">4.2 Bejegyzés rögzítése</h3>
+
+  <ol class="steps">
+    <li>Kattints a naptárban arra a napra, amelyre rögzíteni szeretnél.</li>
+    <li>Az űrlapon válaszd ki a <strong>bejegyzés típusát</strong> (munkavégzés, utazás, egyéb).</li>
+    <li>Add meg a <strong>kezdési és befejezési időt</strong>.</li>
+    <li>Opcionálisan add meg a <strong>szünet</strong> hosszát percben.</li>
+    <li>Ha utazás típusú a bejegyzés, válaszd ki a <strong>járművet</strong>.</li>
+    <li>Írhatsz <strong>megjegyzést</strong> is.</li>
+    <li>Kattints a <strong>„Mentés"</strong> gombra.</li>
+  </ol>
+
+  <div class="box tip">
+    <div class="box-title">Sablonok használata</div>
+    Ha az admin definiált sablonokat (pl. „Rendes műszak 08:00–16:30, 30 perc szünet"), a legördülő listából kiválasztva az időpontok automatikusan kitöltődnek. Így a rögzítés jóval gyorsabb.
+  </div>
+
+  <div class="box info">
+    <div class="box-title">Több dolgozóhoz egyszerre (admin)</div>
+    Admin jogosultsággal egy bejegyzés egyszerre több dolgozóhoz is rögzíthető – az űrlapon több név is kijelölhető.
+  </div>
+
+  <h3 id="bejegyzes_tipusok">4.3 Bejegyzés típusok</h3>
+
+  <table>
+    <thead><tr><th>Típus</th><th>Leírás</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Munkavégzés</strong></td><td>Normál munkaóra rögzítése kezdés/befejezés/szünet adatokkal</td></tr>
+      <tr><td><strong>Utazás</strong></td><td>Utazással töltött idő, jármű megadásával</td></tr>
+      <tr><td><strong>Egyéb</strong></td><td>Más jellegű bejegyzés (pl. ügyeleti jellegű munkavégzés)</td></tr>
+    </tbody>
+  </table>
+
+  <p>A naptárban a bejegyzések típusonként eltérő színnel jelenhetnek meg, ha az admin beállított <strong>nap szín szabályokat</strong>.</p>
+
+  <h3 id="tavol">4.4 Egész napos távollét rögzítése</h3>
+
+  <p>Ha egy egész nap távolléttel telik (szabadság, betegszabadság, fizetett szabadság stb.), azt a bejegyzési űrlapon a <strong>„Egész napos távollét"</strong> opcióval lehet jelölni.</p>
+
+  <ul>
+    <li>Válaszd ki a <strong>távollét típusát</strong> (az admin által definiált lista alapján, pl. „Szabadság", „Betegszabadság").</li>
+    <li>A nap cellájában megjelenik a típushoz tartozó <strong>badge</strong> (pl. „SZ", „B").</li>
+    <li>Egész napos távollét esetén munkaidő bejegyzés nem rögzíthető ugyanarra a napra.</li>
+  </ul>
+
+  <h3 id="szerkesztes_torles">4.5 Szerkesztés és törlés</h3>
+
+  <p>A naptárban a kiválasztott nap bejegyzéseire kattintva elérhető a <strong>Szerkesztés</strong> és a <strong>Törlés</strong> lehetőség. Normál felhasználó csak a saját bejegyzéseit módosíthatja, adminok bárki bejegyzését.</p>
+
+  <div class="box warn">
+    <div class="box-title">Lezárt napok</div>
+    Ha az admin lezárt egy időszakot, az abba eső napok bejegyzései <strong>nem szerkeszthetők és nem törölhetők</strong>. A lezárást csak admin oldhatja fel.
+  </div>
+
+  <h3 id="lezart_nap">4.6 Lezárt napok</h3>
+
+  <p>Az admin lezárhat egy időszakot (pl. egy lezárt hónapot), hogy megakadályozza az utólagos módosításokat. A lezárt napok a naptárban vizuálisan is jelöltek.</p>
+
+  <p>Lezárás csak adminnak érhető el: a naptár oldalon, a hónap fejlécénél az „Időszak lezárása" gombbal adható meg a dátumtartomány és az ok.</p>
+
+
+  <!-- 5. Riport -->
+  <h2 class="ch" id="riport">5. Riport</h2>
+
+  <p>A Riport oldal összesített munkaidő-adatokat jelenít meg a kiválasztott időszakra.</p>
+
+  <h4>Szűrési lehetőségek</h4>
+  <ul>
+    <li><strong>Időszak</strong> – tetszőleges dátumtartomány vagy hónap</li>
+    <li><strong>Dolgozó</strong> – admin és csoportvezetők más dolgozót is kiválaszthatnak</li>
+  </ul>
+
+  <h4>Mit mutat a riport?</h4>
+  <ul>
+    <li>Összes rögzített munkaidő (óra:perc)</li>
+    <li>Utazással töltött idő</li>
+    <li>Távolléti napok száma típusonként</li>
+    <li>Heti bontás és az elvárt munkaidőhöz viszonyított teljesítés %-ban</li>
+    <li>Hiányzó napok (naptári munkanap, de nincs bejegyzés)</li>
+  </ul>
+
+  <div class="box tip">
+    <div class="box-title">Tipp</div>
+    A riportot a „Lekérés" gomb megnyomása után generálja a rendszer. Az oldal betöltésekor még nem fut le automatikusan.
+  </div>
+
+
+  <!-- 6. Csapatom -->
+  <h2 class="ch" id="csapatom">6. Csapatom (csoportvezető)</h2>
+
+  <p>A <strong>Csapatom</strong> oldal csoportvezetők és adminok számára elérhető összesítő nézet, amely megmutatja a csapat havi rögzítési állapotát.</p>
+
+  <h4>Mit mutat?</h4>
+  <ul>
+    <li>Tagok száma a csoportban</li>
+    <li>Hiányzó napok (naptári munkanap, de nincs bejegyzés vagy lezárt nap)</li>
+    <li>Távolléti napok összesítve</li>
+    <li>Havi összes munkaidő vs. elvárt munkaidő (%-os teljesítés)</li>
+    <li>Egyéni sor minden csapattaghoz: rögzített napok, távollétek, hiányzó napok, lezárt napok, munkaidő összeg, állapot</li>
+  </ul>
+
+  <p>Ha több csoporthoz is vezető vagy, a felső legördülő listában váltani lehet köztük.</p>
+
+
+  <!-- 7. Admin -->
+  <h2 class="ch" id="admin">7. Adminisztrátori funkciók</h2>
+
+  <h3 id="csoportok">7.1 Csoportok kezelése</h3>
+
+  <p>A csoportok a csapatvezetői funkció alapját képezik. Egy dolgozó több csoportban is szerepelhet.</p>
+
+  <table>
+    <thead><tr><th>Oldal</th><th>Leírás</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Csoportok</strong></td><td>Csoportok létrehozása, átnevezése, aktiválása/inaktiválása</td></tr>
+      <tr><td><strong>Csoporttagok</strong></td><td>Dolgozók hozzárendelése csoportokhoz</td></tr>
+      <tr><td><strong>Csoportvezetők</strong></td><td>Melyik felhasználó vezeti melyik csoportot</td></tr>
+    </tbody>
+  </table>
+
+  <h3 id="sablonok">7.2 Sablonok</h3>
+
+  <p>A sablonok előre definiált bejegyzési minták, amelyek a naptár rögzítési űrlapján gyorsan kiválaszthatók. Kétféle sablon létezik:</p>
+
+  <table>
+    <thead><tr><th>Sablon típus</th><th>Leírás</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Munka sablon</strong></td><td>Meghatározza a kezdési és befejezési időt, szünet hosszát, bejegyzés típusát és megjegyzést</td></tr>
+      <tr><td><strong>Távollét sablon</strong></td><td>Meghatározza a távollét típusát – gyors jelöléshez</td></tr>
+    </tbody>
+  </table>
+
+  <p>Sablonok sorrendbe rendezhetők, és inaktiválhatók ha már nem szükségesek.</p>
+
+  <h3 id="tavollettipusok">7.3 Távollét típusok</h3>
+
+  <p>Az egész napos távollétek típusait itt lehet definiálni (pl. Szabadság, Betegszabadság, Fizetett szabadság). Minden típushoz megadható:</p>
+  <ul>
+    <li><strong>Kód</strong> – rövid azonosító (pl. „SZ", „B", „FS")</li>
+    <li><strong>Megnevezés</strong> – teljes szöveges név</li>
+    <li><strong>Badge szöveg</strong> – a naptár cellájában megjelenő jelölés</li>
+    <li><strong>Háttérszín és szövegszín</strong> – a badge és a napszín megjelenéséhez</li>
+  </ul>
+
+  <h3 id="unnepnapok">7.4 Ünnepnapok</h3>
+
+  <p>A munkaszüneti napok (ünnepnapok) listáját évente kell karbantartani. Az ünnepnapok a naptárban automatikusan jelölve vannak, és hatnak az elvárt munkaidő számítására.</p>
+
+  <div class="box warn">
+    <div class="box-title">Évente frissíteni kell</div>
+    Az ünnepnapok nem töltődnek be automatikusan – minden évre kézzel kell felvinni az aktuális munkaszüneti napokat.
+  </div>
+
+  <h3 id="napszinek">7.5 Nap színek</h3>
+
+  <p>A nap szín szabályok meghatározzák, hogy a naptárban egy-egy nap milyen háttérszínnel jelenjen meg a bejegyzés típusától vagy tartalmától függően. Ez segíti az áttekinthetőséget.</p>
+
+  <h3 id="jarmuvek">7.6 Járművek</h3>
+
+  <p>Az utazási bejegyzéseknél kiválasztható járművek listáját itt lehet kezelni (pl. „Vállalati autó – ABC-123", „Saját gépjármű"). Inaktiválható, ha egy jármű már nem használható.</p>
+
+  <h3 id="idoszak_lezaras">7.7 Időszak lezárása</h3>
+
+  <p>Az időszak lezárásával megakadályozható, hogy a dolgozók utólag módosítsák az adott periódus bejegyzéseit. Tipikus eset: hónap végén a bér-elszámolás előtt lezárják az adott hónapot.</p>
+
+  <ol class="steps">
+    <li>Nyisd meg a Naptár oldalt a lezárni kívánt hónapra.</li>
+    <li>Kattints az <strong>„Időszak lezárása"</strong> gombra.</li>
+    <li>Add meg a <strong>dátumtartományt</strong> és opcionálisan az okot.</li>
+    <li>Kattints a <strong>„Lezárás"</strong> gombra.</li>
+  </ol>
+
+  <p>A lezárás <strong>felnyitható</strong> (Unlock) – a naptárban a lezárt napnál elérhető az „Időszak felnyitása" lehetőség.</p>
+
+  <div class="box danger">
+    <div class="box-title">Figyelem</div>
+    Lezárás után az érintett napok bejegyzéseit sem a dolgozók, sem a csoportvezetők nem módosíthatják – csak admin oldhatja fel.
+  </div>
+
+  <h3 id="audit_naplo">7.8 Audit napló</h3>
+
+  <p>A <strong>Napló</strong> menüpont alatt elérhető az összes felhasználói művelet időrendi naplója: ki, mikor, mit rögzített, módosított vagy törölt. Szűrhető felhasználó, művelet típusa és időszak szerint.</p>
+
+  <hr>
+
+  <p style="color:#6c757d; font-size:9pt; text-align:center;">
+    Perfect-Phone 2026 – Munkaidő-nyilvántartás &nbsp;|&nbsp; Belső használatra &nbsp;|&nbsp; Kézikönyv készült: 2026-04-23
+  </p>
+
+</div>
+</body>
+</html>

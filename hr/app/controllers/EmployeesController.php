@@ -102,8 +102,8 @@ class EmployeesController
 
     // Sorting (whitelist) - toggle via table header links
     $sort = (string)($_GET['sort'] ?? '');
-    $dir  = strtolower((string)($_GET['dir'] ?? 'desc'));
-    if (!in_array($dir, ['asc','desc'], true)) $dir = 'desc';
+    $dir  = strtolower((string)($_GET['dir'] ?? 'asc'));
+    if (!in_array($dir, ['asc','desc'], true)) $dir = 'asc';
 
     $sort_whitelist = [
       'name' => 'e.full_name',
@@ -216,6 +216,8 @@ class EmployeesController
       'tax_id' => trim((string)($_POST['tax_id'] ?? '')) ?: null,
       'taj' => trim((string)($_POST['taj'] ?? '')) ?: null,
       'company_emp_no' => trim((string)($_POST['company_emp_no'] ?? '')) ?: null,
+      'bank_account' => trim((string)($_POST['bank_account'] ?? '')) ?: null,
+      'bank_name' => trim((string)($_POST['bank_name'] ?? '')) ?: null,
 
       'division_id' => (int)($_POST['division_id'] ?? 0),
       'addr_zip' => trim((string)($_POST['addr_zip'] ?? '')) ?: null,
@@ -225,9 +227,10 @@ class EmployeesController
       'email' => trim((string)($_POST['email'] ?? '')) ?: null,
       'phone' => trim((string)($_POST['phone'] ?? '')) ?: null,
       'notes' => trim((string)($_POST['notes'] ?? '')) ?: null,
-      'notes' => trim((string)($_POST['notes'] ?? '')) ?: null,
 
       'is_active' => (int)($_POST['is_active'] ?? 1) === 1 ? 1 : 0,
+      'hired_on' => trim((string)($_POST['hired_on'] ?? '')) ?: null,
+      'left_on'  => trim((string)($_POST['left_on']  ?? '')) ?: null,
     ];
 
     $_SESSION['_old'] = $data;
@@ -252,16 +255,16 @@ class EmployeesController
       $stmt = $this->db->pdo()->prepare("
         INSERT INTO employees
           (full_name, birth_name, mother_name, birth_place, birth_date,
-           tax_id, taj, company_emp_no, division_id,
+           tax_id, taj, company_emp_no, bank_account, bank_name, division_id,
            addr_zip, addr_city, addr_line,
            email, phone, notes,
-           profile_image_path, is_active)
+           profile_image_path, is_active, hired_on, left_on)
         VALUES
           (:full_name, :birth_name, :mother_name, :birth_place, :birth_date,
-           :tax_id, :taj, :company_emp_no, :division_id,
+           :tax_id, :taj, :company_emp_no, :bank_account, :bank_name, :division_id,
            :addr_zip, :addr_city, :addr_line,
            :email, :phone, :notes,
-           :profile_image_path, :is_active)
+           :profile_image_path, :is_active, :hired_on, :left_on)
       ");
       $stmt->execute(array_merge($data, ['profile_image_path' => $profilePath]));
 
@@ -439,6 +442,8 @@ class EmployeesController
       'tax_id' => trim((string)($_POST['tax_id'] ?? '')) ?: null,
       'taj' => trim((string)($_POST['taj'] ?? '')) ?: null,
       'company_emp_no' => trim((string)($_POST['company_emp_no'] ?? '')) ?: null,
+      'bank_account' => trim((string)($_POST['bank_account'] ?? '')) ?: null,
+      'bank_name' => trim((string)($_POST['bank_name'] ?? '')) ?: null,
 
       'division_id' => (int)($_POST['division_id'] ?? 0),
       'addr_zip' => trim((string)($_POST['addr_zip'] ?? '')) ?: null,
@@ -450,6 +455,8 @@ class EmployeesController
       'notes' => trim((string)($_POST['notes'] ?? '')) ?: null,
 
       'is_active' => (int)($_POST['is_active'] ?? 1) === 1 ? 1 : 0,
+      'hired_on' => trim((string)($_POST['hired_on'] ?? '')) ?: null,
+      'left_on'  => trim((string)($_POST['left_on']  ?? '')) ?: null,
     ];
 
     if ($data['full_name'] === '') {
@@ -479,6 +486,8 @@ class EmployeesController
           tax_id=:tax_id,
           taj=:taj,
           company_emp_no=:company_emp_no,
+          bank_account=:bank_account,
+          bank_name=:bank_name,
           division_id=:division_id,
           addr_zip=:addr_zip,
           addr_city=:addr_city,
@@ -487,7 +496,9 @@ class EmployeesController
           phone=:phone,
           notes=:notes,
           profile_image_path=:profile_image_path,
-          is_active=:is_active
+          is_active=:is_active,
+          hired_on=:hired_on,
+          left_on=:left_on
         WHERE id=:id
       ");
       $stmt->execute(array_merge($data, ['profile_image_path' => $profilePath]));

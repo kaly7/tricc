@@ -14,6 +14,5 @@ if (!is_admin()) {
   if (!$st->fetchColumn()) { http_response_code(403); echo 'Forbidden'; exit; }
 }
 
-$st = $db->prepare('INSERT INTO om_job_logs (job_id, user_id, log_type, message) VALUES (?,?,?,?)');
-$st->execute([$jobId, $u['id'], 'comment', $message]);
+log_om_job_event($db, $jobId, $u['id'], 'comment', $message);
 header('Location: ../my_om_job.php?id=' . $jobId . '&msg=' . urlencode('Megjegyzés elmentve.'));

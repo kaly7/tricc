@@ -1,0 +1,514 @@
+<!doctype html>
+<html lang="hu">
+<head>
+  <meta charset="utf-8">
+  <title>HR modul – Felhasználói kézikönyv</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+
+    body {
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 10.5pt;
+      color: #212529;
+      background: #fff;
+      margin: 0;
+      padding: 0;
+      line-height: 1.5;
+    }
+
+    .container {
+      max-width: 820px;
+      margin: 0 auto;
+      padding: 14mm 12mm;
+    }
+
+    /* Fejléc (csak képernyőn látszik jobban) */
+    .cover {
+      text-align: center;
+      padding: 30px 0 24px;
+      border-bottom: 2px solid #212529;
+      margin-bottom: 28px;
+    }
+    .cover h1 { font-size: 22pt; margin: 0 0 6px; }
+    .cover .sub { font-size: 11pt; color: #6c757d; }
+    .cover .version { font-size: 9pt; color: #adb5bd; margin-top: 8px; }
+
+    /* Tartalomjegyzék */
+    .toc { margin-bottom: 28px; }
+    .toc h2 { font-size: 13pt; border-bottom: 1px solid #dee2e6; padding-bottom: 4px; margin-bottom: 10px; }
+    .toc ol { padding-left: 18px; margin: 0; }
+    .toc li { margin: 3px 0; font-size: 10pt; }
+    .toc a { color: #0d6efd; text-decoration: none; }
+    .toc a:hover { text-decoration: underline; }
+
+    /* Fejezetek */
+    h2.ch {
+      font-size: 14pt;
+      margin: 28px 0 10px;
+      padding: 6px 10px;
+      background: #f8f9fa;
+      border-left: 4px solid #0d6efd;
+      border-radius: 0 4px 4px 0;
+      page-break-after: avoid;
+    }
+    h3 {
+      font-size: 11.5pt;
+      margin: 18px 0 7px;
+      color: #343a40;
+      page-break-after: avoid;
+    }
+    h4 {
+      font-size: 10.5pt;
+      margin: 14px 0 5px;
+      color: #495057;
+      page-break-after: avoid;
+    }
+
+    p { margin: 0 0 8px; }
+    ul, ol { margin: 0 0 8px; padding-left: 20px; }
+    li { margin-bottom: 3px; }
+
+    /* Kiemelés dobozok */
+    .box {
+      border: 1px solid #dee2e6;
+      border-radius: 5px;
+      padding: 10px 14px;
+      margin: 10px 0;
+    }
+    .box.info { border-color: #0dcaf0; background: #f0fdff; }
+    .box.warn { border-color: #ffc107; background: #fffdf0; }
+    .box.tip  { border-color: #198754; background: #f0fff4; }
+    .box-title { font-weight: bold; font-size: 9.5pt; text-transform: uppercase; letter-spacing: .04em; margin-bottom: 4px; }
+    .box.info .box-title { color: #087990; }
+    .box.warn .box-title { color: #856404; }
+    .box.tip  .box-title { color: #146c43; }
+
+    /* Táblázatok */
+    table { width: 100%; border-collapse: collapse; margin: 10px 0; font-size: 9.5pt; }
+    th { background: #f8f9fa; padding: 5px 8px; text-align: left; border: 1px solid #dee2e6; font-weight: bold; }
+    td { padding: 4px 8px; border: 1px solid #e9ecef; vertical-align: top; }
+    tr:nth-child(even) td { background: #fafafa; }
+
+    /* Badge-szerű elemek */
+    .badge {
+      display: inline-block;
+      padding: 1px 7px;
+      border-radius: 12px;
+      font-size: 8.5pt;
+      font-weight: bold;
+      white-space: nowrap;
+    }
+    .badge-admin { background: #dc3545; color: #fff; }
+    .badge-user  { background: #6c757d; color: #fff; }
+    .badge-ok    { background: #198754; color: #fff; }
+    .badge-warn  { background: #ffc107; color: #212529; }
+    .badge-danger{ background: #dc3545; color: #fff; }
+
+    /* Lépéssorozat */
+    .steps { counter-reset: step; padding: 0; list-style: none; }
+    .steps li {
+      counter-increment: step;
+      padding: 5px 5px 5px 32px;
+      position: relative;
+      margin-bottom: 4px;
+    }
+    .steps li::before {
+      content: counter(step);
+      position: absolute;
+      left: 0;
+      top: 5px;
+      width: 22px;
+      height: 22px;
+      background: #0d6efd;
+      color: #fff;
+      border-radius: 50%;
+      font-size: 8.5pt;
+      font-weight: bold;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      line-height: 1;
+    }
+
+    /* Elválasztó */
+    hr { border: none; border-top: 1px solid #dee2e6; margin: 20px 0; }
+
+    /* Nyomtatógomb */
+    .screen-only { text-align: center; margin-bottom: 20px; }
+    .print-btn {
+      padding: 8px 22px;
+      font-size: 10.5pt;
+      background: #0d6efd;
+      color: #fff;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+
+    /* Oldalszám */
+    @page {
+      size: A4 portrait;
+      margin: 14mm 12mm 20mm 12mm;
+      @bottom-right {
+        content: counter(page) ". oldal / " counter(pages);
+        font-size: 8pt;
+        color: #6c757d;
+      }
+      @bottom-left {
+        content: "HR modul – Felhasználói kézikönyv";
+        font-size: 8pt;
+        color: #6c757d;
+      }
+    }
+
+    @media print {
+      .screen-only { display: none !important; }
+      a::after { content: "" !important; }
+      body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      h2.ch, h3, h4 { page-break-after: avoid; }
+      .box, table { page-break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+
+  <!-- Nyomtatógomb -->
+  <div class="screen-only">
+    <button class="print-btn" onclick="window.print()">Nyomtatás / PDF mentés</button>
+  </div>
+
+  <!-- Borító -->
+  <div class="cover">
+    <h1>HR modul</h1>
+    <div class="sub">Felhasználói kézikönyv</div>
+    <div class="version">Perfect-Phone 2026 &nbsp;|&nbsp; Belső használatra</div>
+  </div>
+
+  <!-- Tartalomjegyzék -->
+  <div class="toc">
+    <h2>Tartalomjegyzék</h2>
+    <ol>
+      <li><a href="#bevezeto">Bevezető – mire való a HR modul?</a></li>
+      <li><a href="#szerepkorok">Szerepkörök és jogosultságok</a></li>
+      <li><a href="#navigacio">Navigáció</a></li>
+      <li><a href="#dolgozok">Dolgozók kezelése</a>
+        <ol>
+          <li><a href="#lista">Dolgozók listája</a></li>
+          <li><a href="#felvetel">Új dolgozó felvétele</a></li>
+          <li><a href="#szerkesztes">Adatok szerkesztése</a></li>
+          <li><a href="#karton">Dolgozói karton</a></li>
+          <li><a href="#pdf">Karton PDF nyomtatása</a></li>
+          <li><a href="#inaktival">Inaktiválás és törlés</a></li>
+        </ol>
+      </li>
+      <li><a href="#dokumentumok">Dokumentumok kezelése</a>
+        <ol>
+          <li><a href="#dok_feltoltes">Dokumentum feltöltése</a></li>
+          <li><a href="#dok_lejarat">Lejárat figyelése</a></li>
+        </ol>
+      </li>
+      <li><a href="#admin">Adminisztrátori funkciók</a>
+        <ol>
+          <li><a href="#diviziok">Divíziók</a></li>
+          <li><a href="#doktipusok">Dokumentumtípusok</a></li>
+          <li><a href="#extramezok">Extra mezők</a></li>
+          <li><a href="#felhasznalok">Felhasználókezelés</a></li>
+        </ol>
+      </li>
+    </ol>
+  </div>
+
+  <hr>
+
+  <!-- 1. Bevezető -->
+  <h2 class="ch" id="bevezeto">1. Bevezető – mire való a HR modul?</h2>
+
+  <p>A HR modul a cég dolgozóinak nyilvántartására szolgál. Segítségével egyetlen helyen tárolhatók és kereshetők a személyes adatok, munkaviszony-információk, bankszámlaadatok, lakcímek, elérhetőségek, valamint a dolgozókhoz csatolt dokumentumok (pl. végzettségek, jogosítványok, tanúsítványok).</p>
+
+  <p>A modul fő funkciói:</p>
+  <ul>
+    <li>Dolgozói törzsadatok kezelése</li>
+    <li>Dokumentumok tárolása lejárat-figyeléssel</li>
+    <li>Nyomtatható dolgozói karton (PDF)</li>
+    <li>Divíziókba sorolás</li>
+    <li>Egyedi (extra) adatmezők definiálása</li>
+  </ul>
+
+  <div class="box info">
+    <div class="box-title">Megjegyzés</div>
+    A modul a céges belső rendszer részét képezi, a bejelentkezés a központi azonosítón keresztül történik.
+  </div>
+
+
+  <!-- 2. Szerepkörök -->
+  <h2 class="ch" id="szerepkorok">2. Szerepkörök és jogosultságok</h2>
+
+  <p>A rendszerben kétféle szerepkör létezik:</p>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Funkció</th>
+        <th><span class="badge badge-user">user</span> – normál</th>
+        <th><span class="badge badge-admin">admin</span> – adminisztrátor</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr><td>Dolgozók listájának megtekintése</td><td>✓</td><td>✓</td></tr>
+      <tr><td>Dolgozói karton megtekintése</td><td>✓</td><td>✓</td></tr>
+      <tr><td>Karton PDF nyomtatása</td><td>✓</td><td>✓</td></tr>
+      <tr><td>Dolgozó adatainak szerkesztése</td><td>✓</td><td>✓</td></tr>
+      <tr><td>Új dolgozó felvétele</td><td>✓</td><td>✓</td></tr>
+      <tr><td>Dokumentum feltöltése</td><td>✓</td><td>✓</td></tr>
+      <tr><td>Dolgozó inaktiválása / aktiválása</td><td>✓</td><td>✓</td></tr>
+      <tr><td>Dolgozó végleges törlése</td><td>—</td><td>✓</td></tr>
+      <tr><td>Divíziók kezelése</td><td>—</td><td>✓</td></tr>
+      <tr><td>Dokumentumtípusok kezelése</td><td>—</td><td>✓</td></tr>
+      <tr><td>Extra mezők kezelése</td><td>—</td><td>✓</td></tr>
+      <tr><td>Felhasználókezelés</td><td>—</td><td>✓</td></tr>
+    </tbody>
+  </table>
+
+  <div class="box warn">
+    <div class="box-title">Figyelem</div>
+    A végleges törlés visszafordíthatatlan – a dolgozó összes adata és dokumentuma törlődik. Általában elegendő az inaktiválás.
+  </div>
+
+
+  <!-- 3. Navigáció -->
+  <h2 class="ch" id="navigacio">3. Navigáció</h2>
+
+  <p>A felső menüsávban az alábbi menüpontok érhetők el:</p>
+
+  <table>
+    <thead>
+      <tr><th>Menüpont</th><th>Tartalom</th><th>Jogosultság</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><strong>Dolgozók</strong></td><td>Dolgozók listája, keresés, szűrés</td><td>minden felhasználó</td></tr>
+      <tr><td><strong>Dokumentumok</strong></td><td>Feltöltött dokumentumok listája</td><td>minden felhasználó</td></tr>
+      <tr><td><strong>Divíziók</strong></td><td>Szervezeti egységek kezelése</td><td>admin</td></tr>
+      <tr><td><strong>Dok. típusok</strong></td><td>Dokumentumkategóriák kezelése</td><td>admin</td></tr>
+      <tr><td><strong>Extra mezők</strong></td><td>Egyedi adatmezők definiálása</td><td>admin</td></tr>
+      <tr><td><strong>Felhasználók</strong></td><td>HR-es felhasználók kezelése</td><td>admin</td></tr>
+    </tbody>
+  </table>
+
+
+  <!-- 4. Dolgozók kezelése -->
+  <h2 class="ch" id="dolgozok">4. Dolgozók kezelése</h2>
+
+  <h3 id="lista">4.1 Dolgozók listája</h3>
+
+  <p>A főoldal a dolgozók névsor szerint rendezett listáját mutatja. Alapértelmezetten csak az aktív dolgozók látszanak.</p>
+
+  <h4>Keresés és szűrés</h4>
+  <ul>
+    <li><strong>Keresés</strong> – a keresőmezőbe gépelt szöveg szűr a névre, születési névre, anyja nevére, születési helyre, adóazonosítóra és céges törzsszámra</li>
+    <li><strong>Inaktív dolgozók</strong> – az „Inaktív is látható" gombbal az inaktív dolgozók is megjelennek a listában (szürke sorral jelölve)</li>
+    <li><strong>Rendezés</strong> – a Név és Divízió oszlopfejlécre kattintva váltható a növekvő/csökkenő sorrend</li>
+  </ul>
+
+  <h4>Sorszínezés</h4>
+  <table>
+    <thead><tr><th>Jelzés</th><th>Jelentés</th></tr></thead>
+    <tbody>
+      <tr><td><span class="badge badge-danger">lejárt doksi</span></td><td>A dolgozóhoz van legalább egy lejárt dokumentum</td></tr>
+      <tr><td><span class="badge badge-warn">lejáró doksi</span></td><td>Van 30 napon belül lejáró dokumentum</td></tr>
+      <tr><td><em>szürke sor</em></td><td>Inaktív dolgozó</td></tr>
+    </tbody>
+  </table>
+
+  <h3 id="felvetel">4.2 Új dolgozó felvétele</h3>
+
+  <p>Az „+ Új dolgozó" gombra kattintva érhető el a felvételi űrlap. A mezők szekciókba rendezve jelennek meg:</p>
+
+  <table>
+    <thead><tr><th>Szekció</th><th>Mezők</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Személyes adatok</strong></td><td>Név *, születési név, anyja neve, születési hely, születési dátum</td></tr>
+      <tr><td><strong>Céges / azonosító</strong></td><td>Adóazonosító, TAJ szám, céges törzsszám, divízió, aktív státusz</td></tr>
+      <tr><td><strong>Bankszámla</strong></td><td>Bankszámlaszám, bank neve (automatikusan kitöltődik)</td></tr>
+      <tr><td><strong>Munkaviszony</strong></td><td>Belépés dátuma, kilépés dátuma</td></tr>
+      <tr><td><strong>Lakcím</strong></td><td>Irányítószám, település, cím</td></tr>
+      <tr><td><strong>Kapcsolat</strong></td><td>Email, telefonszám, megjegyzés</td></tr>
+      <tr><td><strong>Profilkép</strong></td><td>JPG / PNG / WEBP, max 25 MB</td></tr>
+      <tr><td><strong>Extra mezők</strong></td><td>Az admin által definiált egyedi mezők</td></tr>
+    </tbody>
+  </table>
+
+  <p>Csak a <strong>Név</strong> mező kötelező, a többi opcionális.</p>
+
+  <div class="box tip">
+    <div class="box-title">Tipp – bankszámla auto-kitöltés</div>
+    Ha a bankszámlaszám mezőbe elkezded gépelni a számlaszámot (giro formátum: <code>12345678-…</code> vagy IBAN: <code>HU…</code>), a rendszer az első 3 jegy alapján automatikusan kitölti a bank nevét. Az érték felülírható.
+  </div>
+
+  <h3 id="szerkesztes">4.3 Adatok szerkesztése</h3>
+
+  <p>A listában az „Szerkesztés" gombra, vagy a kartonon a „Szerkesztés" gombra kattintva nyílik meg a szerkesztő oldal. A szekciók és mezők megegyeznek az új felvételi űrlappal.</p>
+
+  <h4>Gombok az oldal alján</h4>
+  <table>
+    <thead><tr><th>Gomb</th><th>Helye</th><th>Funkció</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Törlés</strong></td><td>bal oldal</td><td>Végleges törlés – csak admin, megerősítő kérdéssel (visszafordíthatatlan!)</td></tr>
+      <tr><td><strong>Inaktivál / Aktivál</strong></td><td>bal oldal</td><td>Dolgozó állapotának váltása, megerősítő kérdéssel</td></tr>
+      <tr><td><strong>Mégse</strong></td><td>jobb oldal</td><td>Visszalép a listához mentés nélkül</td></tr>
+      <tr><td><strong>Mentés</strong></td><td>jobb oldal</td><td>Elmenti az összes módosítást</td></tr>
+    </tbody>
+  </table>
+
+  <h3 id="karton">4.4 Dolgozói karton</h3>
+
+  <p>A karton a dolgozó összes adatát olvasható, szekciókba rendezett formában mutatja – szerkesztési lehetőség nélkül. Elérhető a listából a „Karton" gombbal, vagy a szerkesztő oldalról.</p>
+
+  <p>A karton tartalmazza az összes szekciót (Személyes adatok, Céges/azonosító, Bankszámla, Munkaviszony, Lakcím, Kapcsolat, Extra mezők, Dokumentumok), üres mezőknél „—" jelzéssel.</p>
+
+  <h3 id="pdf">4.5 Karton PDF nyomtatása</h3>
+
+  <ol class="steps">
+    <li>Nyisd meg a dolgozói kartont.</li>
+    <li>Kattints a <strong>„Karton PDF"</strong> gombra – új lapon nyílik meg a nyomtatható nézet.</li>
+    <li>Kattints a <strong>„Nyomtatás / PDF mentés"</strong> gombra.</li>
+    <li>A megjelenő nyomtatási párbeszédablakban válaszd a <strong>„Mentés PDF-ként"</strong> lehetőséget (Chrome/Edge esetén ez az alapértelmezett).</li>
+  </ol>
+
+  <div class="box info">
+    <div class="box-title">Oldalszámozás</div>
+    Ha a karton több oldalra terjed, az oldalak jobb alsó sarkában automatikusan megjelenik az oldalszám (pl. „1. oldal / 2"). A bal alsó sarokban a dolgozó neve és a nyomtatás dátuma szerepel.
+  </div>
+
+  <h3 id="inaktival">4.6 Inaktiválás és törlés</h3>
+
+  <p><strong>Inaktiválás</strong> – a dolgozó nem törlődik, de inaktívnak van jelölve. Az adatai megmaradnak, a listában csak az „Inaktív is látható" kapcsolóval jelennek meg. Visszafordítható: az „Aktivál" gombbal újra aktívvá tehető.</p>
+
+  <p><strong>Végleges törlés</strong> – csak admin jogosultsággal végezhető el. Törlés előtt a rendszer megerősítést kér. A törlés kiterjed a dolgozó összes adatára, dokumentumára és extra mező értékére. <strong>Visszafordíthatatlan.</strong></p>
+
+  <div class="box warn">
+    <div class="box-title">Ajánlás</div>
+    Kilépett dolgozóknál általában elegendő az inaktiválás és a kilépés dátumának rögzítése. A végleges törlést csak akkor alkalmazzuk, ha az adat valóban felesleges.
+  </div>
+
+
+  <!-- 5. Dokumentumok -->
+  <h2 class="ch" id="dokumentumok">5. Dokumentumok kezelése</h2>
+
+  <h3 id="dok_feltoltes">5.1 Dokumentum feltöltése</h3>
+
+  <p>Dokumentumot feltölteni kétféleképpen lehet:</p>
+  <ul>
+    <li>A dolgozó szerkesztő oldalán, a Dokumentumok blokkban a <strong>„+ Feltöltés"</strong> gombbal</li>
+    <li>A felső menü <strong>Dokumentumok</strong> pontjából a <strong>„+ Feltöltés"</strong> gombbal</li>
+  </ul>
+
+  <h4>Feltöltési mezők</h4>
+  <table>
+    <thead><tr><th>Mező</th><th>Leírás</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Dolgozó *</strong></td><td>Melyik dolgozóhoz tartozik a dokumentum</td></tr>
+      <tr><td><strong>Dokumentumtípus *</strong></td><td>Pl. „Munkavállalói szerződés", „Jogosítvány" – az admin által definiált lista</td></tr>
+      <tr><td>Megnevezés</td><td>Opcionális leírás, pl. „CE tanúsítvány 2026"</td></tr>
+      <tr><td><strong>Fájl *</strong></td><td>Max 25 MB. PDF, Word, Excel, kép stb.</td></tr>
+      <tr><td>Lejárathoz kötött</td><td>Ha bepipálod, megadható a lejárat dátuma</td></tr>
+      <tr><td>Lejárat dátuma</td><td>Csak a checkbox bepipálása után aktív</td></tr>
+    </tbody>
+  </table>
+
+  <h3 id="dok_lejarat">5.2 Lejárat figyelése</h3>
+
+  <p>A rendszer automatikusan figyeli a dokumentumok lejáratát. A dolgozók listájában és a kartonon is látható a jelzés:</p>
+
+  <table>
+    <thead><tr><th>Jelzés</th><th>Jelentés</th></tr></thead>
+    <tbody>
+      <tr><td><span class="badge badge-danger">piros</span></td><td>A dokumentum lejárt (a mai napnál korábbi lejárat)</td></tr>
+      <tr><td><span class="badge badge-warn">sárga</span></td><td>A dokumentum 30 napon belül jár le</td></tr>
+      <tr><td><span class="badge" style="background:#6c757d;color:#fff">szürke</span></td><td>Érvényes, 30 napnál távolabbi lejárat</td></tr>
+    </tbody>
+  </table>
+
+
+  <!-- 6. Admin -->
+  <h2 class="ch" id="admin">6. Adminisztrátori funkciók</h2>
+
+  <h3 id="diviziok">6.1 Divíziók</h3>
+
+  <p>A divíziók a dolgozók szervezeti egység szerinti csoportosítására szolgálnak (pl. „Műhely", „Iroda", „Logisztika"). A divízió a dolgozói adatlapon egy legördülő listából választható.</p>
+
+  <ul>
+    <li><strong>Új divízió</strong> – a bal oldali mezőbe írd be a nevet, majd kattints a „Hozzáad" gombra</li>
+    <li><strong>Átnevezés</strong> – a „Szerkeszt" gombra kattintva az adott sorban megjelenik egy szerkesztő mező; írd be az új nevet és kattints a „Ment" gombra</li>
+    <li><strong>Letiltás / engedélyezés</strong> – a letiltott divízió nem jelenik meg az új dolgozói felvételnél, de a meglévő hozzárendelések megmaradnak</li>
+  </ul>
+
+  <h3 id="doktipusok">6.2 Dokumentumtípusok</h3>
+
+  <p>A dokumentumtípusok a feltöltési űrlapon megjelenő kategóriákat határozzák meg (pl. „Munkavállalói szerződés", „Szakmai bizonyítvány", „Jogosítvány").</p>
+
+  <ul>
+    <li><strong>Új típus</strong> – add meg a típus nevét és kattints a „Hozzáad" gombra</li>
+    <li><strong>Letiltás</strong> – a letiltott típus nem jelenik meg az új feltöltésnél, de a meglévő dokumentumok megmaradnak</li>
+  </ul>
+
+  <h3 id="extramezok">6.3 Extra mezők</h3>
+
+  <p>Az extra mezők lehetővé teszik, hogy a standard adatmezőkön túl egyedi adatokat is tárolhass a dolgozókhoz – pl. „Ruhaméretek", „Gépjármű rendszám", „Munkakör" stb.</p>
+
+  <h4>Mező létrehozása</h4>
+  <ol class="steps">
+    <li>Nyisd meg az <strong>Extra mezők</strong> menüpontot, majd kattints az <strong>„+ Új mező"</strong> gombra.</li>
+    <li>Add meg a mező nevét (pl. „Ruhaméret") és egy egyedi kulcsot (pl. <code>ruhameret</code>).</li>
+    <li>Válaszd ki a mező típusát.</li>
+    <li>Kattints a <strong>„Létrehozás"</strong> gombra.</li>
+  </ol>
+
+  <h4>Elérhető mező típusok</h4>
+  <table>
+    <thead><tr><th>Típus</th><th>Leírás</th></tr></thead>
+    <tbody>
+      <tr><td><code>text</code></td><td>Egysoros szöveges beviteli mező</td></tr>
+      <tr><td><code>textarea</code></td><td>Többsoros szöveges mező</td></tr>
+      <tr><td><code>number</code></td><td>Szám (egész vagy tizedes)</td></tr>
+      <tr><td><code>date</code></td><td>Dátum</td></tr>
+      <tr><td><code>select</code></td><td>Legördülő lista – egy érték választható</td></tr>
+      <tr><td><code>multiselect</code></td><td>Jelölőnégyzet-lista – több érték is választható</td></tr>
+    </tbody>
+  </table>
+
+  <div class="box info">
+    <div class="box-title">Megjelenítés a kartonon</div>
+    Minden extra mezőnél egy checkbox szabályozza, hogy az érték megjelenjen-e a dolgozói kartonon és a PDF-ben. Ha a checkbox nincs bepipálva, az adat mentésre kerül, de a kartonon nem látszik.
+  </div>
+
+  <h4>Mező kikapcsolása</h4>
+  <p>A „Kikapcs" gombbal egy extra mező inaktívvá tehető. Ilyenkor az új dolgozóknál nem jelenik meg, de a meglévő értékek megmaradnak az adatbázisban.</p>
+
+  <h3 id="felhasznalok">6.4 Felhasználókezelés</h3>
+
+  <p>A <strong>Felhasználók</strong> menüpont alatt kezelhetők a HR modulhoz hozzáféréssel rendelkező felhasználók.</p>
+
+  <table>
+    <thead><tr><th>Művelet</th><th>Leírás</th></tr></thead>
+    <tbody>
+      <tr><td>Új felhasználó</td><td>Név, email, jelszó és szerepkör megadásával hozható létre</td></tr>
+      <tr><td>Szerkesztés</td><td>Név, email, jelszó módosítható; szerepkör megváltoztatható</td></tr>
+      <tr><td>Letiltás / engedélyezés</td><td>Letiltott felhasználó nem tud bejelentkezni</td></tr>
+    </tbody>
+  </table>
+
+  <div class="box warn">
+    <div class="box-title">Megjegyzés a bejelentkezésről</div>
+    A HR modul a céges központi bejelentkezési rendszert használja. Ha egy felhasználó nem tud belépni, ellenőrizd hogy a fiókja aktív-e, és a HR modulhoz van-e hozzárendelve.
+  </div>
+
+  <hr>
+
+  <p style="color:#6c757d; font-size:9pt; text-align:center;">
+    Perfect-Phone 2026 – HR modul &nbsp;|&nbsp; Belső használatra &nbsp;|&nbsp; Kézikönyv készült: 2026-04-23
+  </p>
+
+</div>
+</body>
+</html>

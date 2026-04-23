@@ -50,15 +50,29 @@
         </thead>
         <tbody>
           <?php foreach ($divisions as $d): ?>
-            <tr>
+            <tr id="div-row-<?= (int)$d['id'] ?>">
               <td><?= (int)$d['id'] ?></td>
-              <td><?= h($d['name']) ?></td>
+              <td>
+                <span class="div-name-display"><?= h($d['name']) ?></span>
+                <form method="post" action="/divisions_update" class="div-edit-form d-none row g-1 mt-1">
+                  <input type="hidden" name="_csrf" value="<?= h($csrf) ?>">
+                  <input type="hidden" name="id" value="<?= (int)$d['id'] ?>">
+                  <div class="col-8">
+                    <input class="form-control form-control-sm" type="text" name="name" value="<?= h($d['name']) ?>" required>
+                  </div>
+                  <div class="col-4 d-flex gap-1">
+                    <button class="btn btn-sm btn-success" type="submit">Ment</button>
+                    <button class="btn btn-sm btn-outline-secondary div-edit-cancel" type="button">&#x2715;</button>
+                  </div>
+                </form>
+              </td>
               <td>
                 <?= (int)$d['is_active'] === 1
                   ? '<span class="badge bg-success">igen</span>'
                   : '<span class="badge bg-secondary">nem</span>' ?>
               </td>
               <td class="text-end">
+                <button class="btn btn-sm btn-outline-primary div-edit-btn me-1" data-id="<?= (int)$d['id'] ?>">Szerkeszt</button>
                 <form method="post" action="/divisions_toggle" class="d-inline">
                   <input type="hidden" name="_csrf" value="<?= h($csrf) ?>">
                   <input type="hidden" name="id" value="<?= (int)$d['id'] ?>">
@@ -78,3 +92,25 @@
     </div>
   </div>
 </div>
+
+<script>
+document.querySelectorAll('.div-edit-btn').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    var id = this.dataset.id;
+    var row = document.getElementById('div-row-' + id);
+    row.querySelector('.div-name-display').classList.add('d-none');
+    row.querySelector('.div-edit-form').classList.remove('d-none');
+    this.classList.add('d-none');
+    row.querySelector('.div-edit-form input[name="name"]').focus();
+  });
+});
+
+document.querySelectorAll('.div-edit-cancel').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    var row = this.closest('tr');
+    row.querySelector('.div-name-display').classList.remove('d-none');
+    row.querySelector('.div-edit-form').classList.add('d-none');
+    row.querySelector('.div-edit-btn').classList.remove('d-none');
+  });
+});
+</script>

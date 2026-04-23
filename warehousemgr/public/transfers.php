@@ -360,9 +360,18 @@ require __DIR__ . '/../app/views/layout/header.php';
               <div class="d-flex align-items-center justify-content-between mb-3 gap-2 flex-wrap">
                 <div>
                   <div class="fw-semibold">Tételek</div>
-                  <div class="small text-secondary">Csak a kiválasztott forrásraktárban ténylegesen készleten lévő anyagok jelennek meg. Ugyanaz az anyag csak egyszer szerepelhet, az egyedi azonosítós tételeknél pedig kiválaszthatod vagy vonalkódolvasóval beolvashatod, mely azonosítók kerüljenek át.</div>
+                  <div class="small text-secondary">Ugyanaz az anyag csak egyszer szerepelhet, az egyedi azonosítós tételeknél pedig kiválaszthatod vagy vonalkódolvasóval beolvashatod, mely azonosítók kerüljenek át.</div>
                 </div>
-                <button type="button" class="btn btn-sm btn-outline-primary" id="add-transfer-item-btn">+ Anyag</button>
+                <div class="d-flex align-items-center gap-2 flex-wrap">
+                  <select class="form-select form-select-sm" id="transfer-category-filter" style="min-width:160px;">
+                    <option value="">— minden kategória —</option>
+                    <?php foreach ($categoryOptions as $categoryOption): ?>
+                      <option value="<?= h($categoryOption) ?>"><?= h($categoryOption) ?></option>
+                    <?php endforeach; ?>
+                  </select>
+                  <button type="button" class="btn btn-sm btn-outline-secondary" id="transfer-category-btn">Szűrés</button>
+                  <button type="button" class="btn btn-sm btn-outline-primary" id="add-transfer-item-btn">+ Anyag</button>
+                </div>
               </div>
               <div class="table-responsive">
                 <table class="table table-sm align-middle mb-0">
@@ -476,9 +485,18 @@ require __DIR__ . '/../app/views/layout/header.php';
               <div class="d-flex align-items-center justify-content-between mb-3 gap-2 flex-wrap">
                 <div>
                   <div class="fw-semibold">Tételek</div>
-                  <div class="small text-secondary">Csak a kiválasztott forrásraktárban ténylegesen készleten lévő anyagok jelennek meg. Ugyanaz az anyag csak egyszer szerepelhet, az egyedi azonosítós tételeknél pedig kiválaszthatod vagy vonalkódolvasóval beolvashatod, mely azonosítók kerüljenek át.</div>
+                  <div class="small text-secondary">Ugyanaz az anyag csak egyszer szerepelhet, az egyedi azonosítós tételeknél pedig kiválaszthatod vagy vonalkódolvasóval beolvashatod, mely azonosítók kerüljenek át.</div>
                 </div>
-                <button type="button" class="btn btn-sm btn-outline-primary" id="add-external-transfer-item-btn">+ Anyag</button>
+                <div class="d-flex align-items-center gap-2 flex-wrap">
+                  <select class="form-select form-select-sm" id="external-transfer-category-filter" style="min-width:160px;">
+                    <option value="">— minden kategória —</option>
+                    <?php foreach ($categoryOptions as $categoryOption): ?>
+                      <option value="<?= h($categoryOption) ?>"><?= h($categoryOption) ?></option>
+                    <?php endforeach; ?>
+                  </select>
+                  <button type="button" class="btn btn-sm btn-outline-secondary" id="external-transfer-category-btn">Szűrés</button>
+                  <button type="button" class="btn btn-sm btn-outline-primary" id="add-external-transfer-item-btn">+ Anyag</button>
+                </div>
               </div>
               <div class="table-responsive">
                 <table class="table table-sm align-middle mb-0">
@@ -687,6 +705,13 @@ require __DIR__ . '/../app/views/layout/header.php';
                   <div class="small text-secondary"><?= h((string)($row['cancelled_at'] ?? '')) ?></div>
                 <?php endif; ?>
 
+                <?php if (!$isExternal && (string)$row['status'] === 'accepted'): ?>
+                  <div class="d-flex gap-2 flex-wrap mt-2 align-items-center">
+                    <a class="btn btn-sm btn-outline-primary" href="/transfer_pdf.php?id=<?= (int)$row['id'] ?>" target="_blank" rel="noopener">PDF</a>
+                    <a class="btn btn-sm btn-outline-secondary" href="/transfer_pdf.php?id=<?= (int)$row['id'] ?>&amp;download=1">Letöltés</a>
+                  </div>
+                <?php endif; ?>
+
                 <?php if ($isExternal && (string)$row['status'] === 'accepted'): ?>
                   <div class="d-flex gap-2 flex-wrap mt-2 align-items-center">
                     <a class="btn btn-sm btn-outline-primary" href="/external_transfer_pdf.php?id=<?= (int)$row['id'] ?>" target="_blank" rel="noopener">PDF</a>
@@ -756,6 +781,7 @@ require __DIR__ . '/../app/views/layout/header.php';
           'sku' => (string)$m['sku'],
           'name' => (string)$m['name'],
           'unit' => (string)($m['unit'] ?? ''),
+          'category_name' => (string)($m['category_name'] ?? ''),
           'label' => (string)$m['name'] . ' [' . (string)$m['sku'] . ']',
           'is_identified' => (int)($m['is_identified'] ?? 0),
           'identifier_label' => warehouse_material_identifier_value_label($m),
@@ -823,13 +849,12 @@ require __DIR__ . '/../app/views/layout/header.php';
   }
 
   function materialAvailableInWarehouse(warehouseId, materialId) {
-    const stockInfo = getStockInfo(warehouseId, materialId);
-    return !!(stockInfo && Number.parseFloat(stockInfo.raw || '0') > 0.0005);
+    return true;
   }
 
   function availableMaterialsForWarehouse(warehouseId) {
     if (!warehouseId) return [];
-    return materials.filter((material) => materialAvailableInWarehouse(warehouseId, material.id));
+    return materials;
   }
 
   function availableIdentifiersFor(warehouseId, materialId) {
@@ -1022,6 +1047,8 @@ require __DIR__ . '/../app/views/layout/header.php';
     const sourceSelect = document.getElementById(config.sourceId);
     const rowsContainer = document.getElementById(config.rowsId);
     const addBtn = document.getElementById(config.addBtnId);
+    const categoryFilter = config.categoryFilterId ? document.getElementById(config.categoryFilterId) : null;
+    const categoryBtn = config.categoryBtnId ? document.getElementById(config.categoryBtnId) : null;
     if (!createForm || !rowsContainer || !addBtn) return;
 
     initFormEnterGuard(createForm);
@@ -1145,8 +1172,12 @@ require __DIR__ . '/../app/views/layout/header.php';
       const query = (searchInput.value || '').trim().toLowerCase();
       const blocked = new Set(selectedMaterialIds(row));
 
+      const activeCat = categoryFilter ? (categoryFilter.value || '') : '';
       const filtered = availableMaterialsForWarehouse(warehouseId).filter((material) => {
         if (blocked.has(material.id) && material.id !== currentValue) {
+          return false;
+        }
+        if (activeCat !== '' && material.category_name !== activeCat) {
           return false;
         }
         if (query === '') {
@@ -1419,6 +1450,9 @@ require __DIR__ . '/../app/views/layout/header.php';
       rowsContainer.querySelectorAll('.transfer-item-row').forEach((row) => renderScanResult(row, {}));
       refreshRows();
     });
+    categoryBtn?.addEventListener('click', () => {
+      refreshRows();
+    });
 
     addRow();
   }
@@ -1428,6 +1462,8 @@ require __DIR__ . '/../app/views/layout/header.php';
     sourceId: 'transfer_source_warehouse_id',
     rowsId: 'transfer-item-rows',
     addBtnId: 'add-transfer-item-btn',
+    categoryFilterId: 'transfer-category-filter',
+    categoryBtnId: 'transfer-category-btn',
     itemNamePrefix: 'items'
   });
 
@@ -1436,6 +1472,8 @@ require __DIR__ . '/../app/views/layout/header.php';
     sourceId: 'external_transfer_source_warehouse_id',
     rowsId: 'external-transfer-item-rows',
     addBtnId: 'add-external-transfer-item-btn',
+    categoryFilterId: 'external-transfer-category-filter',
+    categoryBtnId: 'external-transfer-category-btn',
     itemNamePrefix: 'external_items'
   });
 

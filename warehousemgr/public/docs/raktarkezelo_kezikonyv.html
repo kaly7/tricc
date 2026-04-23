@@ -1,0 +1,564 @@
+<!doctype html>
+<html lang="hu">
+<head>
+  <meta charset="utf-8">
+  <title>Raktárkezelő – Felhasználói kézikönyv</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+
+    body {
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 10.5pt;
+      color: #212529;
+      background: #fff;
+      margin: 0;
+      padding: 0;
+      line-height: 1.5;
+    }
+
+    .container {
+      max-width: 820px;
+      margin: 0 auto;
+      padding: 14mm 12mm;
+    }
+
+    .cover {
+      text-align: center;
+      padding: 30px 0 24px;
+      border-bottom: 2px solid #212529;
+      margin-bottom: 28px;
+    }
+    .cover h1 { font-size: 22pt; margin: 0 0 6px; }
+    .cover .sub { font-size: 11pt; color: #6c757d; }
+    .cover .version { font-size: 9pt; color: #adb5bd; margin-top: 8px; }
+
+    .toc { margin-bottom: 28px; }
+    .toc h2 { font-size: 13pt; border-bottom: 1px solid #dee2e6; padding-bottom: 4px; margin-bottom: 10px; }
+    .toc ol { padding-left: 18px; margin: 0; }
+    .toc li { margin: 3px 0; font-size: 10pt; }
+    .toc a { color: #0d6efd; text-decoration: none; }
+    .toc a:hover { text-decoration: underline; }
+
+    h2.ch {
+      font-size: 14pt;
+      margin: 28px 0 10px;
+      padding: 6px 10px;
+      background: #f8f9fa;
+      border-left: 4px solid #0d6efd;
+      border-radius: 0 4px 4px 0;
+      page-break-after: avoid;
+    }
+    h3 { font-size: 11.5pt; margin: 18px 0 7px; color: #343a40; page-break-after: avoid; }
+    h4 { font-size: 10.5pt; margin: 14px 0 5px; color: #495057; page-break-after: avoid; }
+
+    p { margin: 0 0 8px; }
+    ul, ol { margin: 0 0 8px; padding-left: 20px; }
+    li { margin-bottom: 3px; }
+
+    .box {
+      border: 1px solid #dee2e6;
+      border-radius: 5px;
+      padding: 10px 14px;
+      margin: 10px 0;
+    }
+    .box.info  { border-color: #0dcaf0; background: #f0fdff; }
+    .box.warn  { border-color: #ffc107; background: #fffdf0; }
+    .box.tip   { border-color: #198754; background: #f0fff4; }
+    .box.danger{ border-color: #dc3545; background: #fff5f5; }
+    .box-title { font-weight: bold; font-size: 9.5pt; text-transform: uppercase; letter-spacing: .04em; margin-bottom: 4px; }
+    .box.info   .box-title { color: #087990; }
+    .box.warn   .box-title { color: #856404; }
+    .box.tip    .box-title { color: #146c43; }
+    .box.danger .box-title { color: #b02a37; }
+
+    table { width: 100%; border-collapse: collapse; margin: 10px 0; font-size: 9.5pt; }
+    th { background: #f8f9fa; padding: 5px 8px; text-align: left; border: 1px solid #dee2e6; font-weight: bold; }
+    td { padding: 4px 8px; border: 1px solid #e9ecef; vertical-align: top; }
+    tr:nth-child(even) td { background: #fafafa; }
+
+    .badge {
+      display: inline-block;
+      padding: 1px 7px;
+      border-radius: 12px;
+      font-size: 8.5pt;
+      font-weight: bold;
+      white-space: nowrap;
+    }
+    .badge-admin  { background: #dc3545; color: #fff; }
+    .badge-user   { background: #6c757d; color: #fff; }
+    .badge-ok     { background: #198754; color: #fff; }
+    .badge-warn   { background: #ffc107; color: #212529; }
+    .badge-danger { background: #dc3545; color: #fff; }
+    .badge-info   { background: #0dcaf0; color: #212529; }
+
+    .steps { counter-reset: step; padding: 0; list-style: none; }
+    .steps li {
+      counter-increment: step;
+      padding: 5px 5px 5px 32px;
+      position: relative;
+      margin-bottom: 4px;
+    }
+    .steps li::before {
+      content: counter(step);
+      position: absolute; left: 0; top: 5px;
+      width: 22px; height: 22px;
+      background: #0d6efd; color: #fff;
+      border-radius: 50%;
+      font-size: 8.5pt; font-weight: bold;
+      display: flex; align-items: center; justify-content: center;
+    }
+
+    hr { border: none; border-top: 1px solid #dee2e6; margin: 20px 0; }
+
+    .screen-only { text-align: center; margin-bottom: 20px; }
+    .print-btn {
+      padding: 8px 22px; font-size: 10.5pt;
+      background: #0d6efd; color: #fff;
+      border: none; border-radius: 5px; cursor: pointer;
+    }
+
+    @page {
+      size: A4 portrait;
+      margin: 14mm 12mm 20mm 12mm;
+      @bottom-right {
+        content: counter(page) ". oldal / " counter(pages);
+        font-size: 8pt; color: #6c757d;
+      }
+      @bottom-left {
+        content: "Raktárkezelő – Felhasználói kézikönyv";
+        font-size: 8pt; color: #6c757d;
+      }
+    }
+
+    @media print {
+      .screen-only { display: none !important; }
+      a::after { content: "" !important; }
+      body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      h2.ch, h3, h4 { page-break-after: avoid; }
+      .box, table { page-break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+
+  <div class="screen-only">
+    <button class="print-btn" onclick="window.print()">Nyomtatás / PDF mentés</button>
+  </div>
+
+  <div class="cover">
+    <h1>Raktárkezelő</h1>
+    <div class="sub">Felhasználói kézikönyv</div>
+    <div class="version">Perfect-Phone 2026 &nbsp;|&nbsp; Belső használatra</div>
+  </div>
+
+  <div class="toc">
+    <h2>Tartalomjegyzék</h2>
+    <ol>
+      <li><a href="#bevezeto">Bevezető – mire való a Raktárkezelő?</a></li>
+      <li><a href="#szerepkorok">Szerepkörök és jogosultságok</a></li>
+      <li><a href="#navigacio">Navigáció</a></li>
+      <li><a href="#anyagok">Anyagok kezelése</a>
+        <ol>
+          <li><a href="#anyagtorzs">Anyagtörzs</a></li>
+          <li><a href="#csv_import">CSV import</a></li>
+          <li><a href="#azonositok">Azonosítók</a></li>
+        </ol>
+      </li>
+      <li><a href="#raktar">Raktárak és készlet</a>
+        <ol>
+          <li><a href="#raktar_kezeles">Raktárak kezelése</a></li>
+          <li><a href="#keszlet">Raktárkészlet</a></li>
+          <li><a href="#beveletezes">Bevételezés</a></li>
+          <li><a href="#korrekcio">Készletkorrekció</a></li>
+        </ol>
+      </li>
+      <li><a href="#atadasok">Átadások</a>
+        <ol>
+          <li><a href="#belso_atadas">Belső átadás (raktárak között)</a></li>
+          <li><a href="#kulso_atadas">Külső átadás (partnernek)</a></li>
+          <li><a href="#elfogadas">Elfogadás és elutasítás</a></li>
+          <li><a href="#szallitolevel">Szállítólevelek</a></li>
+        </ol>
+      </li>
+      <li><a href="#partnerek">Partnerek</a></li>
+      <li><a href="#admin">Adminisztrátori funkciók</a>
+        <ol>
+          <li><a href="#mozgasok">Készletmozgások</a></li>
+          <li><a href="#naplo">Audit napló</a></li>
+          <li><a href="#archivum">Archívumok</a></li>
+        </ol>
+      </li>
+    </ol>
+  </div>
+
+  <hr>
+
+  <!-- 1. Bevezető -->
+  <h2 class="ch" id="bevezeto">1. Bevezető – mire való a Raktárkezelő?</h2>
+
+  <p>A Raktárkezelő modul a cég anyag- és eszközkészletének nyilvántartására szolgál. Segítségével kezelhető, hogy melyik anyagból mennyi van és hol, nyomon követhetők a bevételezések, raktárközi átadások és a külső partnereknek kiadott tételek.</p>
+
+  <p>A modul fő funkciói:</p>
+  <ul>
+    <li>Anyagtörzs kezelése (cikkszám, mértékegység, kategória, minimális készlet)</li>
+    <li>Több raktár egyidejű kezelése</li>
+    <li>Készlet bevételezése és manuális korrekciója</li>
+    <li>Belső raktárközi átadások indítása és fogadása</li>
+    <li>Külső partnereknek való kiadás és visszavétel szállítólevéllel</li>
+    <li>Minden művelet naplózása és visszakereshetősége</li>
+    <li>CSV export és import</li>
+  </ul>
+
+  <!-- 2. Szerepkörök -->
+  <h2 class="ch" id="szerepkorok">2. Szerepkörök és jogosultságok</h2>
+
+  <p>A rendszerben kétféle szerepkör létezik:</p>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Funkció</th>
+        <th><span class="badge badge-user">user</span></th>
+        <th><span class="badge badge-admin">admin</span></th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr><td>Anyagtörzs megtekintése</td><td>✓</td><td>✓</td></tr>
+      <tr><td>Anyag létrehozása, módosítása</td><td>—</td><td>✓</td></tr>
+      <tr><td>Anyag archiválása</td><td>—</td><td>✓</td></tr>
+      <tr><td>CSV import</td><td>—</td><td>✓</td></tr>
+      <tr><td>Raktárkészlet megtekintése</td><td>✓</td><td>✓</td></tr>
+      <tr><td>Bevételezés (saját raktárban)</td><td>✓ *</td><td>✓</td></tr>
+      <tr><td>Készletkorrekció (saját raktárban)</td><td>✓ *</td><td>✓</td></tr>
+      <tr><td>Átadás indítása (saját raktárból)</td><td>✓ *</td><td>✓</td></tr>
+      <tr><td>Átadás elfogadása / elutasítása</td><td>✓ *</td><td>✓</td></tr>
+      <tr><td>Raktárak kezelése</td><td>—</td><td>✓</td></tr>
+      <tr><td>Partnerek kezelése</td><td>—</td><td>✓</td></tr>
+      <tr><td>Készletmozgások, audit napló</td><td>—</td><td>✓</td></tr>
+      <tr><td>Archívumok, teljes ürítés</td><td>—</td><td>✓</td></tr>
+    </tbody>
+  </table>
+
+  <p><small>* Csak azoknál a raktáraknál, amelyekhez a felhasználónak hozzáférése van.</small></p>
+
+  <div class="box info">
+    <div class="box-title">Raktár-hozzáférés</div>
+    Hogy egy normál felhasználó melyik raktárat kezelheti, azt az admin állítja be a Raktárak / Hozzáférés funkcióban. Hozzáférés nélkül a felhasználó csak olvasni tudja a készletet.
+  </div>
+
+
+  <!-- 3. Navigáció -->
+  <h2 class="ch" id="navigacio">3. Navigáció</h2>
+
+  <p>A felső menüsávban legördülő menük találhatók:</p>
+
+  <table>
+    <thead><tr><th>Menü</th><th>Almenü</th><th>Leírás</th><th>Jogosultság</th></tr></thead>
+    <tbody>
+      <tr><td rowspan="2"><strong>Anyagok</strong></td><td>Anyagtörzs</td><td>Anyagok listája, szerkesztés, CSV import</td><td>megtekintés: mindenki; szerkesztés: admin</td></tr>
+      <tr><td>Azonosítók</td><td>Egyedi sorszámok / vonalkódok kezelése</td><td>ha a funkció aktív</td></tr>
+      <tr><td rowspan="3"><strong>Raktárak</strong></td><td>Raktárak</td><td>Raktárak létrehozása, módosítása</td><td>admin</td></tr>
+      <tr><td>Raktárkészlet</td><td>Aktuális készletszintek, bevételezés, korrekció</td><td>mindenki</td></tr>
+      <tr><td>Partnerek</td><td>Külső partnercégek törzsadatai</td><td>admin</td></tr>
+      <tr><td rowspan="2"><strong>Átadások</strong></td><td>Átadások</td><td>Belső és külső átadások indítása, fogadása</td><td>mindenki (saját raktár)</td></tr>
+      <tr><td>Szállítólevelek</td><td>Lezárt átadások listája, PDF nyomtatás</td><td>mindenki</td></tr>
+      <tr><td rowspan="4"><strong>Admin</strong></td><td>Mozgások</td><td>Minden készletmozgás visszakereshető listája</td><td>admin</td></tr>
+      <tr><td>Napló</td><td>Felhasználói műveletek audit naplója</td><td>admin</td></tr>
+      <tr><td>Archívumok</td><td>Archivált anyagok és mozgások</td><td>admin</td></tr>
+      <tr><td>Teljes ürítés</td><td>Az összes adat törlése (csak tesztkörnyezetben!)</td><td>admin</td></tr>
+    </tbody>
+  </table>
+
+
+  <!-- 4. Anyagok -->
+  <h2 class="ch" id="anyagok">4. Anyagok kezelése</h2>
+
+  <h3 id="anyagtorzs">4.1 Anyagtörzs</h3>
+
+  <p>Az anyagtörzs tartalmazza az összes anyag / termék törzsadatát. Minden anyagnak van egy egyedi cikkszáma.</p>
+
+  <h4>Anyag adatai</h4>
+  <table>
+    <thead><tr><th>Mező</th><th>Leírás</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Cikkszám (SKU) *</strong></td><td>Egyedi azonosító, pl. „BOLT-M6-30"</td></tr>
+      <tr><td><strong>Megnevezés *</strong></td><td>Az anyag neve</td></tr>
+      <tr><td><strong>Mértékegység *</strong></td><td>Pl. „db", „kg", „m"</td></tr>
+      <tr><td>Kategória</td><td>Szabad szöveges csoportosítás, szűréshez használható</td></tr>
+      <tr><td>Minimális készlet</td><td>Ha a készlet ez alá csökken, figyelmeztetés jelenik meg</td></tr>
+      <tr><td>Egységár / pénznem</td><td>Opcionális, tájékoztató jellegű érték</td></tr>
+      <tr><td>Megjegyzés</td><td>Szabad szöveges megjegyzés</td></tr>
+      <tr><td>Azonosított anyag</td><td>Ha be van kapcsolva, az anyag egyedi sorszámokkal nyomon követhető</td></tr>
+      <tr><td>Aktív</td><td>Inaktív anyag nem jelenik meg a bevételezési listákban</td></tr>
+    </tbody>
+  </table>
+
+  <h4>Keresés és szűrés az anyagtörzsben</h4>
+  <ul>
+    <li><strong>Szabad szöveges keresés</strong> – cikkszámra és névre keres</li>
+    <li><strong>Kategória szűrő</strong> – legördülő listából választható</li>
+    <li><strong>Aktív / inaktív / archivált</strong> – külön szűrhető</li>
+  </ul>
+
+  <h4>Anyag archiválása</h4>
+  <p>Az archiválás az inaktiválásnál erősebb – az archivált anyag teljesen el van rejtve a normál listákból. Akkor érdemes alkalmazni, ha egy anyagot végleg kivezettünk a forgalomból, de az adatait meg kell őrizni a visszakereshetőség érdekében.</p>
+
+  <h3 id="csv_import">4.2 CSV import</h3>
+
+  <p>Több anyag egyszerre importálható CSV fájlból. Az import folyamata:</p>
+
+  <ol class="steps">
+    <li>Anyagtörzs oldalon kattints az <strong>„CSV import"</strong> gombra.</li>
+    <li>Töltsd fel a CSV fájlt (az oldal tartalmaz egy letölthető mintafájlt).</li>
+    <li>Az előnézeti képernyőn ellenőrizd az oszlop-hozzárendeléseket (melyik CSV oszlop melyik mezőnek felel meg).</li>
+    <li>Kattints a <strong>„Importálás"</strong> gombra a véglegesítéshez.</li>
+  </ol>
+
+  <div class="box tip">
+    <div class="box-title">Tipp</div>
+    Az import frissíti a meglévő anyagokat (cikkszám alapján), nem hoz létre duplikátumot. Így rendszeres frissítésre is használható.
+  </div>
+
+  <h3 id="azonositok">4.3 Azonosítók</h3>
+
+  <p>Ha egy anyagnál be van kapcsolva az <strong>„Azonosított anyag"</strong> opció, az egyes darabok egyedi azonosítóval (sorszám, vonalkód, QR kód) nyomon követhetők. Ez akkor hasznos, ha tudni kell, hogy egy adott eszköz pontosan melyik raktárban van.</p>
+
+  <ul>
+    <li><strong>Azonosítók listája</strong> – az összes egyedi azonosító és aktuális helye</li>
+    <li><strong>Ideiglenes beolvasás</strong> – scanner segítségével tömegesen olvashatók be azonosítók egy átadási listába</li>
+    <li><strong>Mobil szkenner</strong> – mobilról elérhető egyszerűsített beolvasó felület</li>
+  </ul>
+
+
+  <!-- 5. Raktárak és készlet -->
+  <h2 class="ch" id="raktar">5. Raktárak és készlet</h2>
+
+  <h3 id="raktar_kezeles">5.1 Raktárak kezelése</h3>
+
+  <p>A rendszerben kétféle raktár létezik:</p>
+
+  <table>
+    <thead><tr><th>Típus</th><th>Leírás</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><strong>Belső raktár</strong></td>
+        <td>A cég saját raktárai. Belső átadások csak belső raktárak között lehetségesek. Lehet hierarchikus (al-raktár).</td>
+      </tr>
+      <tr>
+        <td><strong>Külső partner raktár</strong></td>
+        <td>Egy külső partner céghez kapcsolt raktár. Ide lehet anyagot kiadni (külső átadás), és innen lehet visszavenni.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h4>Új raktár létrehozása (admin)</h4>
+  <ul>
+    <li><strong>Név és kód</strong> – mindkettő kötelező és egyedi</li>
+    <li><strong>Típus</strong> – belső vagy külső partner</li>
+    <li><strong>Partner</strong> – külső partner raktárnál kötelező megadni a partnert</li>
+    <li><strong>Szülő raktár</strong> – belső raktárnál opcionálisan megadható egy szülő (al-raktár struktúra)</li>
+  </ul>
+
+  <h3 id="keszlet">5.2 Raktárkészlet</h3>
+
+  <p>A Raktárkészlet oldal az összes anyag aktuális mennyiségét mutatja raktáranként összesítve.</p>
+
+  <h4>Szűrési lehetőségek</h4>
+  <ul>
+    <li>Szabad szöveges keresés (cikkszám, név)</li>
+    <li>Raktár szerinti szűrés</li>
+    <li>Kategória szerinti szűrés</li>
+    <li>Minimumkészlet alatt lévők kiemelése</li>
+  </ul>
+
+  <h4>CSV export</h4>
+  <p>Az aktuális szűrőknek megfelelő készletlista exportálható CSV formátumban az „Export CSV" gombbal.</p>
+
+  <div class="box warn">
+    <div class="box-title">Negatív készlet</div>
+    A rendszer technikai okokból nem zárja ki a negatív készletet. Ha egy anyagnál negatív értéket látsz, az adatbeviteli hibára utal – ellenőrizd a mozgásokat.
+  </div>
+
+  <h3 id="beveletezes">5.3 Bevételezés</h3>
+
+  <p>Bevételezéssel anyag kerül be egy raktárba (pl. szállítói átvétel, gyártásból visszakerülő anyag).</p>
+
+  <ol class="steps">
+    <li>Nyisd meg a <strong>Raktárkészlet</strong> oldalt.</li>
+    <li>Kattints a <strong>„+ Bevételezés"</strong> gombra.</li>
+    <li>Válaszd ki a <strong>raktárat</strong> és az <strong>anyagot</strong>.</li>
+    <li>Add meg a <strong>mennyiséget</strong> és opcionálisan a hivatkozási számot és megjegyzést.</li>
+    <li>Kattints a <strong>„Rögzítés"</strong> gombra.</li>
+  </ol>
+
+  <h3 id="korrekcio">5.4 Készletkorrekció</h3>
+
+  <p>Korrekcióval manuálisan módosítható a készletszint (pl. leltár utáni igazítás).</p>
+
+  <table>
+    <thead><tr><th>Mód</th><th>Leírás</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Beállítás</strong></td><td>A készletet pontosan erre az értékre állítja (felülírja a meglévőt)</td></tr>
+      <tr><td><strong>Hozzáadás</strong></td><td>A megadott mennyiséget hozzáadja a meglévő készlethez</td></tr>
+      <tr><td><strong>Levonás</strong></td><td>A megadott mennyiséget levonja a meglévő készletből</td></tr>
+    </tbody>
+  </table>
+
+  <div class="box info">
+    <div class="box-title">Megjegyzés</div>
+    Minden korrekció rögzítésre kerül a mozgásnaplóban, így visszakereshető, ki és mikor végzett korrekciót.
+  </div>
+
+
+  <!-- 6. Átadások -->
+  <h2 class="ch" id="atadasok">6. Átadások</h2>
+
+  <p>Az átadás anyag mozgatása egyik raktárból a másikba. Kétféle átadás létezik:</p>
+
+  <table>
+    <thead><tr><th>Típus</th><th>Leírás</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><strong>Belső átadás</strong></td>
+        <td>Két belső raktár között. A fogadó raktárnak el kell fogadnia az átadást, mielőtt a készlet megjelenik nála.</td>
+      </tr>
+      <tr>
+        <td><strong>Külső átadás</strong></td>
+        <td>Belső raktárból külső partner raktárba (kiadás), vagy onnan vissza (visszavétel). Szállítólevél generálható hozzá.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3 id="belso_atadas">6.1 Belső átadás (raktárak között)</h3>
+
+  <ol class="steps">
+    <li>Nyisd meg az <strong>Átadások</strong> oldalt.</li>
+    <li>Válaszd a <strong>„Belső átadás"</strong> fület.</li>
+    <li>Válaszd ki a <strong>küldő raktárt</strong> (ahol a készlet most van).</li>
+    <li>Válaszd ki a <strong>fogadó raktárt</strong>.</li>
+    <li>Add hozzá az anyagokat és mennyiségeket.</li>
+    <li>Kattints az <strong>„Átadás indítása"</strong> gombra.</li>
+  </ol>
+
+  <p>Az átadás ezután <strong>„Függőben"</strong> állapotba kerül. A készlet addig nem jelenik meg a fogadó raktárban, amíg a fogadó fél el nem fogadja.</p>
+
+  <div class="box tip">
+    <div class="box-title">Átadási bizonylat (PDF)</div>
+    Elfogadott belső átadáshoz PDF bizonylat generálható. Az <strong>Átadások</strong> listájában és a <strong>Szállítólevelek</strong> oldalon egyaránt megjelenik a <strong>„PDF"</strong> (böngészőben megnyílik) és a <strong>„Letöltés"</strong> (⬇) gomb. A bizonylat tartalmazza a bizonylat számát (pl. TR-000008), a forrás és cél raktárt, a kezdeményező és elfogadó nevét, a tételek listáját, valamint a megjegyzést.
+  </div>
+
+  <h3 id="kulso_atadas">6.2 Külső átadás (partnernek)</h3>
+
+  <ol class="steps">
+    <li>Nyisd meg az <strong>Átadások</strong> oldalt.</li>
+    <li>Válaszd a <strong>„Külső kiadás"</strong> fület.</li>
+    <li>Válaszd ki a <strong>küldő raktárt</strong> és a <strong>partnert</strong>.</li>
+    <li>Add hozzá az anyagokat és mennyiségeket.</li>
+    <li>Opcionálisan töltsd ki az aláírás és megjegyzés mezőket.</li>
+    <li>Kattints a <strong>„Kiadás rögzítése"</strong> gombra.</li>
+  </ol>
+
+  <div class="box tip">
+    <div class="box-title">Szállítólevél (PDF)</div>
+    Elfogadott külső átadáshoz PDF szállítólevél generálható az átadás sorában található <strong>„PDF"</strong> gombbal (böngészőben nyílik meg) vagy a <strong>„Letöltés"</strong> (⬇) gombbal. A dokumentum tartalmazza a partner és átvevő adatait, az átadott tételeket, és ha volt aláírás, azt is.
+  </div>
+
+  <h3 id="elfogadas">6.3 Elfogadás és elutasítás</h3>
+
+  <p>A függőben lévő belső átadások az Átadások oldal <strong>„Bejövő"</strong> szekciójában látszanak.</p>
+
+  <table>
+    <thead><tr><th>Művelet</th><th>Eredmény</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Elfogadás</strong></td><td>Az anyag megjelenik a fogadó raktár készletében. Az átadás lezárul.</td></tr>
+      <tr><td><strong>Elutasítás</strong></td><td>Az anyag visszakerül a küldő raktár készletébe. Az átadás törlődik.</td></tr>
+    </tbody>
+  </table>
+
+  <h3 id="szallitolevel">6.4 Szállítólevelek</h3>
+
+  <p>A <strong>Szállítólevelek</strong> oldalon az összes lezárt (elfogadott) átadás listázható és szűrhető raktár vagy keresőszó alapján. Minden sorból megnyitható a PDF dokumentum:</p>
+
+  <table>
+    <thead><tr><th>Átadás típusa</th><th>PDF tartalma</th><th>Gombok</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><strong>Belső raktárközi átadás</strong></td>
+        <td>Bizonylat szám (pl. TR-000008), forrás / cél raktár, kezdeményező, elfogadó, tételek, megjegyzés</td>
+        <td>PDF · ⬇ Letöltés</td>
+      </tr>
+      <tr>
+        <td><strong>Külső átadás (partnernek)</strong></td>
+        <td>Szállítólevél szám, partner és átvevő adatai, projekt szám, tételek, aláírás (ha van)</td>
+        <td>PDF · ⬇ Letöltés</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <p>Ugyanezek a gombok az <strong>Átadások</strong> listájában is elérhetők az elfogadott átadások sorában.</p>
+
+  <div class="box info">
+    <div class="box-title">Megjegyzés</div>
+    PDF csak <strong>elfogadott</strong> állapotú átadáshoz generálható. Függőben lévő vagy elutasított átadásnál a gomb nem jelenik meg.
+  </div>
+
+
+  <!-- 7. Partnerek -->
+  <h2 class="ch" id="partnerek">7. Partnerek</h2>
+
+  <p>A partnerek a külső átadások címzettjei. Minden külső partner raktárhoz egy partner van rendelve.</p>
+
+  <h4>Partner adatai</h4>
+  <table>
+    <thead><tr><th>Mező</th><th>Leírás</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Cégnév *</strong></td><td>A partner cég neve</td></tr>
+      <tr><td>Kapcsolattartó neve</td><td>Átvevő személy neve (megjelenik a szállítólevélen)</td></tr>
+      <tr><td>Telefonszám</td><td>Kapcsolattartási szám</td></tr>
+      <tr><td>Email</td><td>Értesítési email cím</td></tr>
+    </tbody>
+  </table>
+
+
+  <!-- 8. Admin -->
+  <h2 class="ch" id="admin">8. Adminisztrátori funkciók</h2>
+
+  <h3 id="mozgasok">8.1 Készletmozgások</h3>
+
+  <p>A <strong>Mozgások</strong> oldal minden raktári eseményt tartalmaz: bevételezések, kiadások, korrekciók, átadások. Szűrhető raktár, anyag, mozgástípus és időszak szerint, és exportálható CSV-be.</p>
+
+  <table>
+    <thead><tr><th>Mozgástípus</th><th>Leírás</th></tr></thead>
+    <tbody>
+      <tr><td><code>receipt</code></td><td>Bevételezés</td></tr>
+      <tr><td><code>transfer_out</code></td><td>Átadás – kiadás (forrás raktárból)</td></tr>
+      <tr><td><code>transfer_in</code></td><td>Átadás – bevét (fogadó raktárba, elfogadás után)</td></tr>
+      <tr><td><code>adjustment_set</code></td><td>Korrekció – beállítás pontos értékre</td></tr>
+      <tr><td><code>adjustment_add</code></td><td>Korrekció – hozzáadás</td></tr>
+      <tr><td><code>adjustment_subtract</code></td><td>Korrekció – levonás</td></tr>
+    </tbody>
+  </table>
+
+  <h3 id="naplo">8.2 Audit napló</h3>
+
+  <p>Az audit napló minden felhasználói műveletet rögzít (ki, mit, mikor csinált). Szűrhető felhasználó, művelet típusa és időszak szerint, CSV-be exportálható. Célja az utólagos ellenőrizhetőség és felelősség megállapíthatósága.</p>
+
+  <h3 id="archivum">8.3 Archívumok</h3>
+
+  <p>Az archivált anyagok és a hozzájuk tartozó mozgástörténet a normál nézetekből el van rejtve, de az Archívumok oldalon visszakereshető. Az archiválás visszafordítható.</p>
+
+  <div class="box danger">
+    <div class="box-title">Figyelem – Teljes ürítés</div>
+    Az Admin menü „Teljes ürítés" funkciója az összes anyagot, raktárt, készletadatot és mozgástörténetet véglegesen törli. Kizárólag tesztkörnyezetben szabad használni, éles adatokon soha.
+  </div>
+
+  <hr>
+
+  <p style="color:#6c757d; font-size:9pt; text-align:center;">
+    Perfect-Phone 2026 – Raktárkezelő &nbsp;|&nbsp; Belső használatra &nbsp;|&nbsp; Kézikönyv készült: 2026-04-24
+  </p>
+
+</div>
+</body>
+</html>

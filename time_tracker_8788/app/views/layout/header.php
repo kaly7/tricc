@@ -56,6 +56,7 @@
       </ul>
       <span class="navbar-text me-3">Bejelentkezve: <strong><?= h($user['resolved_employee_name'] ?? $user['full_name'] ?? 'Felhasználó') ?></strong></span>
       <a class="btn btn-sm btn-outline-secondary me-2" href="<?= h(build_url((int)$config['auth_port'], '/apps.php')) ?>">Rendszerek</a>
+      <a class="btn btn-sm btn-outline-secondary me-2" href="/docs/munkaidonyilvantartas_kezikonyv.html" target="_blank" title="Kézikönyv">?</a>
       <a class="btn btn-sm btn-outline-secondary" href="<?= h(build_url((int)$config['auth_port'], '/logout.php')) ?>">Kilépés</a>
     </div>
   </div>

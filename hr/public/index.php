@@ -60,8 +60,9 @@ $router->post('/users_toggle',function() use ($usersController){ $usersControlle
 // Divisions (admin)
 $divController = new DivisionsController($db, $view, $flash, $csrf, $auth);
 $router->get('/divisions',        function() use ($divController){ $divController->index(); });
-$router->post('/divisions_create',function() use ($divController){ $divController->create(); });
-$router->post('/divisions_toggle',function() use ($divController){ $divController->toggle(); });
+$router->post('/divisions_create', function() use ($divController){ $divController->create(); });
+$router->post('/divisions_update', function() use ($divController){ $divController->update(); });
+$router->post('/divisions_toggle', function() use ($divController){ $divController->toggle(); });
 
 // Doc types (admin)
 $dtController = new DocTypesController($db, $view, $flash, $csrf, $auth);

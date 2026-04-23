@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__.'/../src/auth.php'; require_login_or_redirect();
+if (is_worker()) { header('Location: my_om_jobs.php'); exit; }
 require_once __DIR__.'/../src/db.php'; require_once __DIR__.'/../src/helpers.php';
 $u = current_user();
 $db = db();
@@ -47,9 +48,12 @@ $plus12Str = $plus12->format($fmt);
 // ... a meglévő dátumváltozók után
 $dueFilter = $_GET['due'] ?? null; // 'overdue' | 'today2' | 'next10' vagy null
 
+$marvinFilter = !empty($_GET['marvin_pending']);
+
 $where=[]; $p=[];
 if (!$include_deleted || !is_admin()) $where[]='r.deleted_at IS NULL';
 if (!$include_arch) $where[]='r.archived=0';
+if ($marvinFilter) $where[]='r.marvin_pending=1';
 
 if (!empty($pp_ids)){
   $place = implode(',', array_fill(0, count($pp_ids), '?'));
@@ -128,6 +132,9 @@ $cntOverdue = $cntFn('r.due_at < ?', [$todayStr]);
 $cntToday2  = $cntFn('r.due_at BETWEEN ? AND ?', [$todayStr, $plus2Str]);
 // 3) Következő 10 nap (ma+3 .. ma+12)
 $cntNext10  = $cntFn('r.due_at BETWEEN ? AND ?', [$plus3Str, $plus12Str]);
+
+// Marvin pending count
+$cntMarvin = (int)$db->query("SELECT COUNT(*) FROM records WHERE marvin_pending = 1 AND deleted_at IS NULL")->fetchColumn();
 
 // sablonok a felhasználónak (admin: mind)
 $all_templates = $db->query("SELECT id, name FROM email_templates ORDER BY name")->fetchAll(PDO::FETCH_ASSOC);
@@ -307,6 +314,39 @@ $canShowBulkMailer = !empty($availableTplsBulk) && !empty($rows);
   .table tbody tr.row-dark .btn-success { color: #fff; }
   .table tbody tr.row-dark .op-note { color: #fff; border-color: rgba(255,255,255,.6); }
   .table tbody tr.row-dark:hover { filter: brightness(0.9); }
+  .marvin-badge {
+    background: #39ff14;
+    color: #000;
+    font-weight: 700;
+    font-size: .72rem;
+    padding: 2px 7px;
+    border-radius: 4px 0 0 4px;
+    border: 2px solid #39ff14;
+    letter-spacing: .05em;
+  }
+  .marvin-count {
+    background: #000;
+    color: #39ff14;
+    font-weight: 700;
+    font-size: .72rem;
+    padding: 2px 7px;
+    border-radius: 0 4px 4px 0;
+    border: 2px solid #39ff14;
+    border-left: none;
+  }
+  .marvin-inline {
+    background: #39ff14;
+    color: #000;
+    font-weight: 700;
+    font-size: .72rem;
+    padding: 1px 7px;
+    border-radius: 4px;
+    border: 2px solid #39ff14;
+    letter-spacing: .05em;
+    cursor: pointer;
+    display: inline-block;
+  }
+  .marvin-inline:hover { filter: brightness(1.15); }
 </style>
 </head>
 <body>
@@ -315,6 +355,7 @@ $canShowBulkMailer = !empty($availableTplsBulk) && !empty($rows);
     <span class="navbar-brand">PP rendszer</span>
     <div class="d-flex align-items-center gap-2">
       <a class="btn btn-sm btn-outline-light" href="my_om_jobs.php">O&amp;M Munkák</a>
+      <a class="btn btn-sm btn-outline-light" href="map_records.php">🗺 Térkép</a>
       <?php if (is_admin()): ?>
         <a class="btn btn-sm btn-outline-light" href="admin_users.php">Felhasználók</a>
         <a class="btn btn-sm btn-outline-light" href="admin_dicts.php">Törzsek</a>
@@ -407,6 +448,11 @@ $canShowBulkMailer = !empty($availableTplsBulk) && !empty($rows);
           aria-controls="filterPanel">
     🔍 Szűrők mutatása / elrejtése
   </button>
+  <?php if ($cntMarvin > 0): ?>
+    <a href="?marvin_pending=1" class="text-decoration-none ms-1" title="El nem fogadott Marvin rekordok">
+      <span class="marvin-badge">MARVIN</span><span class="marvin-count"><?= $cntMarvin ?></span>
+    </a>
+  <?php endif; ?>
 </div>
 
 <!-- Összehajtható szűrő panel -->
@@ -564,7 +610,14 @@ $plus12d = $today2->modify('+12 days');
         <td>
           <input type="checkbox" name="print_ids[]" value="<?=$r['id']?>" class="row-check" checked>
         </td>
-        <td><?=h($r['eventus'])?></td>
+        <td>
+          <?=h($r['eventus'])?>
+          <?php if (!empty($r['marvin_pending'])): ?>
+            <span class="marvin-inline ms-1"
+                  data-record-id="<?=(int)$r['id']?>"
+                  title="Marvin által küldött – kattints az elfogadáshoz">MARVIN</span>
+          <?php endif; ?>
+        </td>
         <td><?=h($r['pp_name'])?></td>
         <td><?=h($r['issued_at'])?></td>
         <?php
@@ -860,4 +913,41 @@ document.addEventListener('DOMContentLoaded', function () {
 });
 </script>
 
+<script>
+document.querySelectorAll('.marvin-inline').forEach(function(badge) {
+  badge.addEventListener('click', function(e) {
+    e.stopPropagation();
+    var recordId = badge.dataset.recordId;
+    badge.style.opacity = '0.5';
+    badge.style.pointerEvents = 'none';
+    var fd = new FormData();
+    fd.append('record_id', recordId);
+    fetch('actions/marvin_accept.php', { method: 'POST', body: fd })
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        if (data.ok) {
+          badge.remove();
+          var countEl = document.querySelector('.marvin-count');
+          if (countEl) {
+            var n = parseInt(countEl.textContent, 10) - 1;
+            if (n <= 0) {
+              countEl.closest('a').remove();
+            } else {
+              countEl.textContent = n;
+            }
+          }
+        } else {
+          badge.style.opacity = '';
+          badge.style.pointerEvents = '';
+          alert('Hiba: ' + (data.error || 'ismeretlen hiba'));
+        }
+      })
+      .catch(function() {
+        badge.style.opacity = '';
+        badge.style.pointerEvents = '';
+        alert('Hálózati hiba az elfogadás során.');
+      });
+  });
+});
+</script>
 </body></html>

@@ -83,6 +83,47 @@ class DivisionsController
     exit;
   }
 
+  public function update(): void
+  {
+    $this->requireAdmin();
+
+    if (!$this->csrf->verify($_POST['_csrf'] ?? null)) {
+      $this->flash->set('error', 'Érvénytelen kérés (CSRF).');
+      header('Location: /divisions');
+      exit;
+    }
+
+    $id = (int)($_POST['id'] ?? 0);
+    $name = trim((string)($_POST['name'] ?? ''));
+
+    if ($id <= 0) {
+      $this->flash->set('error', 'Hiányzó azonosító.');
+      header('Location: /divisions');
+      exit;
+    }
+
+    if ($name === '') {
+      $this->flash->set('error', 'A divízió neve kötelező.');
+      header('Location: /divisions');
+      exit;
+    }
+
+    try {
+      $stmt = $this->db->pdo()->prepare("UPDATE divisions SET name=:name WHERE id=:id");
+      $stmt->execute(['name' => $name, 'id' => $id]);
+      $this->flash->set('success', 'Divízió átnevezve.');
+    } catch (PDOException $e) {
+      if ((int)($e->errorInfo[1] ?? 0) === 1062) {
+        $this->flash->set('error', 'Ez a divízió név már foglalt.');
+      } else {
+        $this->flash->set('error', 'DB hiba: ' . $e->getMessage());
+      }
+    }
+
+    header('Location: /divisions');
+    exit;
+  }
+
   public function toggle(): void
   {
     $this->requireAdmin();

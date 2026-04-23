@@ -33,4 +33,5 @@ function current_user(): ?array {
 }
 function require_login_or_redirect(): void { if(!current_user()){ header('Location: login.php'); exit; } }
 function is_admin(): bool { $u=current_user(); return $u && $u['role']==='admin'; }
+function is_worker(): bool { $u=current_user(); return $u && $u['role']==='worker'; }
 function logout_user(): void { start_session(); $_SESSION=[]; session_destroy(); }

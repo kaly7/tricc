@@ -59,8 +59,14 @@
           </ul>
         </li>
 
-        <li class="nav-item">
-          <a class="nav-link <?= $navIsActive(['transfers.php']) ? 'active' : '' ?>" href="/transfers.php">Átadások</a>
+        <li class="nav-item dropdown">
+          <a class="nav-link dropdown-toggle <?= $navIsActive(['transfers.php', 'transfer_history.php']) ? 'active' : '' ?>" href="#" id="navTransfers" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+            Átadások
+          </a>
+          <ul class="dropdown-menu" aria-labelledby="navTransfers">
+            <li><a class="dropdown-item <?= $navIsActive(['transfers.php']) ? 'active' : '' ?>" href="/transfers.php">Átadások</a></li>
+            <li><a class="dropdown-item <?= $navIsActive(['transfer_history.php']) ? 'active' : '' ?>" href="/transfer_history.php">Szállítólevelek</a></li>
+          </ul>
         </li>
 
         <?php if (warehouse_module_admin($config)): ?>
@@ -79,6 +85,7 @@
         <?php endif; ?>
       </ul>
       <span class="navbar-text me-3">Bejelentkezve: <strong><?= h($user['full_name'] ?? 'Felhasználó') ?></strong></span>
+      <a class="btn btn-sm btn-outline-secondary me-1" href="/docs/raktarkezelo_kezikonyv.html" target="_blank" title="Kézikönyv">?</a>
       <a class="btn btn-sm btn-outline-secondary me-2" href="<?= h(build_url((int)$config['auth_port'], '/apps.php')) ?>">Rendszerek</a>
       <a class="btn btn-sm btn-outline-secondary" href="<?= h(build_url((int)$config['auth_port'], '/logout.php')) ?>">Kilépés</a>
     </div>

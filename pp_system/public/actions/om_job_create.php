@@ -51,8 +51,7 @@ try {
         $stWorker->execute([$jobId, $wid, $u['id']]);
     }
 
-    $stLog = $db->prepare('INSERT INTO om_job_logs (job_id, user_id, log_type, message) VALUES (?,?,?,?)');
-    $stLog->execute([$jobId, $u['id'], 'system', 'O&M munka létrehozva.']);
+    log_om_job_event($db, $jobId, $u['id'], 'system', 'O&M munka létrehozva.');
 
     $db->commit();
     header('Location: ../om_job_view.php?id='.$jobId);

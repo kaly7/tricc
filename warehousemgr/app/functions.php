@@ -3038,7 +3038,7 @@ function warehouse_stock_filter_values(array $src): array {
         $includeArchived = in_array($value, ['1', 'on', 'true'], true) ? 1 : 0;
     }
 
-    $includeZero = 0;
+    $includeZero = 1;
     if (isset($src['include_zero'])) {
         $value = (string)$src['include_zero'];
         $includeZero = in_array($value, ['1', 'on', 'true'], true) ? 1 : 0;
@@ -3119,9 +3119,6 @@ function warehouse_stock_apply_movement(array $config, int $warehouseId, int $ma
         } elseif ($movementType === 'adjustment_subtract') {
             $change = -1 * $qty;
             $after = $before - $qty;
-            if ($after < -0.0005) {
-                throw new RuntimeException('A csökkentés negatív készletet eredményezne, ez most tiltva van.');
-            }
         } elseif ($movementType === 'adjustment_set') {
             $after = $qty;
             $change = $after - $before;
@@ -4202,9 +4199,6 @@ function warehouse_transfer_normalize_items_input(array $config, int $sourceWare
         }
 
         $currentQty = (float)warehouse_stock_current_quantity($config, $sourceWarehouseId, $materialId);
-        if ($currentQty < (float)$quantity - 0.0005) {
-            throw new RuntimeException('A forrás raktárban nincs elegendő készlet ehhez: ' . (string)$material['name'] . ' [' . (string)$material['sku'] . '].');
-        }
 
         $seenMaterialIds[$materialId] = true;
         $normalized[] = [
@@ -4694,16 +4688,13 @@ function warehouse_external_transfer_create_batch(
 
             $sourceState = warehouse_stock_sync_locked($pdo, $config, $sourceWarehouseId, $materialId);
             $sourceBefore = (float)$sourceState['quantity'];
-            if ($sourceBefore < $qty - 0.0005) {
-                throw new RuntimeException('A forrás raktárban nincs elegendő készlet ehhez: ' . (string)($item['material']['name'] ?? 'ismeretlen anyag') . '.');
-            }
             $sourceAfter = $sourceBefore - $qty;
             $sourceBeforeS = warehouse_decimal_string($sourceBefore);
             $sourceAfterS = warehouse_decimal_string($sourceAfter);
             if ((int)$sourceState['id'] > 0) {
                 $pdo->prepare('UPDATE warehouse_stock SET quantity=?, updated_by=? WHERE id=?')->execute([$sourceAfterS, current_auth_user_id(), (int)$sourceState['id']]);
             } else {
-                throw new RuntimeException('A forrás raktári készletsor nem található.');
+                $pdo->prepare('INSERT INTO warehouse_stock (warehouse_id, material_id, quantity, created_by, updated_by) VALUES (?,?,?,?,?)')->execute([$sourceWarehouseId, $materialId, $sourceAfterS, current_auth_user_id(), current_auth_user_id()]);
             }
 
             $targetState = warehouse_stock_sync_locked($pdo, $config, $targetWarehouseId, $materialId);
@@ -4861,16 +4852,13 @@ function warehouse_transfer_accept(array $config, int $transferId, ?string $deci
 
             $sourceState = warehouse_stock_sync_locked($pdo, $config, $sourceId, $materialId);
             $sourceBefore = (float)$sourceState['quantity'];
-            if ($sourceBefore < $qty - 0.0005) {
-                throw new RuntimeException('A forrás raktárban nincs elegendő készlet az elfogadáshoz ehhez: ' . (string)($item['material_name'] ?? 'ismeretlen anyag') . '.');
-            }
             $sourceAfter = $sourceBefore - $qty;
             $sourceBeforeS = warehouse_decimal_string($sourceBefore);
             $sourceAfterS = warehouse_decimal_string($sourceAfter);
             if ((int)$sourceState['id'] > 0) {
                 $pdo->prepare('UPDATE warehouse_stock SET quantity=?, updated_by=? WHERE id=?')->execute([$sourceAfterS, current_auth_user_id(), (int)$sourceState['id']]);
             } else {
-                throw new RuntimeException('A forrás raktári készletsor nem található.');
+                $pdo->prepare('INSERT INTO warehouse_stock (warehouse_id, material_id, quantity, created_by, updated_by) VALUES (?,?,?,?,?)')->execute([$sourceId, $materialId, $sourceAfterS, current_auth_user_id(), current_auth_user_id()]);
             }
 
             $targetState = warehouse_stock_sync_locked($pdo, $config, $targetId, $materialId);

@@ -1,7 +1,7 @@
 <?php
 require_once __DIR__.'/../src/auth.php';
 start_session();
-if (current_user()) { header('Location: records.php'); exit; }
+if (current_user()) { header('Location: '.(is_worker() ? 'my_om_jobs.php' : 'records.php')); exit; }
 $err = $_GET['err'] ?? '';
 ?>
 <!doctype html>

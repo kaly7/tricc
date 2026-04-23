@@ -26,7 +26,6 @@ if ($newName === '') { header('Location: ../my_om_job.php?id=' . $jobId . '&err=
 $st = $db->prepare('UPDATE om_jobs SET status_id=? WHERE id=?');
 $st->execute([$statusId, $jobId]);
 
-$st = $db->prepare('INSERT INTO om_job_logs (job_id, user_id, log_type, message) VALUES (?,?,?,?)');
-$st->execute([$jobId, $u['id'], 'status_change', 'Státusz módosítva: ' . $oldName . ' → ' . $newName]);
+log_om_job_event($db, $jobId, $u['id'], 'status_change', 'Státusz módosítva: ' . $oldName . ' → ' . $newName);
 
 header('Location: ../my_om_job.php?id=' . $jobId . '&msg=' . urlencode('Státusz módosítva.'));

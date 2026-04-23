@@ -1,5 +1,6 @@
 <?php
-require_once __DIR__.'/../src/auth.php'; require_login_or_redirect();
+require_once __DIR__.'/../src/auth.php';
+if (!current_user()) { start_session(); header('Location: worker_login.php'); exit; }
 require_once __DIR__.'/../src/db.php'; require_once __DIR__.'/../src/helpers.php';
 
 $db = db();

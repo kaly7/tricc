@@ -419,6 +419,7 @@ require __DIR__ . '/../app/views/layout/header.php';
             <label class="form-check-label" for="low_only">Csak minimum alatt</label>
           </div>
           <div class="form-check mb-2">
+            <input type="hidden" name="include_zero" value="0">
             <input class="form-check-input" type="checkbox" id="include_zero" name="include_zero" value="1" <?= ((int)($filters['include_zero'] ?? 0) === 1) ? 'checked' : '' ?>>
             <label class="form-check-label" for="include_zero">0 készlet is</label>
           </div>

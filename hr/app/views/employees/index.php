@@ -39,11 +39,11 @@ function sort_link($label, $key, $currentSort, $currentDir, $q = '', $showInacti
   </div>
   <div class="col-auto">
     <input type="hidden" name="sort" value="<?= h($sort ?? 'name') ?>">
-    <input type="hidden" name="dir" value="<?= h($dir ?? 'desc') ?>">
+    <input type="hidden" name="dir" value="<?= h($dir ?? 'asc') ?>">
     <?php if (!empty($show_inactive)): ?><input type="hidden" name="show_inactive" value="1"><?php endif; ?>
     <button class="btn btn-sm btn-outline-secondary" type="submit">Keresés</button>
     <?php if (!empty($q)): ?>
-      <a class="btn btn-sm btn-outline-secondary" href="/employees?sort=<?= h($sort ?? 'name') ?>&dir=<?= h($dir ?? 'desc') ?><?= !empty($show_inactive) ? '&show_inactive=1' : '' ?>">Törlés</a>
+      <a class="btn btn-sm btn-outline-secondary" href="/employees?sort=<?= h($sort ?? 'name') ?>&dir=<?= h($dir ?? 'asc') ?><?= !empty($show_inactive) ? '&show_inactive=1' : '' ?>">Törlés</a>
     <?php endif; ?>
   </div>
 </form>
@@ -59,8 +59,8 @@ function sort_link($label, $key, $currentSort, $currentDir, $q = '', $showInacti
 <table class="table table-striped table-hover align-middle">
   <thead>
     <tr>
-      <th><?= sort_link('Név', 'name', $sort ?? 'name', $dir ?? 'desc', $q ?? '', !empty($show_inactive)) ?></th>
-      <th><?= sort_link('Divízió', 'division', $sort ?? 'name', $dir ?? 'desc', $q ?? '', !empty($show_inactive)) ?></th>
+      <th><?= sort_link('Név', 'name', $sort ?? 'name', $dir ?? 'asc', $q ?? '', !empty($show_inactive)) ?></th>
+      <th><?= sort_link('Divízió', 'division', $sort ?? 'name', $dir ?? 'asc', $q ?? '', !empty($show_inactive)) ?></th>
       <th>Adóazonosító</th>
       <th>Állapot</th>
       <th class="text-end">Műveletek</th>

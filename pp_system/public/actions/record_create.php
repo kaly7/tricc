@@ -23,7 +23,11 @@ if ($st->fetch()) {
 }
 
 $due = calc_due($issued);
-$st = db()->prepare('INSERT INTO records (eventus,pp_status_id,issued_at,due_at,city_id,address,operation,long_desc,archived,created_by) VALUES (?,?,?,?,?,?,?,?,?,?)');
-$st->execute([$eventus,$pp,$issued,$due,$city,$addr,$op,$long,$arch,current_user()['id']]);
+$cityName = db()->prepare('SELECT name FROM cities WHERE id=?');
+$cityName->execute([$city]);
+$cityName = (string)($cityName->fetchColumn() ?? '');
+$geo = geocode_address(trim($cityName . ' ' . $addr)) ?? geocode_address($cityName);
+$st = db()->prepare('INSERT INTO records (eventus,pp_status_id,issued_at,due_at,city_id,address,operation,long_desc,archived,created_by,gps_lat,gps_lng) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)');
+$st->execute([$eventus,$pp,$issued,$due,$city,$addr,$op,$long,$arch,current_user()['id'],$geo['lat']??null,$geo['lng']??null]);
 
 header('Location: ../records.php'); exit;

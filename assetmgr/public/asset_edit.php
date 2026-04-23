@@ -54,10 +54,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   $oldEmpId = $a['current_employee_id'] ?? null;
   $oldEmpId = ($oldEmpId === null) ? null : (int)$oldEmpId;
 
+  $inspectionRequired = isset($_POST['inspection_required']) ? 1 : 0;
+
   $pdo->beginTransaction();
   try {
-    $pdo->prepare("UPDATE assets SET name=?, sku=?, qr_value=?, value_amount=?, value_currency=?, note=? WHERE id=?")
-        ->execute([$name,$sku,$qr,$val,$cur,$note,$id]);
+    $pdo->prepare("UPDATE assets SET name=?, sku=?, qr_value=?, value_amount=?, value_currency=?, note=?, inspection_required=? WHERE id=?")
+        ->execute([$name,$sku,$qr,$val,$cur,$note,$inspectionRequired,$id]);
 
     $pdo->prepare("DELETE FROM asset_category WHERE asset_id=?")->execute([$id]);
     if ($cat_ids) {
@@ -84,6 +86,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
   redirect('asset_edit.php?id='.$id);
 }
+
+// Felülvizsgálatok lekérdezése
+$inspections = $pdo->prepare("SELECT * FROM asset_inspections WHERE asset_id=? ORDER BY inspection_date DESC, id DESC");
+$inspections->execute([$id]);
+$inspections = $inspections->fetchAll();
+
+$inspectionDocMap = [];
+if ($inspections) {
+    $iids = array_map(static fn($r) => (int)$r['id'], $inspections);
+    $ph   = implode(',', array_fill(0, count($iids), '?'));
+    $docs = $pdo->prepare("SELECT * FROM asset_inspection_docs WHERE inspection_id IN ($ph) ORDER BY id ASC");
+    $docs->execute($iids);
+    foreach ($docs->fetchAll() as $d) {
+        $inspectionDocMap[(int)$d['inspection_id']][] = $d;
+    }
+}
+
+$latestInspection = $inspections[0] ?? null;
+$latestNextDate   = $latestInspection ? ($latestInspection['next_date'] ?? null) : null;
+
+function inspection_status_badge(?string $nextDate): string {
+    if (!$nextDate) return '<span class="badge bg-secondary">Nincs határidő</span>';
+    $today = new DateTime('today');
+    $nd    = new DateTime($nextDate);
+    $diff  = (int)$today->diff($nd)->days * ($nd >= $today ? 1 : -1);
+    if ($diff < 0) return '<span class="badge bg-danger">Lejárt ('.htmlspecialchars($nextDate, ENT_QUOTES, 'UTF-8').')</span>';
+    if ($diff <= 30) return '<span class="badge bg-warning text-dark">Közeledik ('.htmlspecialchars($nextDate, ENT_QUOTES, 'UTF-8').')</span>';
+    return '<span class="badge bg-success">Rendben ('.htmlspecialchars($nextDate, ENT_QUOTES, 'UTF-8').')</span>';
+}
+
+$intervalUnitLabels = ['day' => 'nap', 'month' => 'hónap', 'year' => 'év'];
 
 $title = 'Eszköz szerkesztése';
 $page  = 'Eszköz szerkesztése';
@@ -174,6 +207,14 @@ $currentEmpId = ($currentEmpId === null) ? null : (int)$currentEmpId;
             <label class="form-label">Megjegyzés</label>
             <textarea class="form-control" name="note" rows="3"><?= e($a['note'] ?? '') ?></textarea>
           </div>
+
+          <div class="col-12">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" name="inspection_required" id="inspection_required" value="1"
+                <?= ((int)($a['inspection_required'] ?? 0) === 1) ? 'checked' : '' ?>>
+              <label class="form-check-label" for="inspection_required">Felülvizsgálat / kalibráció szükséges</label>
+            </div>
+          </div>
         </div>
       </div>
       <div class="card-footer d-flex gap-2">
@@ -228,6 +269,125 @@ $currentEmpId = ($currentEmpId === null) ? null : (int)$currentEmpId;
       <?php endif; ?>
     </div>
   </div>
-</div>
 
+  <?php if ((int)($a['inspection_required'] ?? 0) === 1): ?>
+  <div class="card mb-3" id="inspection">
+    <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+      <div>
+        <span class="fw-semibold">Felülvizsgálat / Kalibráció</span>
+        <?php if ($latestNextDate): ?>
+          <span class="ms-2"><?= inspection_status_badge($latestNextDate) ?></span>
+        <?php elseif (!$latestInspection): ?>
+          <span class="badge bg-secondary ms-2">Még nincs bejegyzés</span>
+        <?php endif; ?>
+      </div>
+    </div>
+    <div class="card-body">
+
+      <form method="post" action="asset_inspection_save.php" enctype="multipart/form-data" class="border rounded p-3 mb-4 bg-light-subtle">
+        <input type="hidden" name="_csrf" value="<?= e(csrf_token()) ?>">
+        <input type="hidden" name="asset_id" value="<?= $id ?>">
+        <div class="fw-semibold mb-2 small text-secondary text-uppercase">Új bejegyzés rögzítése</div>
+        <div class="row g-2">
+          <div class="col-sm-6 col-md-3">
+            <label class="form-label small">Elvégzés dátuma</label>
+            <input type="date" class="form-control form-control-sm" name="inspection_date" value="<?= e(date('Y-m-d')) ?>" required>
+          </div>
+          <div class="col-sm-6 col-md-3">
+            <label class="form-label small">Következő időköze</label>
+            <div class="input-group input-group-sm">
+              <input type="number" class="form-control" name="interval_value" min="1" max="999" placeholder="pl. 12">
+              <select class="form-select" name="interval_unit" style="max-width:90px;">
+                <option value="day">nap</option>
+                <option value="month" selected>hónap</option>
+                <option value="year">év</option>
+              </select>
+            </div>
+            <div class="form-text">Ha üres, kézi dátum megadható.</div>
+          </div>
+          <div class="col-sm-6 col-md-3">
+            <label class="form-label small">Következő dátuma (kézi)</label>
+            <input type="date" class="form-control form-control-sm" name="next_date">
+            <div class="form-text">Csak ha nincs időköz megadva.</div>
+          </div>
+          <div class="col-sm-6 col-md-3">
+            <label class="form-label small">Dokumentum (opcionális)</label>
+            <input type="file" class="form-control form-control-sm" name="doc" accept=".jpg,.jpeg,.png,.webp,.gif,.pdf">
+          </div>
+          <div class="col-12">
+            <label class="form-label small">Megjegyzés</label>
+            <textarea class="form-control form-control-sm" name="note" rows="2" placeholder="pl. tanúsítvány száma, elvégző neve..."></textarea>
+          </div>
+          <div class="col-12">
+            <button class="btn btn-sm btn-success" type="submit">Rögzítés</button>
+          </div>
+        </div>
+      </form>
+
+      <?php if ($inspections): ?>
+        <div class="table-responsive">
+          <table class="table table-sm table-hover align-middle mb-0">
+            <thead class="table-light">
+              <tr>
+                <th>Elvégzés</th>
+                <th>Következő</th>
+                <th>Időköz</th>
+                <th>Megjegyzés</th>
+                <th>Dokumentumok</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              <?php foreach ($inspections as $insp): ?>
+                <tr>
+                  <td class="text-nowrap"><?= e((string)$insp['inspection_date']) ?></td>
+                  <td class="text-nowrap"><?= inspection_status_badge($insp['next_date'] ?? null) ?></td>
+                  <td class="text-nowrap small text-secondary">
+                    <?php if ($insp['interval_value'] && $insp['interval_unit']): ?>
+                      <?= (int)$insp['interval_value'] ?> <?= e($intervalUnitLabels[$insp['interval_unit']] ?? $insp['interval_unit']) ?>
+                    <?php else: ?>—<?php endif; ?>
+                  </td>
+                  <td class="small"><?= e((string)($insp['note'] ?? '—')) ?></td>
+                  <td>
+                    <?php $idocs = $inspectionDocMap[(int)$insp['id']] ?? []; ?>
+                    <?php foreach ($idocs as $doc): ?>
+                      <?php $isPdf = strtolower(pathinfo((string)$doc['file_path'], PATHINFO_EXTENSION)) === 'pdf'; ?>
+                      <div class="d-flex align-items-center gap-1 mb-1">
+                        <?php if ($isPdf): ?>
+                          <a href="<?= e((string)$doc['file_path']) ?>" target="_blank" class="btn btn-xs btn-outline-danger btn-sm py-0 px-1" style="font-size:.75rem;">PDF</a>
+                        <?php else: ?>
+                          <a href="<?= e((string)$doc['file_path']) ?>" target="_blank">
+                            <img src="<?= e((string)$doc['file_path']) ?>" alt="" style="max-height:40px;max-width:60px;border:1px solid #dee2e6;border-radius:3px;">
+                          </a>
+                        <?php endif; ?>
+                        <form method="post" action="asset_inspection_doc_delete.php" class="d-inline" onsubmit="return confirm('Biztosan törlöd?');">
+                          <input type="hidden" name="_csrf" value="<?= e(csrf_token()) ?>">
+                          <input type="hidden" name="doc_id" value="<?= (int)$doc['id'] ?>">
+                          <input type="hidden" name="asset_id" value="<?= $id ?>">
+                          <button class="btn btn-sm btn-outline-danger py-0 px-1" style="font-size:.75rem;" type="submit">×</button>
+                        </form>
+                      </div>
+                    <?php endforeach; ?>
+                    <form method="post" action="asset_inspection_doc_upload.php" enctype="multipart/form-data" class="d-flex gap-1 mt-1">
+                      <input type="hidden" name="_csrf" value="<?= e(csrf_token()) ?>">
+                      <input type="hidden" name="inspection_id" value="<?= (int)$insp['id'] ?>">
+                      <input type="hidden" name="asset_id" value="<?= $id ?>">
+                      <input type="file" class="form-control form-control-sm" name="doc" accept=".jpg,.jpeg,.png,.webp,.gif,.pdf" required style="font-size:.75rem;max-width:160px;">
+                      <button class="btn btn-sm btn-outline-secondary py-0" style="font-size:.75rem;" type="submit">+</button>
+                    </form>
+                  </td>
+                  <td></td>
+                </tr>
+              <?php endforeach; ?>
+            </tbody>
+          </table>
+        </div>
+      <?php else: ?>
+        <div class="text-secondary small">Még nincs rögzített felülvizsgálat.</div>
+      <?php endif; ?>
+    </div>
+  </div>
+  <?php endif; ?>
+
+</div>
 <?php require __DIR__.'/_footer.php'; ?>

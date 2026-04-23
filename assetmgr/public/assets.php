@@ -22,6 +22,9 @@ $pageNo = max(1, (int)($_GET['page'] ?? 1));
 $perPage = 20;
 $offset = ($pageNo - 1) * $perPage;
 
+$inspStatus = (string)($_GET['inspection_status'] ?? '');
+if (!in_array($inspStatus, ['red','yellow','green','any'], true)) $inspStatus = '';
+
 $sort = (string)($_GET['sort'] ?? 'updated');
 $dir  = strtolower((string)($_GET['dir'] ?? 'desc'));
 $allowedSort = ['updated','name','sku','categories','holder'];
@@ -354,6 +357,19 @@ if ($holderRaw === '-1') {
     $params[':holder_wh'] = $wid;
   }
 }
+if ($inspStatus !== '') {
+  $latestNextSql = "(SELECT next_date FROM asset_inspections WHERE asset_id=a.id ORDER BY inspection_date DESC, id DESC LIMIT 1)";
+  if ($inspStatus === 'any') {
+    $where .= " AND a.inspection_required=1";
+  } elseif ($inspStatus === 'red') {
+    $where .= " AND a.inspection_required=1 AND $latestNextSql < CURDATE()";
+  } elseif ($inspStatus === 'yellow') {
+    $where .= " AND a.inspection_required=1 AND $latestNextSql >= CURDATE() AND $latestNextSql <= DATE_ADD(CURDATE(), INTERVAL 30 DAY)";
+  } elseif ($inspStatus === 'green') {
+    $where .= " AND a.inspection_required=1 AND $latestNextSql > DATE_ADD(CURDATE(), INTERVAL 30 DAY)";
+  }
+}
+
 if ($cat > 0) {
   // Subtree (fa) szűrés
   $where .= " AND EXISTS (
@@ -472,6 +488,25 @@ $stmtCnt->execute($params);
 $total = (int)($stmtCnt->fetchColumn() ?: 0);
 $totalPages = max(1, (int)ceil($total / $perPage));
 
+// Felülvizsgálat státusz összesítő (globálisan, szűrőtől független)
+$inspCounts = ['total_required' => 0, 'red' => 0, 'yellow' => 0, 'green' => 0];
+try {
+  $latestSql = "(SELECT next_date FROM asset_inspections WHERE asset_id=a.id ORDER BY inspection_date DESC, id DESC LIMIT 1)";
+  $stIC = $pdo->query("SELECT
+    COUNT(*) AS total_required,
+    SUM(CASE WHEN $latestSql < CURDATE() THEN 1 ELSE 0 END) AS red,
+    SUM(CASE WHEN $latestSql >= CURDATE() AND $latestSql <= DATE_ADD(CURDATE(), INTERVAL 30 DAY) THEN 1 ELSE 0 END) AS yellow,
+    SUM(CASE WHEN $latestSql > DATE_ADD(CURDATE(), INTERVAL 30 DAY) THEN 1 ELSE 0 END) AS green
+  FROM assets a WHERE a.is_deleted=0 AND a.inspection_required=1");
+  $icRow = $stIC->fetch(PDO::FETCH_ASSOC);
+  $inspCounts = [
+    'total_required' => (int)($icRow['total_required'] ?? 0),
+    'red'    => (int)($icRow['red'] ?? 0),
+    'yellow' => (int)($icRow['yellow'] ?? 0),
+    'green'  => (int)($icRow['green'] ?? 0),
+  ];
+} catch (Throwable $e) {}
+
 // Lista
 $orderExpr = "a.updated_at DESC, a.id DESC";
 if ($sort === 'name') {
@@ -583,6 +618,31 @@ $toolbookSendDisabledReason = $toolbookSendConfigured
     <a class="btn btn-primary btn-sm" href="asset_create.php">+ Új eszköz</a>
   </div>
 </div>
+
+<?php if ($inspCounts['total_required'] > 0): ?>
+<div class="d-flex gap-2 mb-3 flex-wrap align-items-center">
+  <span class="text-secondary small me-1">Felülvizsgálat:</span>
+  <a href="assets.php?<?= e(build_query(['inspection_status' => 'red', 'page' => 1])) ?>"
+     class="badge text-decoration-none fs-6 <?= $inspStatus === 'red' ? 'bg-danger' : 'bg-danger bg-opacity-75' ?>"
+     title="Lejárt / esedékes felülvizsgálat">
+    🔴 <?= (int)$inspCounts['red'] ?> lejárt
+  </a>
+  <a href="assets.php?<?= e(build_query(['inspection_status' => 'yellow', 'page' => 1])) ?>"
+     class="badge text-decoration-none fs-6 text-dark <?= $inspStatus === 'yellow' ? 'bg-warning' : 'bg-warning bg-opacity-75' ?>"
+     title="30 napon belül esedékes">
+    🟡 <?= (int)$inspCounts['yellow'] ?> hamarosan
+  </a>
+  <a href="assets.php?<?= e(build_query(['inspection_status' => 'green', 'page' => 1])) ?>"
+     class="badge text-decoration-none fs-6 <?= $inspStatus === 'green' ? 'bg-success' : 'bg-success bg-opacity-75' ?>"
+     title="Több mint 30 nap van hátra">
+    🟢 <?= (int)$inspCounts['green'] ?> rendben
+  </a>
+  <?php if ($inspStatus !== ''): ?>
+    <a href="assets.php?<?= e(build_query(['inspection_status' => null, 'page' => 1])) ?>"
+       class="btn btn-outline-secondary btn-sm py-0">× Szűrő törlése</a>
+  <?php endif; ?>
+</div>
+<?php endif; ?>
 
 <form class="card shadow-sm mb-3" method="get">
   <div class="card-body">

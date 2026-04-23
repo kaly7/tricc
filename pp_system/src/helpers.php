@@ -35,6 +35,32 @@ function getContrastYIQ($hexcolor) {
 
 // src/helpers.php
 
+function log_om_job_event(PDO $db, int $jobId, int $userId, string $logType, string $message): void {
+    $db->prepare("INSERT INTO om_job_logs (job_id, user_id, log_type, message) VALUES (?,?,?,?)")
+       ->execute([$jobId, $userId, $logType, $message]);
+
+    $recordId = $db->prepare("SELECT record_id FROM om_jobs WHERE id = ? LIMIT 1");
+    $recordId->execute([$jobId]);
+    $recordId = (int)$recordId->fetchColumn();
+    if ($recordId) {
+        log_change($db, $recordId, $userId, 'om_job_' . $logType, '', $message);
+    }
+}
+
+function geocode_address(string $address): ?array {
+    if (trim($address) === '') return null;
+    $url = 'https://nominatim.openstreetmap.org/search?format=json&limit=1&q=' . urlencode($address);
+    $ctx = stream_context_create(['http' => [
+        'timeout' => 5,
+        'header'  => "User-Agent: PP-System/1.0 (kalamar.janos@gmail.com)\r\n"
+    ]]);
+    $raw = @file_get_contents($url, false, $ctx);
+    if (!$raw) return null;
+    $data = json_decode($raw, true);
+    if (empty($data[0]['lat'])) return null;
+    return ['lat' => (float)$data[0]['lat'], 'lng' => (float)$data[0]['lon']];
+}
+
 function log_change(PDO $db, int $recordId, int $userId, string $field, string $old, string $new): void {
     try {
         // A te sémád: record_changes(record_id, changed_by, changed_at, field, old_value, new_value)
