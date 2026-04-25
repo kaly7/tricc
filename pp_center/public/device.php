@@ -558,7 +558,6 @@ include __DIR__ . '/../templates/header.php';
                     <label><span>Temp max</span><input type="number" step="0.1" name="thresholds[temp_max]" value="<?= h($thresholds['temp_max'] ?? '') ?>"></label>
                     <label><span>Páratartalom min</span><input type="number" step="0.1" name="thresholds[humidity_min]" value="<?= h($thresholds['humidity_min'] ?? '') ?>"></label>
                     <label><span>Páratartalom max</span><input type="number" step="0.1" name="thresholds[humidity_max]" value="<?= h($thresholds['humidity_max'] ?? '') ?>"></label>
-                    <label><span>Air quality max</span><input type="number" step="1" name="thresholds[airq_max]" value="<?= h($thresholds['airq_max'] ?? '') ?>"></label>
                     <label><span>Akku low %</span><input type="number" step="1" name="thresholds[battery_low_pct]" value="<?= h($thresholds['battery_low_pct'] ?? '') ?>"></label>
                 </div>
             </section>

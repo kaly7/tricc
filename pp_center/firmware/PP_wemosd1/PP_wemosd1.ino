@@ -1277,6 +1277,10 @@ void syncSim800State(bool logChanges = false) {
 }
 
 void setupSim800() {
+  logLine("--- SIM800L init indul ---");
+  logLine(String("  Pinout: RX=") + MODEM_RX_PIN + " (ESP32 RX <- SIM800 TXD), TX=" + MODEM_TX_PIN + " (ESP32 TX -> SIM800 RXD)");
+  logLine(String("  Baud: ") + MODEM_DEFAULT_BAUD + ", APN: " + (netCfg.gsmApn.isEmpty() ? "(ures)" : netCfg.gsmApn));
+
   state.gsmEnabled = true;
   state.gsmInitInProgress = true;
   updateLedRing();
@@ -1284,13 +1288,29 @@ void setupSim800() {
   sim800.setDataConfig(netCfg.gsmApn, netCfg.gsmUser, netCfg.gsmPassword);
   bool ok = sim800.begin(modemSerial, MODEM_RX_PIN, MODEM_TX_PIN, MODEM_DEFAULT_BAUD, MODEM_POLL_INTERVAL_MS);
   state.gsmInitInProgress = false;
-  syncSim800State(true);
+  Sim800Snapshot snap = sim800.snapshot();
 
   if (ok) {
-    logLine("SIM800 init OK");
+    logLine("  [OK] SIM800 modem valaszol");
+    logLine(String("  SIM: ") + (snap.simReady ? "READY" : "NEM KESZ (hianyzik vagy PIN vedett?)"));
+    logLine(String("  Halozat: ") + (snap.networkRegistered ? "regisztralva" : "NEM regisztralva"));
+    logLine(String("  RSSI: ") + String(snap.rssiDbm) + " dBm (CSQ=" + String(snap.csq) + ")");
+    logLine(String("  Operator: ") + (snap.operatorName.isEmpty() ? "(ismeretlen)" : snap.operatorName));
+    logLine("--- SIM800L init OK ---");
   } else {
-    logLine("SIM800 init nem teljes, hatterben ujraprobalja");
+    logLine("  [HIBA] SIM800 nem valaszol az AT parancsra");
+    logLine("  Ellenorizd:");
+    logLine("    1. Tapfeszultseg: 3.7-4.2V, min. 1-2A csucaram (USB port nem elég!)");
+    logLine("    2. Bekotes: SIM800 TXD -> ESP GPIO" + String(MODEM_RX_PIN) + ", SIM800 RXD -> ESP GPIO" + String(MODEM_TX_PIN));
+    logLine("    3. Kozos fold (GND) megvan?");
+    logLine("    4. A SIM800L STATUS LED villog? (1s = halozat, 3s = no halozat, gyors = adatfolyam)");
+    if (!snap.lastError.isEmpty()) {
+      logLine(String("  Utolso hiba: ") + snap.lastError);
+    }
+    logLine("--- SIM800L init SIKERTELEN, 3 perc mulva ujra ---");
   }
+
+  syncSim800State(false);
   updateLedRing();
 }
 
@@ -1857,7 +1877,39 @@ void setup() {
   state.contactActive = contactAlarmForOpenState(state.contactOpen);
   updateLedRing();
 
-  logLine("=== Wemos D1 Mini ESP32 clean slate: WiFi + Web + MQTT + BME280 + UPS + LED ring + contact alerts + SIM800L ===");
+  logLine("=== PP-ESP firmware indul ===");
+  logLine("LED gyuru (7 LED) jelentese:");
+  logLine("  LED 0 (kozep) - WiFi/halozat:");
+  logLine("    Zold        = WiFi OK, gateway elerheto");
+  logLine("    Sarga       = WiFi csatlakozas / gateway teszt folyamatban");
+  logLine("    Piros       = nincs WiFi kapcsolat");
+  logLine("    Piros villog = Rescue AP mod aktiv");
+  logLine("  LED 1 - Tapforras:");
+  logLine("    Zold  = USB tap jelen van");
+  logLine("    Piros = akkumulatorrol mukodik");
+  logLine("  LED 2 - Akkumulator:");
+  logLine("    Zold              = 76-100%");
+  logLine("    Kek               = 51-75%");
+  logLine("    Sarga             = 26-50%");
+  logLine("    Piros             = 16-25%");
+  logLine("    Piros villog      = 0-15% (kritikus)");
+  logLine("    Kialszik          = ismeretlen (MAX17040 nem valaszol)");
+  logLine("  LED 3 - BME280 szenzor:");
+  logLine("    Zold  = szenzor OK");
+  logLine("    Piros = szenzor hiba (I2C nem valaszol)");
+  logLine("  LED 4 - GSM modem (SIM800L):");
+  logLine("    Zold        = modem OK, halozaton van");
+  logLine("    Piros       = modem hiba / nem talalhato");
+  logLine("    Kek villog  = modem inicializalas folyamatban");
+  logLine("    Kialszik    = GSM nem engedvenyezett / kikapcsolva");
+  logLine("  LED 5 - Riasztas allapot:");
+  logLine("    Halvany zold       = nincs aktiv riasztas");
+  logLine("    Piros              = aktiv riasztas (nyugtazott)");
+  logLine("    Piros villog       = aktiv riasztas (NEM nyugtazott)");
+  logLine("  LED 6 - MQTT kapcsolat:");
+  logLine("    Zold       = MQTT csatlakozva");
+  logLine("    Piros      = MQTT nincs kapcsolat");
+  logLine("    Kek villog = MQTT csatlakozas folyamatban");
 
   if (!SPIFFS.begin(true)) {
     logLine("SPIFFS init HIBA");
