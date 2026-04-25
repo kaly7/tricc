@@ -1,5 +1,5 @@
 <?php
-require_once __DIR__.'/db.php';
+require_once __DIR__.'/bootstrap.php';
 
 $projekt_id = intval($_GET['projekt_id'] ?? 0);
 $format     = $_GET['format'] ?? 'csv';
