@@ -85,7 +85,6 @@ include __DIR__ . '/../templates/header.php';
                 <th>Eszköz</th>
                 <th>Hőm.</th>
                 <th>Pára</th>
-                <th>AirQ</th>
                 <th>Akku</th>
                 <th>Táp</th>
                 <th>Kontaktok</th>
@@ -100,7 +99,6 @@ include __DIR__ . '/../templates/header.php';
                     <td><code><?= e($row['device_id']) ?></code></td>
                     <td><?= e($row['temperature'] !== null ? $row['temperature'] . ' °C' : '—') ?></td>
                     <td><?= e($row['humidity'] !== null ? $row['humidity'] . ' %' : '—') ?></td>
-                    <td><?= e($row['air_quality'] ?? '—') ?></td>
                     <td><?= e($row['battery_pct'] !== null ? $row['battery_pct'] . ' %' : '—') ?></td>
                     <td><?= e($row['power_mode'] ?: '—') ?></td>
                     <td class="small"><?= e(($row['contact_1'] ?? '—') . ' / ' . ($row['contact_2'] ?? '—') . ' / ' . ($row['contact_3'] ?? '—') . ' / ' . ($row['contact_4'] ?? '—')) ?></td>

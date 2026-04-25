@@ -230,13 +230,11 @@ function render_rule_row_html(int $index, array $rule, array $contactsMeta, arra
     $thresholdSensors = [
         'temperature' => 'Hőmérséklet',
         'humidity' => 'Páratartalom',
-        'air_quality' => 'Levegő minőség',
         'battery_pct' => 'Akkumulátor %',
     ];
     $trendSensors = [
         'temperature' => 'Hőmérséklet',
         'humidity' => 'Páratartalom',
-        'air_quality' => 'Levegő minőség',
         'battery_pct' => 'Akkumulátor %',
     ];
     $operatorOptions = [
@@ -508,7 +506,6 @@ include __DIR__ . '/../templates/header.php';
             <div><span>Jelentett konfiguráció</span><strong><?= h($state['reported_config_version'] ?? '—') ?></strong></div>
             <div><span>Hőmérséklet</span><strong><?= h(isset($state['temperature']) ? $state['temperature'] . ' °C' : '—') ?></strong></div>
             <div><span>Páratartalom</span><strong><?= h(isset($state['humidity']) ? $state['humidity'] . ' %' : '—') ?></strong></div>
-            <div><span>Levegő minőség</span><strong><?= h($state['air_quality'] ?? '—') ?></strong></div>
             <div><span>Akku</span><strong><?= h(isset($state['battery_pct']) ? $state['battery_pct'] . ' %' : '—') ?></strong></div>
             <div><span>Táp mód</span><strong><?= h($state['power_mode'] ?? '—') ?></strong></div>
             <div><span>Átviteli út</span><strong><?= h($telemetryTransport ?? '—') ?></strong></div>
