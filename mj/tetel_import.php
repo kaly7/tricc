@@ -233,21 +233,14 @@ if ($step === 'upload' && isset($_GET['preview'])) {
 $oszlop_db = 0;
 foreach ($sorok as $sor) $oszlop_db = max($oszlop_db, count($sor));
 ?>
-<!DOCTYPE html>
-<html lang="hu">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>MJ – Tételek importálása</title>
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
-<style>
+<?php
+$title = 'MJ – Tételek importálása';
+$head_extra = '<style>
 .col-select { width:100%; font-size:.78em; }
 thead.sticky-top th { position:sticky; top:0; z-index:2; }
 .preview-table td, .preview-table th { white-space:nowrap; font-size:.82em; padding:3px 6px; }
-</style>
-</head>
-<body class="bg-light">
-<div class="container-fluid py-3 px-4">
+</style>';
+require __DIR__.'/_header.php'; ?>
 
   <div class="mb-3">
     <a href="projekt.php?id=<?= $projekt_id ?>" class="text-decoration-none text-muted small">← <?= htmlspecialchars($projekt['nev']) ?></a>
@@ -407,5 +400,4 @@ thead.sticky-top th { position:sticky; top:0; z-index:2; }
   <?php endif; ?>
 
 </div>
-</body>
-</html>
+<?php require __DIR__.'/_footer.php'; ?>

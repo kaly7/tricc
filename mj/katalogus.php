@@ -46,16 +46,7 @@ $tetelek = $db->prepare('SELECT * FROM anyagar_katalogus WHERE megnevezes LIKE ?
 $tetelek->execute(['%'.$q.'%']);
 $tetelek = $tetelek->fetchAll();
 ?>
-<!DOCTYPE html>
-<html lang="hu">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>MJ – Anyagár katalógus</title>
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
-</head>
-<body class="bg-light">
-<div class="container-fluid py-3 px-4">
+<?php $title = 'MJ – Katalógus'; require __DIR__.'/_header.php'; ?>
 
   <div class="d-flex justify-content-between align-items-center mb-3">
     <h5 class="mb-0">Anyagár katalógus <span class="badge bg-secondary"><?= count($tetelek) ?> tétel</span></h5>
@@ -159,5 +150,4 @@ $tetelek = $tetelek->fetchAll();
   </div>
 
 </div>
-</body>
-</html>
+<?php require __DIR__.'/_footer.php'; ?>

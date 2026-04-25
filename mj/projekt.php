@@ -219,62 +219,34 @@ $csoport_szin = [];
 $ci = 0;
 foreach (array_keys($csoportok) as $cid) { $csoport_szin[$cid] = $palette[$ci++ % count($palette)]; }
 ?>
-<!DOCTYPE html>
-<html lang="hu">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>MJ – <?= htmlspecialchars($projekt['nev']) ?></title>
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
-<style>
+<?php
+$title = 'MJ – '.htmlspecialchars($projekt['nev']);
+$head_extra = '<style>
 tr.csoport-hatar td { border-top: 2px solid #0d6efd !important; }
 tr.kivalasztott td  { outline: 2px solid #0d6efd; }
-
-/* Inline szám input: csak fókuszban látszik a keret */
 .inline-num, .inline-txt {
-  border: 1px solid transparent;
-  background: transparent;
-  padding: 1px 3px;
-  border-radius: 3px;
-  transition: border-color .15s, background .15s;
-  text-align: right;
+  border: 1px solid transparent; background: transparent;
+  padding: 1px 3px; border-radius: 3px;
+  transition: border-color .15s, background .15s; text-align: right;
 }
 .inline-txt { text-align: left; }
 .inline-num:hover, .inline-txt:hover { background: rgba(0,0,0,.05); }
-.inline-num:focus, .inline-txt:focus {
-  border-color: #0d6efd;
-  background: #fff;
-  outline: none;
-}
+.inline-num:focus, .inline-txt:focus { border-color: #0d6efd; background: #fff; outline: none; }
 .inline-num.dirty, .inline-txt.dirty { background: #fffbe6; border-color: #ffc107; }
-
-/* Mentés sáv */
 #save-bar {
-  position: sticky; top: 0; z-index: 100;
-  background: #212529; color:#fff;
-  padding: 6px 16px;
-  display: none;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
+  position: sticky; top: 56px; z-index: 100;
+  background: #212529; color:#fff; padding: 6px 16px;
+  display: none; align-items: center; gap: 10px; flex-wrap: wrap;
 }
 #save-bar.lathato { display: flex; }
-
-/* Bulk toolbar */
 #bulk-toolbar {
   position: fixed; bottom: 0; left: 0; right: 0;
-  background: #343a40; color:#fff;
-  padding: 8px 16px;
-  display: none;
-  z-index: 1000;
-  gap: 8px;
-  align-items: center;
-  flex-wrap: wrap;
+  background: #343a40; color:#fff; padding: 8px 16px;
+  display: none; z-index: 1000; gap: 8px; align-items: center; flex-wrap: wrap;
 }
 #bulk-toolbar.lathato { display: flex; }
-</style>
-</head>
-<body class="bg-light">
+</style>';
+require __DIR__.'/_header.php'; ?>
 
 <!-- ══ Mentés sáv (megjelenik ha van módosítás) ══ -->
 <div id="save-bar">
@@ -693,6 +665,4 @@ function clearSelection() {
   updateToolbar();
 }
 </script>
-
-</body>
-</html>
+<?php require __DIR__.'/_footer.php'; ?>

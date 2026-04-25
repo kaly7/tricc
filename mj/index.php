@@ -46,16 +46,8 @@ if (isset($_GET['edit'])) {
 
 $projektek = $db->query('SELECT p.*, (SELECT COUNT(*) FROM tetelek t WHERE t.projekt_id=p.id) AS tetel_db FROM projektek p ORDER BY p.letrehozva DESC')->fetchAll();
 ?>
-<!DOCTYPE html>
-<html lang="hu">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>MJ – Árajánlat készítő</title>
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
-</head>
-<body class="bg-light">
-<div class="container py-4">
+<?php $title = 'MJ – Árajánlat készítő'; require __DIR__.'/_header.php'; ?>
+<div class="container py-2">
 
   <div class="d-flex justify-content-between align-items-center mb-3">
     <h4 class="mb-0">MJ Árajánlat készítő</h4>
@@ -138,5 +130,4 @@ $projektek = $db->query('SELECT p.*, (SELECT COUNT(*) FROM tetelek t WHERE t.pro
   </div>
 
 </div>
-</body>
-</html>
+<?php require __DIR__.'/_footer.php'; ?>

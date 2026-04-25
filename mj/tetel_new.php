@@ -62,15 +62,9 @@ $kat_all = $db->query('SELECT id,megnevezes,gyarto,tipus,rendeles_szam,egyseg,an
 $kat_json = json_encode($kat_all, JSON_UNESCAPED_UNICODE);
 $kat_db   = count($kat_all);
 ?>
-<!DOCTYPE html>
-<html lang="hu">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>MJ – <?= $edit ? 'Tétel szerkesztése' : 'Új tétel' ?></title>
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
-<style>
-/* Legördülő autocomplete */
+<?php
+$title = 'MJ – '.($edit ? 'Tétel szerkesztése' : 'Új tétel');
+$head_extra = '<style>
 #ac-lista {
   position: absolute; z-index: 1055;
   background: #fff; border: 1px solid #ced4da; border-radius: 0 0 6px 6px;
@@ -83,15 +77,12 @@ $kat_db   = count($kat_all);
 .ac-item .ac-nev { font-weight: 600; font-size: .92em; }
 .ac-item .ac-meta { font-size: .80em; color: #888; margin-top:1px; }
 .ac-item .ac-ar  { font-size: .82em; color: #0d6efd; }
-
-/* Katalógus modal táblázat */
 #kat-modal-tabla tbody tr { cursor: pointer; }
 #kat-modal-tabla tbody tr:hover td { background: #e8f4ff; }
 #kat-modal-tabla tbody tr.kat-kiv td { background: #d0eaff; font-weight:600; }
-</style>
-</head>
-<body class="bg-light">
-<div class="container py-4" style="max-width:900px">
+</style>';
+require __DIR__.'/_header.php'; ?>
+<div class="container py-2" style="max-width:900px">
 
   <div class="mb-3">
     <a href="projekt.php?id=<?= $projekt_id ?>" class="text-decoration-none text-muted small">← <?= htmlspecialchars($projekt['nev']) ?></a>
@@ -232,7 +223,6 @@ $kat_db   = count($kat_all);
   </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script>
 // ── Katalógus adatok ────────────────────────────────────
 const KAT_DATA = <?= $kat_json ?>;
@@ -392,5 +382,4 @@ function fmt(n) {
   return new Intl.NumberFormat('hu-HU',{maximumFractionDigits:0}).format(n||0);
 }
 </script>
-</body>
-</html>
+<?php require __DIR__.'/_footer.php'; ?>

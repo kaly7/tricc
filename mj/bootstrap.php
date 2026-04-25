@@ -21,3 +21,10 @@ session_start();
 
 CentralAuth::requireLogin($config);
 CentralAuth::requireModuleAccess($config, $config['module_key']);
+
+function h(string $s): string { return htmlspecialchars($s, ENT_QUOTES, 'UTF-8'); }
+
+$mj_user = [
+  'id'        => CentralAuth::userId(),
+  'full_name' => $_SESSION['full_name'] ?? 'Felhasználó',
+];

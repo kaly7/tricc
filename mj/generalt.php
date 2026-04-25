@@ -106,26 +106,19 @@ $brutto    = $vegosszeg + $afa;
 $ref = $projekt['munka1_osszeg'];
 $elteresszazalek = ($ref > 0) ? (($vegosszeg - $ref) / $ref * 100) : null;
 ?>
-<!DOCTYPE html>
-<html lang="hu">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>MJ – Munka3 – <?= htmlspecialchars($projekt['nev']) ?></title>
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
-<style>
+<?php
+$title = 'MJ – Munka3 – '.htmlspecialchars($projekt['nev']);
+$head_extra = '<style>
 @media print {
-  .no-print { display:none !important; }
+  nav.navbar, .no-print { display:none !important; }
   body { background:white !important; }
   .container-fluid { padding:0 !important; }
 }
 tr.napidij-sor td { background:#e8f4ff !important; font-style:italic; }
 tr.csoport-hatar td { border-top:2px solid #0d6efd !important; }
 .tort-szam { font-weight:bold; color:#0d6efd; }
-</style>
-</head>
-<body class="bg-light">
-<div class="container-fluid py-3 px-4">
+</style>';
+require __DIR__.'/_header.php'; ?>
 
   <div class="d-flex justify-content-between align-items-center mb-3 no-print flex-wrap gap-2">
     <div>
@@ -274,5 +267,4 @@ tr.csoport-hatar td { border-top:2px solid #0d6efd !important; }
   <?php endif; ?>
 
 </div>
-</body>
-</html>
+<?php require __DIR__.'/_footer.php'; ?>
