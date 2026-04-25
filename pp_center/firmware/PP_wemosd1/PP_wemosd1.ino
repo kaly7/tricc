@@ -17,8 +17,8 @@
 static constexpr int I2C_SDA_PIN = 21;
 static constexpr int I2C_SCL_PIN = 22;
 static constexpr int LED_RING_PIN = 4;
-// 0 = center LED, 1..6 = outer ring LEDs
-static constexpr uint16_t LED_RING_COUNT = 7;
+// WS2812B-8 LED sor, bal->jobb: WiFi | MQTT | GSM | Szenzor | Kontakt | Hőm. riasztás | Táp | Akku
+static constexpr uint16_t LED_RING_COUNT = 8;
 static constexpr int CONTACT_PIN = 27;
 static constexpr unsigned long CONTACT_DEBOUNCE_MS = 60UL;
 static constexpr int MODEM_RX_PIN = 19;  // ESP32 RX  <- SIM800L TXD
@@ -574,72 +574,84 @@ void updateLedRing() {
   ring.setBrightness(24);
   ring.clear();
 
-  // 0 - WiFi AP/STA
+  // LED 0 – WiFi / hálózat
   if (state.apEnabled) {
-    if (state.rescueApMode && blinkState(350)) {
-      setLedSafe(0, ledColor(80, 0, 80));  // rescue AP
-    } else {
-      setLedSafe(0, ledColor(80, 0, 0));  // AP
-    }
+    setLedSafe(0, (state.rescueApMode && blinkState(350)) ? ledColor(80, 0, 80) : ledColor(80, 0, 0));
   } else if (state.staValidated) {
-    setLedSafe(0, ledColor(0, 80, 0));  // zold: gateway is elerheto
+    setLedSafe(0, ledColor(0, 80, 0));        // zöld: WiFi + gateway OK
   } else if (state.wifiConnected || state.staAttemptInProgress) {
-    setLedSafe(0, ledColor(80, 50, 0));  // sarga: csatlakozas / gateway teszt
+    setLedSafe(0, ledColor(80, 50, 0));       // sárga: csatlakozás / gateway teszt
   } else {
-    setLedSafe(0, ledColor(80, 0, 0));  // piros: nincs kapcsolat
+    setLedSafe(0, ledColor(80, 0, 0));        // piros: nincs WiFi
   }
 
-  // 1 - Tapforras
-  setLedSafe(1, state.usbPower ? ledColor(0, 80, 0) : ledColor(80, 0, 0));
-
-  // 2 - Akku toltes
-  uint32_t battColor = 0;
-  if (state.batteryPct < 0) {
-    battColor = 0;  // nincs meg / kesobb
-  } else if (state.batteryPct <= 15) {
-    battColor = blinkState(400) ? ledColor(80, 0, 0) : 0;
-  } else if (state.batteryPct <= 25) {
-    battColor = ledColor(80, 0, 0);
-  } else if (state.batteryPct <= 50) {
-    battColor = ledColor(80, 50, 0);
-  } else if (state.batteryPct <= 75) {
-    battColor = ledColor(0, 0, 80);
+  // LED 1 – MQTT kapcsolat
+  if (state.mqttConnected) {
+    setLedSafe(1, ledColor(0, 80, 0));        // zöld: csatlakozva
+  } else if (state.mqttConnecting) {
+    setLedSafe(1, blinkState(500) ? ledColor(0, 0, 80) : 0);  // kék villogó: csatlakozás
   } else {
-    battColor = ledColor(0, 80, 0);
+    setLedSafe(1, ledColor(80, 0, 0));        // piros: nincs MQTT
   }
-  setLedSafe(2, battColor);
 
-  // 3 - BME280 / szenzor allapot
-  setLedSafe(3, state.sensorOk ? ledColor(0, 80, 0) : ledColor(80, 0, 0));
-
-  // 4 - GSM modem allapot (kesobbi modul)
-  uint32_t gsmColor = 0;
+  // LED 2 – GSM modem (SIM800L)
   if (state.gsmEnabled) {
     if (state.gsmInitInProgress) {
-      gsmColor = blinkState(500) ? ledColor(0, 0, 80) : 0;
+      setLedSafe(2, blinkState(500) ? ledColor(0, 0, 80) : 0);  // kék villogó: init
     } else if (state.gsmReady) {
-      gsmColor = ledColor(0, 80, 0);
+      setLedSafe(2, ledColor(0, 80, 0));      // zöld: modem + hálózat OK
+    } else if (state.gsmSimReady) {
+      setLedSafe(2, ledColor(80, 50, 0));     // sárga: SIM OK, nincs hálózat
     } else {
-      gsmColor = ledColor(80, 0, 0);
+      setLedSafe(2, ledColor(80, 0, 0));      // piros: modem nem válaszol / nincs SIM
     }
   }
-  setLedSafe(4, gsmColor);
+  // ha GSM disabled: LED 2 kialszik
 
-  // 5 - Aktiv riasztas
-  if (state.anyActiveAlarm) {
-    setLedSafe(5, state.hasUnackedAlarm && blinkState(450) ? 0 : ledColor(80, 0, 0));
+  // LED 3 – BME280 szenzor
+  setLedSafe(3, state.sensorOk ? ledColor(0, 80, 0) : ledColor(80, 0, 0));
+
+  // LED 4 – Kontakt bemenet
+  if (normalizeContactMode(runtimeCfg.contact1Mode) == "unused") {
+    setLedSafe(4, 0);                         // kialszik: nem figyelt
+  } else if (state.contactActive) {
+    setLedSafe(4, blinkState(400) ? ledColor(80, 20, 0) : ledColor(80, 0, 0));  // piros/narancs villogó: riasztás
   } else {
-    setLedSafe(5, ledColor(0, 20, 0));  // halvany zold: nincs riasztas
+    setLedSafe(4, ledColor(0, 80, 0));        // zöld: normál állapot
   }
 
-  // 6 - MQTT allapot
-  if (state.mqttConnected) {
-    setLedSafe(6, ledColor(0, 80, 0));
-  } else if (state.mqttConnecting) {
-    setLedSafe(6, blinkState(500) ? ledColor(0, 0, 80) : 0);
+  // LED 5 – Hőmérséklet riasztás
+  if (state.tempHighAlarmActive) {
+    setLedSafe(5, blinkState(400) ? ledColor(80, 0, 0) : ledColor(40, 0, 0));  // piros villogó: túl meleg
+  } else if (state.tempLowAlarmActive) {
+    setLedSafe(5, blinkState(400) ? ledColor(0, 0, 80) : ledColor(0, 0, 40));  // kék villogó: túl hideg
   } else {
-    setLedSafe(6, ledColor(80, 0, 0));
+    setLedSafe(5, ledColor(0, 20, 0));        // halvány zöld: normál
   }
+
+  // LED 6 – USB táp / töltés
+  if (state.usbPower) {
+    setLedSafe(6, state.batteryCharging ? ledColor(0, 60, 80) : ledColor(0, 80, 0));  // zöldeskék: tölt, zöld: teli/USB
+  } else {
+    setLedSafe(6, ledColor(80, 30, 0));       // narancs: akkuról megy
+  }
+
+  // LED 7 – Akkumulátor töltöttség
+  uint32_t battColor = 0;
+  if (state.batteryPct < 0) {
+    battColor = 0;                            // ismeretlen: kialszik
+  } else if (state.batteryPct <= 15) {
+    battColor = blinkState(400) ? ledColor(80, 0, 0) : 0;  // piros villogó: kritikus
+  } else if (state.batteryPct <= 25) {
+    battColor = ledColor(80, 0, 0);           // piros: alacsony
+  } else if (state.batteryPct <= 50) {
+    battColor = ledColor(80, 50, 0);          // sárga: közepes
+  } else if (state.batteryPct <= 75) {
+    battColor = ledColor(0, 0, 80);           // kék: jó
+  } else {
+    battColor = ledColor(0, 80, 0);           // zöld: teli
+  }
+  setLedSafe(7, battColor);
 
   ring.show();
 }
@@ -1877,39 +1889,26 @@ void setup() {
   state.contactActive = contactAlarmForOpenState(state.contactOpen);
   updateLedRing();
 
-  logLine("=== PP-ESP firmware indul ===");
-  logLine("LED gyuru (7 LED) jelentese:");
-  logLine("  LED 0 (kozep) - WiFi/halozat:");
-  logLine("    Zold        = WiFi OK, gateway elerheto");
-  logLine("    Sarga       = WiFi csatlakozas / gateway teszt folyamatban");
-  logLine("    Piros       = nincs WiFi kapcsolat");
-  logLine("    Piros villog = Rescue AP mod aktiv");
-  logLine("  LED 1 - Tapforras:");
-  logLine("    Zold  = USB tap jelen van");
-  logLine("    Piros = akkumulatorrol mukodik");
-  logLine("  LED 2 - Akkumulator:");
-  logLine("    Zold              = 76-100%");
-  logLine("    Kek               = 51-75%");
-  logLine("    Sarga             = 26-50%");
-  logLine("    Piros             = 16-25%");
-  logLine("    Piros villog      = 0-15% (kritikus)");
-  logLine("    Kialszik          = ismeretlen (MAX17040 nem valaszol)");
-  logLine("  LED 3 - BME280 szenzor:");
-  logLine("    Zold  = szenzor OK");
-  logLine("    Piros = szenzor hiba (I2C nem valaszol)");
-  logLine("  LED 4 - GSM modem (SIM800L):");
-  logLine("    Zold        = modem OK, halozaton van");
-  logLine("    Piros       = modem hiba / nem talalhato");
-  logLine("    Kek villog  = modem inicializalas folyamatban");
-  logLine("    Kialszik    = GSM nem engedvenyezett / kikapcsolva");
-  logLine("  LED 5 - Riasztas allapot:");
-  logLine("    Halvany zold       = nincs aktiv riasztas");
-  logLine("    Piros              = aktiv riasztas (nyugtazott)");
-  logLine("    Piros villog       = aktiv riasztas (NEM nyugtazott)");
-  logLine("  LED 6 - MQTT kapcsolat:");
-  logLine("    Zold       = MQTT csatlakozva");
-  logLine("    Piros      = MQTT nincs kapcsolat");
-  logLine("    Kek villog = MQTT csatlakozas folyamatban");
+  logLine("=== PP-ESP firmware indul (WS2812B-8 LED sor) ===");
+  logLine("LED sor jelentese (bal->jobb, 0..7):");
+  logLine("  [0] WiFi/halozat:");
+  logLine("      Zold=OK+gateway | Sarga=csatl./teszt | Piros=nincs WiFi | Lila villog=Rescue AP");
+  logLine("  [1] MQTT kapcsolat:");
+  logLine("      Zold=csatlakozva | Kek villog=csatl. folyamatban | Piros=nincs kapcsolat");
+  logLine("  [2] GSM modem (SIM800L):");
+  logLine("      Zold=modem+halozat OK | Sarga=SIM OK,nincs halozat | Piros=modem hiba/nincs SIM");
+  logLine("      Kek villog=init folyamatban | Kialszik=GSM letiltva");
+  logLine("  [3] BME280 szenzor:");
+  logLine("      Zold=OK | Piros=hiba (I2C nem valaszol)");
+  logLine("  [4] Kontakt bemenet:");
+  logLine("      Zold=normalis | Piros/narancs villog=riasztas aktiv | Kialszik=nem figyelt");
+  logLine("  [5] Homerseklet riasztas:");
+  logLine("      Halvany zold=normalis | Piros villog=tul meleg | Kek villog=tul hideg");
+  logLine("  [6] USB tap / toltes:");
+  logLine("      Zold=USB,teli | Zoldeskek=USB,tolt | Narancs=akkurol mukodik");
+  logLine("  [7] Akkumulator toltotseg:");
+  logLine("      Zold=76-100% | Kek=51-75% | Sarga=26-50% | Piros=16-25%");
+  logLine("      Piros villog=0-15% (kritikus) | Kialszik=ismeretlen");
 
   if (!SPIFFS.begin(true)) {
     logLine("SPIFFS init HIBA");
