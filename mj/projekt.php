@@ -91,15 +91,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'batch_save') {
 
 // --- Verzió visszatöltés ---
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'load_verzio') {
-  $vzid = intval($_POST['verzio_id'] ?? 0);
+  $vzid        = intval($_POST['verzio_id'] ?? 0);
+  $save_before = intval($_POST['save_before_load'] ?? 0);
   $row  = $db->prepare('SELECT * FROM projekt_verziok WHERE id=? AND projekt_id=?');
   $row->execute([$vzid, $projekt_id]);
   $verzio = $row->fetch();
   if ($verzio) {
     $snap = json_decode($verzio['snapshot'], true);
-    // Előbb snapshot az aktuálisból (visszavonhatóság)
-    $tetelek_snap = load_tetelek($db, $projekt_id);
-    save_snapshot($db, $projekt_id, $tetelek_snap, 'Auto-mentés visszatöltés előtt');
+    // Csak ha a felhasználó kérte a mentést
+    if ($save_before) {
+      $tetelek_snap = load_tetelek($db, $projekt_id);
+      save_snapshot($db, $projekt_id, $tetelek_snap, 'Mentés betöltés előtt');
+    }
     // Tételek törlése és újra-beillesztése
     $db->prepare('DELETE FROM tetelek WHERE projekt_id=?')->execute([$projekt_id]);
     $ins = $db->prepare('INSERT INTO tetelek (projekt_id,sorrend,csoport_id,megnevezes,gyarto,tipus,rendeles_szam,mennyiseg,egyseg,anyagar_egyseg,munkadij_egyseg,egysegar_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)');
@@ -107,7 +110,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'load_verzio') {
       $ins->execute([$projekt_id,$t['sorrend'],$t['csoport_id'],$t['megnevezes'],$t['gyarto'],$t['tipus'],$t['rendeles_szam'],$t['mennyiseg'],$t['egyseg'],$t['anyagar_egyseg'],$t['munkadij_egyseg'],$t['egysegar_id']]);
     }
     $vzs = $verzio['verzio_szam'];
-    header('Location: projekt.php?id='.$projekt_id.'&loaded='.$vzs);
+    header('Location: projekt.php?id='.$projekt_id.'&loaded='.$vzs.'&v='.$vzs);
     exit;
   }
 }
@@ -289,10 +292,15 @@ require __DIR__.'/_header.php'; ?>
       <!-- Verzióváltó -->
       <?php if ($verziok): ?>
       <div class="d-flex align-items-center gap-1">
-        <span class="badge bg-secondary"><?= $aktiv_verzio ?>. verzió</span>
+        <?php if ($aktiv_verzio == $max_verzio): ?>
+          <span class="badge bg-success" title="Ez a legfrissebb verzió">v<?= $aktiv_verzio ?> ✓</span>
+        <?php else: ?>
+          <span class="badge bg-warning text-dark fw-bold" title="Nem a legfrissebb verzió van betöltve!">v<?= $aktiv_verzio ?> &lt; v<?= $max_verzio ?></span>
+        <?php endif; ?>
         <form method="post" class="d-inline" id="load-verzio-form">
           <input type="hidden" name="action" value="load_verzio">
           <input type="hidden" name="verzio_id" id="load-verzio-id" value="">
+          <input type="hidden" name="save_before_load" id="save-before-load" value="0">
           <select class="form-select form-select-sm" style="max-width:200px" id="verzio-select" onchange="loadVerzio(this)">
             <option value="">Verzió betöltése…</option>
             <?php foreach ($verziok as $v): ?>
@@ -311,6 +319,9 @@ require __DIR__.'/_header.php'; ?>
       <?php else: ?>
         <span class="badge bg-secondary">Nincs mentett verzió</span>
       <?php endif; ?>
+      <button type="button" class="btn btn-warning btn-sm" id="always-save-btn" onclick="alwaysSave()" title="Aktuális állapot mentése új verzióba">
+        💾 Mentés <span class="badge bg-dark ms-1">v<?= $max_verzio + 1 ?></span>
+      </button>
       <a href="tetel_new.php?projekt_id=<?= $projekt_id ?>" class="btn btn-primary btn-sm">+ Új tétel</a>
       <a href="tetel_import.php?projekt_id=<?= $projekt_id ?>" class="btn btn-outline-primary btn-sm">⬆ Import</a>
       <form method="post" class="d-inline" onsubmit="return confirm('A projekt összes tételének anyagárát elmenti a katalógusba (meglévő tételeket frissíti). Folytatod?')">
@@ -606,12 +617,38 @@ function resetDirty() {
 function loadVerzio(sel) {
   const vid = sel.value;
   if (!vid) return;
-  if (!confirm('Biztosan betöltöd a ' + sel.options[sel.selectedIndex].text + ' verziót?\n\nAz aktuális állapot automatikusan el lesz mentve.')) {
+  if (!confirm('Biztosan betöltöd a következő verziót?\n\n' + sel.options[sel.selectedIndex].text)) {
     sel.value = '';
     return;
   }
+  // Egyedi modal a Igen/Nem kérdéshez
+  document.getElementById('load-verzio-modal-text').textContent =
+    sel.options[sel.selectedIndex].text + ' betöltése előtt elmented az aktuális állapotot?';
   document.getElementById('load-verzio-id').value = vid;
-  document.getElementById('load-verzio-form').submit();
+  const modal = new bootstrap.Modal(document.getElementById('loadVerzioModal'));
+  modal.show();
+}
+
+function alwaysSave() {
+  const megjegyzes = prompt('Megjegyzés a verzióhoz (opcionális):', '') ;
+  if (megjegyzes === null) return; // Mégse
+  document.getElementById('batch-megjegyzes').value = megjegyzes;
+  const container = document.getElementById('batch-fields');
+  container.innerHTML = '';
+  document.querySelectorAll('#tetel-tabla tbody tr[data-id]').forEach(tr => {
+    const id = tr.dataset.id;
+    const fields = ['sorrend','csoport_id','mennyiseg','egyseg','anyagar','munkadij'];
+    fields.forEach(f => {
+      const el = tr.querySelector(`[data-field="${f}"]`);
+      if (!el) return;
+      const inp = document.createElement('input');
+      inp.type  = 'hidden';
+      inp.name  = `t[${id}][${f}]`;
+      inp.value = el.value;
+      container.appendChild(inp);
+    });
+  });
+  document.getElementById('batch-form').submit();
 }
 
 function delVerzioConfirm() {
@@ -694,6 +731,32 @@ function clearSelection() {
   document.querySelectorAll('.row-check').forEach(cb => cb.checked = false);
   checkAll.checked = false;
   updateToolbar();
+}
+</script>
+
+<!-- Modal: mentés betöltés előtt -->
+<div class="modal fade" id="loadVerzioModal" tabindex="-1" aria-labelledby="loadVerzioModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h6 class="modal-title" id="loadVerzioModalLabel">Verzió betöltése</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p id="load-verzio-modal-text"></p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="doLoadVerzio(0)">Nem</button>
+        <button type="button" class="btn btn-primary"   onclick="doLoadVerzio(1)">Igen</button>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+function doLoadVerzio(save) {
+  bootstrap.Modal.getInstance(document.getElementById('loadVerzioModal')).hide();
+  document.getElementById('save-before-load').value = save;
+  document.getElementById('load-verzio-form').submit();
 }
 </script>
 <?php require __DIR__.'/_footer.php'; ?>

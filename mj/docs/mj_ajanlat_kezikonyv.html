@@ -139,7 +139,7 @@
   <div class="cover">
     <h1>MJ-Ajánlat-PKS</h1>
     <div class="sub">Felhasználói kézikönyv</div>
-    <div class="version">Perfect-Phone 2026 &nbsp;|&nbsp; Belső használatra</div>
+    <div class="version">Perfect-Phone 2026 &nbsp;|&nbsp; Belső használatra &nbsp;|&nbsp; v1.1</div>
   </div>
 
   <div class="toc">
@@ -329,26 +329,52 @@
 
   <div class="box info">
     <div class="box-title">Csoportszín-kódolás</div>
-    A táblázatban a különböző csoportok különböző háttérszínnel jelennek meg (8 szín rotál). A csoporthatárokat vastag kék vonal jelzi.
+    A táblázatban a <strong>Csop.</strong> oszlop cellája kapja az adott csoporthoz rendelt pastel háttérszínt (36 előre definiált szín rotál). A csoporthatárokat ezen felül vastag kék vonal jelzi a sorok között.
   </div>
 
   <h3 id="inline_szerkesztes">4.5 Inline szerkesztés és verziókezelés</h3>
 
   <p>A projekt táblázatában a számok közvetlenül szerkeszthetők – kattints bármelyik mennyiség, anyagár vagy munkadíj mezőre. A módosított cellák sárga háttérszínnel jelzik a nem mentett változást.</p>
 
-  <p>Ha van mentetlen módosítás, a <strong>sötét mentési sáv</strong> automatikusan megjelenik az oldal tetején. A mentés gomb lenyomásakor a rendszer pillanatképet (verziót) ment el.</p>
+  <p>Ha van mentetlen módosítás, a <strong>sötét mentési sáv</strong> automatikusan megjelenik az oldal tetején. A mentés gombbal (vagy az állandóan látható <strong>💾 Mentés v<em>N</em></strong> gombbal) a rendszer pillanatképet ment el.</p>
 
+  <h4>Mentési lehetőségek</h4>
   <table>
     <thead><tr><th>Funkció</th><th>Leírás</th></tr></thead>
     <tbody>
-      <tr><td>Verzióválasztó (fejlécben)</td><td>A korábban mentett verziók listája. Visszatöltéskor az aktuális állapot automatikusan elmentődik.</td></tr>
-      <tr><td>Verzió megjegyzés</td><td>A mentési sávban opcionálisan megadható szöveges megjegyzés az adott verzióhoz</td></tr>
+      <tr><td>💾 Mentés sáv (felül)</td><td>Csak akkor jelenik meg, ha van nem mentett módosítás. A megjegyzés mezőbe szöveges megjegyzés írható a verzióhoz.</td></tr>
+      <tr><td>💾 Mentés v<em>N</em> gomb (fejléc)</td><td>Állandóan látható gomb a fejlécben, mindig a következő verziószámmal. Kattintáskor opcionális megjegyzést kér, majd elmenti az aktuális állapotot.</td></tr>
     </tbody>
   </table>
 
+  <h4>Verzióválasztó és verziójelző badge</h4>
+  <p>A fejlécben a verzióválasztó legördülő mellett egy badge mutatja az aktuálisan betöltött verziót:</p>
+  <table>
+    <thead><tr><th>Badge</th><th>Jelentés</th></tr></thead>
+    <tbody>
+      <tr><td><span class="badge badge-ok">v5 ✓</span></td><td>A <strong>legfrissebb verzió</strong> van betöltve</td></tr>
+      <tr><td><span class="badge badge-warn">v1 &lt; v5</span></td><td><strong>Régebbi verzió</strong> van betöltve – a legfrissebb verziószámot is mutatja</td></tr>
+    </tbody>
+  </table>
+
+  <h4>Verzió visszatöltése</h4>
+  <ol class="steps">
+    <li>Válaszd ki a kívánt verziót a legördülőből.</li>
+    <li>Megerősítő kérdés: <em>„Biztosan betöltöd a ... verziót?"</em> – kattints <strong>OK</strong>-ra.</li>
+    <li>Következő kérdés: <em>„El szeretnéd menteni az aktuális állapotot betöltés előtt?"</em>
+      <ul>
+        <li><strong>Igen</strong> – az aktuális állapot mentés után töltődik be a kiválasztott verzió</li>
+        <li><strong>Nem</strong> – az aktuális állapot elvetődik, a kiválasztott verzió betöltődik</li>
+      </ul>
+    </li>
+  </ol>
+
+  <h4>Verzió törlése</h4>
+  <p>A verzióválasztó mellett lévő 🗑 gombbal a kiválasztott verzió törölhető. A törlés végleges és nem vonható vissza.</p>
+
   <div class="box warn">
     <div class="box-title">Figyelem</div>
-    A verzió visszatöltése az aktuális tételeket <strong>felülírja</strong> a pillanatkép tartalmával. Az aktuális állapot visszatöltés előtt automatikusan mentődik.
+    A verzió visszatöltése az aktuális tételeket <strong>felülírja</strong> a pillanatkép tartalmával. Ha nem mentesz a visszatöltés előtt, az aktuális módosítások elvesznek.
   </div>
 
   <h3 id="katalogusba">4.6 Katalógusba mentés</h3>
@@ -482,7 +508,7 @@
   <hr>
 
   <p style="color:#6c757d; font-size:9pt; text-align:center;">
-    Perfect-Phone 2026 – MJ-Ajánlat-PKS &nbsp;|&nbsp; Belső használatra &nbsp;|&nbsp; Kézikönyv készült: 2026-04-25
+    Perfect-Phone 2026 – MJ-Ajánlat-PKS &nbsp;|&nbsp; Belső használatra &nbsp;|&nbsp; Kézikönyv frissítve: 2026-04-25
   </p>
 
 </div>
