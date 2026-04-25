@@ -112,6 +112,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'load_verzio') {
   }
 }
 
+// --- Verzió törlés ---
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'delete_verzio') {
+  $vzid = intval($_POST['verzio_id'] ?? 0);
+  if ($vzid > 0) {
+    $db->prepare('DELETE FROM projekt_verziok WHERE id=? AND projekt_id=?')->execute([$vzid, $projekt_id]);
+  }
+  header('Location: projekt.php?id='.$projekt_id);
+  exit;
+}
+
 // --- Tétel törlés ---
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'delete') {
   $tid = intval($_POST['tetel_id'] ?? 0);
@@ -276,7 +286,7 @@ require __DIR__.'/_header.php'; ?>
         <form method="post" class="d-inline" id="load-verzio-form">
           <input type="hidden" name="action" value="load_verzio">
           <input type="hidden" name="verzio_id" id="load-verzio-id" value="">
-          <select class="form-select form-select-sm" style="max-width:200px" onchange="loadVerzio(this)">
+          <select class="form-select form-select-sm" style="max-width:200px" id="verzio-select" onchange="loadVerzio(this)">
             <option value="">Verzió betöltése…</option>
             <?php foreach ($verziok as $v): ?>
               <option value="<?= $v['id'] ?>" <?= ($v['verzio_szam'] == $aktiv_verzio) ? 'selected' : '' ?>>
@@ -284,6 +294,11 @@ require __DIR__.'/_header.php'; ?>
               </option>
             <?php endforeach; ?>
           </select>
+        </form>
+        <form method="post" class="d-inline" id="del-verzio-form" onsubmit="return delVerzioConfirm()">
+          <input type="hidden" name="action" value="delete_verzio">
+          <input type="hidden" name="verzio_id" id="del-verzio-id" value="">
+          <button type="submit" class="btn btn-outline-danger btn-sm py-0 px-1" title="Kiválasztott verzió törlése">🗑</button>
         </form>
       </div>
       <?php else: ?>
@@ -591,6 +606,16 @@ function loadVerzio(sel) {
   }
   document.getElementById('load-verzio-id').value = vid;
   document.getElementById('load-verzio-form').submit();
+}
+
+function delVerzioConfirm() {
+  const sel = document.getElementById('verzio-select');
+  const vid = sel.value;
+  if (!vid) { alert('Előbb válassz ki egy verziót a legördülőből.'); return false; }
+  const label = sel.options[sel.selectedIndex].text;
+  if (!confirm('Törlöd a következő verziót?\n\n' + label + '\n\nEz a művelet nem vonható vissza.')) return false;
+  document.getElementById('del-verzio-id').value = vid;
+  return true;
 }
 
 // ── Bulk toolbar ─────────────────────────────────────────
