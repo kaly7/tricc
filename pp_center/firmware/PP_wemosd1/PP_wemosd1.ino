@@ -1877,16 +1877,37 @@ void setup() {
   delay(500);
   state.bootMs = millis();
 
-  // ── GPIO pin teszt: LED_RING_PIN 2 masodpercig HIGH ──
-  // Merd meg multimeterrel: GPIO4-en ~3.3V van-e?
-  // Ha nincs, a fizikai pin nem GPIO4 (rosszul van bedugva).
-  pinMode(LED_RING_PIN, OUTPUT);
-  digitalWrite(LED_RING_PIN, HIGH);
-  Serial.printf("[LED PIN TESZT] GPIO%d -> HIGH (merd meg multimeterrel, 2 mp)\n", LED_RING_PIN);
-  delay(2000);
-  digitalWrite(LED_RING_PIN, LOW);
-  Serial.printf("[LED PIN TESZT] GPIO%d -> LOW\n", LED_RING_PIN);
-  delay(200);
+  // ── GPIO PIN KERESO TESZT ──────────────────────────────
+  // Minden pin 2 masodpercig HIGH – merd multimeterrel melyiken jelenik meg 3.3V
+  // Amelyiken 3.3V-ot mersz, az a helyes fizikai pin -> azt irod LED_RING_PIN-be
+  {
+    const int testPins[] = {2, 4, 5, 13, 14, 16, 17, 25, 26, 27, 32, 33};
+    const int pinCount   = sizeof(testPins) / sizeof(testPins[0]);
+    Serial.println("==============================");
+    Serial.println(" GPIO PIN KERESO TESZT");
+    Serial.println(" Tedd a multimeter + probajat az IN labra,");
+    Serial.println(" - labra GND-re. Merd melyiken jelenik meg 3.3V!");
+    Serial.println("==============================");
+    for (int i = 0; i < pinCount; i++) {
+      int pin = testPins[i];
+      pinMode(pin, OUTPUT);
+      digitalWrite(pin, LOW);
+    }
+    for (int i = 0; i < pinCount; i++) {
+      int pin = testPins[i];
+      Serial.printf(" >>> GPIO%d HIGH - merd most! (2 mp) <<<\n", pin);
+      digitalWrite(pin, HIGH);
+      delay(2000);
+      digitalWrite(pin, LOW);
+      delay(300);
+    }
+    Serial.println("==============================");
+    Serial.println(" PIN KERESO VEGE");
+    Serial.println(" Amelyiken 3.3V-ot mertél, azt add meg LED_RING_PIN-nek!");
+    Serial.println("==============================");
+    // Visszaallitas
+    for (int i = 0; i < pinCount; i++) pinMode(testPins[i], INPUT);
+  }
 
   // WS2812B: adj időt a tap stabilizalodara, majd reset pulse
   delay(100);
