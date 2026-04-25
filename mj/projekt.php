@@ -1,5 +1,5 @@
 <?php
-require_once __DIR__.'/db.php';
+require_once __DIR__.'/bootstrap.php';
 $db = db();
 
 $projekt_id = intval($_GET['id'] ?? 0);
