@@ -221,10 +221,17 @@ $aktiv_verzio = isset($_GET['v']) ? intval($_GET['v']) : ($max_verzio ?: 0);
 if (isset($_GET['saved']))  $msg = '<div class="alert alert-success">Mentve — '.$aktiv_verzio.'. verzió létrehozva.</div>';
 if (isset($_GET['loaded'])) $msg = '<div class="alert alert-info">'.intval($_GET['loaded']).'. verzió betöltve.</div>';
 
-// Csoportok + színek
+// Csoportok + színek (36 pastel szín)
 $csoportok = [];
 foreach ($tetelek as $t) $csoportok[$t['csoport_id']] = true;
-$palette = ['#fff9e6','#e8f4ff','#f0fff0','#fff0f5','#f5f0ff','#f0f9ff','#fffaf0','#f0fff8'];
+$palette = [
+  '#FFB3B3','#FFCDB3','#FFE5B3','#FFFAB3','#E5FFB3','#CBFFB3',
+  '#B3FFB3','#B3FFCB','#B3FFE5','#B3FFFA','#B3EEFF','#B3D4FF',
+  '#B3BEFF','#C8B3FF','#DEB3FF','#F3B3FF','#FFB3F3','#FFB3DE',
+  '#FFB3C8','#FFD0A0','#FFEBA0','#F0FFA0','#D0FFA0','#A0FFD0',
+  '#A0EBFF','#A0D0FF','#B8A0FF','#EBA0FF','#FFA0EB','#FFA0B8',
+  '#FFD9D9','#FFE8CC','#FFFACC','#E8FFCC','#CCE8FF','#E8CCFF',
+];
 $csoport_szin = [];
 $ci = 0;
 foreach (array_keys($csoportok) as $cid) { $csoport_szin[$cid] = $palette[$ci++ % count($palette)]; }
@@ -379,8 +386,7 @@ require __DIR__.'/_header.php'; ?>
           <tr class="<?= $hatar ? 'csoport-hatar' : '' ?>"
               data-id="<?= $t['id'] ?>"
               data-anyag="<?= $anyag_o ?>"
-              data-munka="<?= $munka_o ?>"
-              style="background:<?= $bg ?>">
+              data-munka="<?= $munka_o ?>">
             <td class="text-center">
               <input type="checkbox" class="form-check-input row-check" value="<?= $t['id'] ?>">
             </td>
@@ -388,8 +394,8 @@ require __DIR__.'/_header.php'; ?>
               <input type="number" class="inline-num" style="width:48px"
                 data-field="sorrend" data-id="<?= $t['id'] ?>" value="<?= $t['sorrend'] ?>">
             </td>
-            <td class="text-center">
-              <input type="number" class="inline-num" style="width:40px;text-align:center"
+            <td class="text-center" style="background:<?= $bg ?>;padding:2px 4px">
+              <input type="number" class="inline-num" style="width:40px;text-align:center;background:transparent"
                 data-field="csoport_id" data-id="<?= $t['id'] ?>" value="<?= $t['csoport_id'] ?>" min="1">
             </td>
             <td>
