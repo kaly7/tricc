@@ -1877,6 +1877,17 @@ void setup() {
   delay(500);
   state.bootMs = millis();
 
+  // ── GPIO pin teszt: LED_RING_PIN 2 masodpercig HIGH ──
+  // Merd meg multimeterrel: GPIO4-en ~3.3V van-e?
+  // Ha nincs, a fizikai pin nem GPIO4 (rosszul van bedugva).
+  pinMode(LED_RING_PIN, OUTPUT);
+  digitalWrite(LED_RING_PIN, HIGH);
+  Serial.printf("[LED PIN TESZT] GPIO%d -> HIGH (merd meg multimeterrel, 2 mp)\n", LED_RING_PIN);
+  delay(2000);
+  digitalWrite(LED_RING_PIN, LOW);
+  Serial.printf("[LED PIN TESZT] GPIO%d -> LOW\n", LED_RING_PIN);
+  delay(200);
+
   // WS2812B: adj időt a tap stabilizalodara, majd reset pulse
   delay(100);
   ring.begin();
@@ -1886,11 +1897,9 @@ void setup() {
   delay(10);
 
   // ── LED sor teszt: minden LED feher 600ms-ra ──────────
-  // Ha valamelyik LED nem vilagit, az HARDVERES problema:
-  //   Megoldas: 300-500 ohm ellenallas a DATA vonalba (ESP GPIO4 -> LED DIN)
-  //   Ok: ESP32 csak 3.3V-ot ad, WS2812B 3.5V-ot var (0.7 * 5V)
   for (uint16_t i = 0; i < LED_RING_COUNT; i++) ring.setPixelColor(i, ring.Color(30, 30, 30));
   ring.show();
+  Serial.println("[LED TESZT] 8 LED feher - ha semmi sem vilagit, ellenorizd a 3.3V/GND/DIN bekoteset");
   delay(600);
   ring.clear();
   ring.show();
