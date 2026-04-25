@@ -37,7 +37,7 @@ $_mj_page = basename((string)($_SERVER['PHP_SELF'] ?? ''));
         <span class="navbar-text small py-0">
           Bejelentkezve: <strong><?= h($mj_user['full_name'] ?? 'Felhasználó') ?></strong>
         </span>
-        <a class="btn btn-sm btn-outline-info py-0" href="/help.php" title="Kézikönyv" target="_blank">?</a>
+        <a class="btn btn-sm btn-outline-info py-0" href="/docs/mj_ajanlat_kezikonyv.html" title="Kézikönyv" target="_blank">?</a>
         <a class="btn btn-sm btn-outline-secondary py-0" href="<?= h(build_url((int)$config['auth_port'], '/apps.php')) ?>">Rendszerek</a>
         <a class="btn btn-sm btn-outline-secondary py-0" href="<?= h(build_url((int)$config['auth_port'], '/logout.php')) ?>">Kilépés</a>
       </div>

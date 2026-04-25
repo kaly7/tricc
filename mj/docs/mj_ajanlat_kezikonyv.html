@@ -1,0 +1,490 @@
+<!doctype html>
+<html lang="hu">
+<head>
+  <meta charset="utf-8">
+  <title>MJ-Ajánlat-PKS – Felhasználói kézikönyv</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+
+    body {
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 10.5pt;
+      color: #212529;
+      background: #fff;
+      margin: 0;
+      padding: 0;
+      line-height: 1.5;
+    }
+
+    .container {
+      max-width: 820px;
+      margin: 0 auto;
+      padding: 14mm 12mm;
+    }
+
+    .cover {
+      text-align: center;
+      padding: 30px 0 24px;
+      border-bottom: 2px solid #212529;
+      margin-bottom: 28px;
+    }
+    .cover h1 { font-size: 22pt; margin: 0 0 6px; }
+    .cover .sub { font-size: 11pt; color: #6c757d; }
+    .cover .version { font-size: 9pt; color: #adb5bd; margin-top: 8px; }
+
+    .toc { margin-bottom: 28px; }
+    .toc h2 { font-size: 13pt; border-bottom: 1px solid #dee2e6; padding-bottom: 4px; margin-bottom: 10px; }
+    .toc ol { padding-left: 18px; margin: 0; }
+    .toc li { margin: 3px 0; font-size: 10pt; }
+    .toc a { color: #0d6efd; text-decoration: none; }
+    .toc a:hover { text-decoration: underline; }
+
+    h2.ch {
+      font-size: 14pt;
+      margin: 28px 0 10px;
+      padding: 6px 10px;
+      background: #f8f9fa;
+      border-left: 4px solid #0d6efd;
+      border-radius: 0 4px 4px 0;
+      page-break-after: avoid;
+    }
+    h3 { font-size: 11.5pt; margin: 18px 0 7px; color: #343a40; page-break-after: avoid; }
+    h4 { font-size: 10.5pt; margin: 14px 0 5px; color: #495057; page-break-after: avoid; }
+
+    p { margin: 0 0 8px; }
+    ul, ol { margin: 0 0 8px; padding-left: 20px; }
+    li { margin-bottom: 3px; }
+
+    .box {
+      border: 1px solid #dee2e6;
+      border-radius: 5px;
+      padding: 10px 14px;
+      margin: 10px 0;
+    }
+    .box.info   { border-color: #0dcaf0; background: #f0fdff; }
+    .box.warn   { border-color: #ffc107; background: #fffdf0; }
+    .box.tip    { border-color: #198754; background: #f0fff4; }
+    .box.danger { border-color: #dc3545; background: #fff5f5; }
+    .box-title  { font-weight: bold; font-size: 9.5pt; text-transform: uppercase; letter-spacing: .04em; margin-bottom: 4px; }
+    .box.info   .box-title { color: #087990; }
+    .box.warn   .box-title { color: #856404; }
+    .box.tip    .box-title { color: #146c43; }
+    .box.danger .box-title { color: #b02a37; }
+
+    table { width: 100%; border-collapse: collapse; margin: 10px 0; font-size: 9.5pt; }
+    th { background: #f8f9fa; padding: 5px 8px; text-align: left; border: 1px solid #dee2e6; font-weight: bold; }
+    td { padding: 4px 8px; border: 1px solid #e9ecef; vertical-align: top; }
+    tr:nth-child(even) td { background: #fafafa; }
+
+    .badge {
+      display: inline-block;
+      padding: 1px 7px;
+      border-radius: 12px;
+      font-size: 8.5pt;
+      font-weight: bold;
+      white-space: nowrap;
+    }
+    .badge-admin  { background: #dc3545; color: #fff; }
+    .badge-user   { background: #6c757d; color: #fff; }
+    .badge-ok     { background: #198754; color: #fff; }
+    .badge-warn   { background: #ffc107; color: #212529; }
+    .badge-info   { background: #0dcaf0; color: #212529; }
+
+    .steps { counter-reset: step; padding: 0; list-style: none; }
+    .steps li {
+      counter-increment: step;
+      padding: 5px 5px 5px 32px;
+      position: relative;
+      margin-bottom: 4px;
+    }
+    .steps li::before {
+      content: counter(step);
+      position: absolute; left: 0; top: 5px;
+      width: 22px; height: 22px;
+      background: #0d6efd; color: #fff;
+      border-radius: 50%;
+      font-size: 8.5pt; font-weight: bold;
+      display: flex; align-items: center; justify-content: center;
+    }
+
+    hr { border: none; border-top: 1px solid #dee2e6; margin: 20px 0; }
+
+    .screen-only { text-align: center; margin-bottom: 20px; }
+    .print-btn {
+      padding: 8px 22px; font-size: 10.5pt;
+      background: #0d6efd; color: #fff;
+      border: none; border-radius: 5px; cursor: pointer;
+    }
+
+    @page {
+      size: A4 portrait;
+      margin: 14mm 12mm 20mm 12mm;
+    }
+    @media print {
+      .screen-only { display: none !important; }
+      a::after { content: "" !important; }
+      body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      h2.ch, h3, h4 { page-break-after: avoid; }
+      .box, table { page-break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+
+  <div class="screen-only">
+    <button class="print-btn" onclick="window.print()">Nyomtatás / PDF mentés</button>
+  </div>
+
+  <div class="cover">
+    <h1>MJ-Ajánlat-PKS</h1>
+    <div class="sub">Felhasználói kézikönyv</div>
+    <div class="version">Perfect-Phone 2026 &nbsp;|&nbsp; Belső használatra</div>
+  </div>
+
+  <div class="toc">
+    <h2>Tartalomjegyzék</h2>
+    <ol>
+      <li><a href="#bevezeto">Bevezető – mire való az MJ-Ajánlat?</a></li>
+      <li><a href="#munkafolyamat">Munkafolyamat áttekintése</a></li>
+      <li><a href="#egysegarak">Szerződött egységárak kezelése</a>
+        <ol>
+          <li><a href="#egysegarak_felvetel">Egységár felvétele</a></li>
+          <li><a href="#egysegarak_import">Egységárak importálása XLSX-ből</a></li>
+        </ol>
+      </li>
+      <li><a href="#projektek">Projektek kezelése</a>
+        <ol>
+          <li><a href="#projekt_letrehozas">Új projekt létrehozása</a></li>
+          <li><a href="#projekt_tetelek">Tételek kezelése</a></li>
+          <li><a href="#tetel_import">Tételek importálása</a></li>
+          <li><a href="#csoportositas">Csoportosítás és egységár-hozzárendelés</a></li>
+          <li><a href="#inline_szerkesztes">Inline szerkesztés és verziókezelés</a></li>
+          <li><a href="#katalogusba">Katalógusba mentés</a></li>
+        </ol>
+      </li>
+      <li><a href="#katalogus">Anyagár katalógus</a></li>
+      <li><a href="#generalt">Generált Munka3 nézet</a></li>
+      <li><a href="#export">Export (CSV, XLSX, PDF)</a></li>
+      <li><a href="#fogalmak">Fogalmak és számítások</a></li>
+    </ol>
+  </div>
+
+  <hr>
+
+  <!-- 1. Bevezető -->
+  <h2 class="ch" id="bevezeto">1. Bevezető – mire való az MJ-Ajánlat?</h2>
+
+  <p>Az <strong>MJ-Ajánlat-PKS</strong> modul gyengeáramú kivitelezési munkák <strong>Munka3-stílusú árajánlatának</strong> elkészítésére szolgál. A rendszer automatikusan kiszámítja a törtnapidíj-sorokat, és az ajánlatot CSV, XLSX vagy PDF formátumban exportálja.</p>
+
+  <p>A modul fő funkciói:</p>
+  <ul>
+    <li>Szerződött egységárak (napidíjak) nyilvántartása és XLSX-ből való importja</li>
+    <li>Projektek létrehozása Munka1 referencia összeggel</li>
+    <li>Tételek (anyag + munkadíj) felvitele manuálisan, katalógusból vagy XLSX/CSV importtal</li>
+    <li>Tételek csoportosítása és egységár-hozzárendelés</li>
+    <li>Automatikus törtnapidíj-számítás csoportonként</li>
+    <li>Verziókezelés – minden mentett állapot visszatölthető</li>
+    <li>Anyagár katalógus – újrafelhasználható anyagárlista</li>
+    <li>Export: CSV, XLSX (pénznem formátummal), PDF (A4 fekvő)</li>
+  </ul>
+
+  <div class="box info">
+    <div class="box-title">Munka2 vs. Munka3</div>
+    A <strong>Munka2</strong> stílusban minden tételnél külön szerepel az anyagár és a munkadíj. A <strong>Munka3</strong> stílusban a munkadíjak el vannak távolítva a sorokból, és csoportonként egy összesített <em>törtnapidíj sor</em> kompenzálja őket a szerződött napidíj alapján.
+  </div>
+
+
+  <!-- 2. Munkafolyamat -->
+  <h2 class="ch" id="munkafolyamat">2. Munkafolyamat áttekintése</h2>
+
+  <ol class="steps">
+    <li><strong>Egységárak rögzítése</strong> – Add meg a szerződött napidíjakat (pl. Technikus/nap, Mérnök/nap) az Egységárak oldalon, vagy importáld őket XLSX-ből.</li>
+    <li><strong>Projekt létrehozása</strong> – Hozz létre új projektet névvel és opcionálisan Munka1 referencia összeggel.</li>
+    <li><strong>Tételek felvitele</strong> – Add hozzá az anyagtételeket manuálisan, a katalógusból választva, vagy importáld XLSX/CSV fájlból.</li>
+    <li><strong>Csoportosítás</strong> – Jelöld ki az összetartozó tételeket és vond össze egy csoportba. Rendelj egységárat a csoporthoz.</li>
+    <li><strong>Generálás</strong> – Kattints a „Munka3 generálás" gombra. A rendszer kiszámolja a törtnapidíj-sorokat és megjeleníti a kész ajánlattáblázatot.</li>
+    <li><strong>Export</strong> – Mentsd el az ajánlatot CSV, XLSX vagy PDF formátumban.</li>
+  </ol>
+
+
+  <!-- 3. Egységárak -->
+  <h2 class="ch" id="egysegarak">3. Szerződött egységárak kezelése</h2>
+
+  <p>Az egységárak azok a szerződött napidíjak (pl. „Technikus/nap", „Mérnök/nap"), amelyek alapján a törtnapidíj-sorok kiszámolódnak.</p>
+
+  <h3 id="egysegarak_felvetel">3.1 Egységár felvétele</h3>
+
+  <ol class="steps">
+    <li>Nyisd meg az <strong>Egységárak</strong> menüpontot.</li>
+    <li>Töltsd ki az űrlapot: Megnevezés, Egység (pl. klt, nap), Egységdíj (Ft), opcionálisan Megjegyzés és Sorszám.</li>
+    <li>Kattints a <strong>„Hozzáadás"</strong> gombra.</li>
+  </ol>
+
+  <table>
+    <thead><tr><th>Mező</th><th>Leírás</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Megnevezés *</strong></td><td>Az egységár neve (pl. „Technikus/nap")</td></tr>
+      <tr><td>Egység</td><td>Az egység jelölése (pl. klt, nap, óra)</td></tr>
+      <tr><td><strong>Egységdíj (Ft) *</strong></td><td>A szerződött napidíj forintban</td></tr>
+      <tr><td>Sorszám</td><td>Listázási sorrend szabályozásához</td></tr>
+      <tr><td>Megjegyzés</td><td>Opcionális megjegyzés</td></tr>
+    </tbody>
+  </table>
+
+  <h3 id="egysegarak_import">3.2 Egységárak importálása XLSX-ből</h3>
+
+  <p>Az Egységárak oldalon XLSX fájlból is importálhatók az adatok. Az import során meg kell adni, hogy a fájl melyik oszlopa tartalmazza a megnevezést, az egységet és a díjat.</p>
+
+  <div class="box tip">
+    <div class="box-title">Tipp</div>
+    A szerződéses árajánlat mellékletéből (pl. 3. melléklet) közvetlenül importálhatók az egységárak – nem kell kézzel begépelni.
+  </div>
+
+
+  <!-- 4. Projektek -->
+  <h2 class="ch" id="projektek">4. Projektek kezelése</h2>
+
+  <h3 id="projekt_letrehozas">4.1 Új projekt létrehozása</h3>
+
+  <ol class="steps">
+    <li>A Projektek oldalon kattints az <strong>„+ Új projekt"</strong> gombra.</li>
+    <li>Add meg a projekt nevét (kötelező) és leírását (opcionális).</li>
+    <li>Opcionálisan add meg a <strong>Munka1 referencia összeget</strong> – a rendszer ezt használja az eltérés kimutatásához a generált nézetben.</li>
+    <li>Kattints a <strong>„Mentés"</strong> gombra.</li>
+  </ol>
+
+  <h3 id="projekt_tetelek">4.2 Tételek kezelése</h3>
+
+  <p>A projekt megnyitása után az <strong>„+ Új tétel"</strong> gombbal adhatók hozzá tételek. Minden tétel egy anyag sort jelent a Munka2-stílusú táblázatban.</p>
+
+  <table>
+    <thead><tr><th>Mező</th><th>Leírás</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Megnevezés *</strong></td><td>Az anyag/termék neve</td></tr>
+      <tr><td>Gyártó</td><td>A gyártó neve</td></tr>
+      <tr><td>Típus</td><td>Típusszám vagy változat</td></tr>
+      <tr><td>Rendelési szám</td><td>Gyártói rendelési szám</td></tr>
+      <tr><td>Mennyiség</td><td>Szükséges mennyiség (tört szám is megadható)</td></tr>
+      <tr><td>Egység</td><td>Mértékegység (pl. db, m, m², klt)</td></tr>
+      <tr><td><strong>Anyagár / egység (Ft)</strong></td><td>Az anyag egységára</td></tr>
+      <tr><td>Munkadíj / egység (Ft)</td><td>Valódi belső munkadíj (Munka2-stílusú érték)</td></tr>
+      <tr><td>Szerződött tétel</td><td>Melyik egységárból (napidíjból) kompenzálódik a munkadíj</td></tr>
+      <tr><td>Csoport</td><td>Melyik csoporthoz tartozik a tétel</td></tr>
+    </tbody>
+  </table>
+
+  <div class="box info">
+    <div class="box-title">Katalógusból választás</div>
+    Az „Új tétel" formon a Megnevezés mezőbe gépelve automatikus kiegészítés jelenik meg a katalógus alapján. A <strong>„📋 Katalógusból"</strong> gombbal a teljes katalógus böngészhető és kereshető modálban.
+  </div>
+
+  <h3 id="tetel_import">4.3 Tételek importálása</h3>
+
+  <p>Az <strong>„Importálás"</strong> gombbal XLSX vagy CSV fájlból tölthetők be tételek a projektbe.</p>
+
+  <ol class="steps">
+    <li>Kattints az <strong>„Importálás"</strong> gombra a projekt oldalán.</li>
+    <li>Válaszd ki a feltöltendő XLSX vagy CSV fájlt.</li>
+    <li>Az <strong>oszlopleképező</strong> lépésben add meg, hogy a fájl melyik oszlopa melyik mezőnek felel meg.</li>
+    <li>Kattints az <strong>„Importálás"</strong> gombra a véglegesítéshez.</li>
+  </ol>
+
+  <div class="box tip">
+    <div class="box-title">Alapértelmezett oszlopok</div>
+    A rendszer a Munka1 XLSX struktúrájához igazított alapértelmezett oszlopokat tölt be előre – a legtöbb esetben csak ellenőrizni kell a leképezést.
+  </div>
+
+  <table>
+    <thead><tr><th>Formátum</th><th>Megjegyzés</th></tr></thead>
+    <tbody>
+      <tr><td>XLSX</td><td>Az első munkalapot olvassa be. Fejléc sor kihagyható.</td></tr>
+      <tr><td>CSV</td><td>Pontosvessző (<code>;</code>) vagy vessző (<code>,</code>) elválasztó automatikusan felismert. BOM kezelt.</td></tr>
+    </tbody>
+  </table>
+
+  <h3 id="csoportositas">4.4 Csoportosítás és egységár-hozzárendelés</h3>
+
+  <p>A tételek csoportokba rendezhetők. Egy csoporthoz egy egységár rendelhető – ez határozza meg a törtnapidíj-sor számításának alapját.</p>
+
+  <h4>Összevonás (merge)</h4>
+  <ol class="steps">
+    <li>Jelöld ki a jelölőnégyzetekkel az összetartozó tételeket.</li>
+    <li>Az alsó eszköztárban kattints az <strong>„Összevon"</strong> gombra – a kijelölt tételek a legkisebb csoport-azonosítóba kerülnek.</li>
+    <li>Ha egy meglévő csoportba szeretnéd vonni őket, használd az <strong>„Ebbe:"</strong> mezőt és a <strong>„Összevon ide"</strong> gombot.</li>
+  </ol>
+
+  <h4>Szétválasztás (split)</h4>
+  <ol class="steps">
+    <li>Jelöld ki a szétválasztandó tételeket.</li>
+    <li>Kattints a <strong>„Szétválaszt"</strong> gombra – minden kijelölt tétel külön, új csoportazonosítót kap.</li>
+  </ol>
+
+  <h4>Egységár hozzárendelése csoporthoz</h4>
+  <ol class="steps">
+    <li>Jelöld ki a csoport összes tételét.</li>
+    <li>Az eszköztárban válaszd ki a kívánt egységárat a legördülőből.</li>
+    <li>Kattints az <strong>„Egységár hozzárendel"</strong> gombra.</li>
+  </ol>
+
+  <div class="box info">
+    <div class="box-title">Csoportszín-kódolás</div>
+    A táblázatban a különböző csoportok különböző háttérszínnel jelennek meg (8 szín rotál). A csoporthatárokat vastag kék vonal jelzi.
+  </div>
+
+  <h3 id="inline_szerkesztes">4.5 Inline szerkesztés és verziókezelés</h3>
+
+  <p>A projekt táblázatában a számok közvetlenül szerkeszthetők – kattints bármelyik mennyiség, anyagár vagy munkadíj mezőre. A módosított cellák sárga háttérszínnel jelzik a nem mentett változást.</p>
+
+  <p>Ha van mentetlen módosítás, a <strong>sötét mentési sáv</strong> automatikusan megjelenik az oldal tetején. A mentés gomb lenyomásakor a rendszer pillanatképet (verziót) ment el.</p>
+
+  <table>
+    <thead><tr><th>Funkció</th><th>Leírás</th></tr></thead>
+    <tbody>
+      <tr><td>Verzióválasztó (fejlécben)</td><td>A korábban mentett verziók listája. Visszatöltéskor az aktuális állapot automatikusan elmentődik.</td></tr>
+      <tr><td>Verzió megjegyzés</td><td>A mentési sávban opcionálisan megadható szöveges megjegyzés az adott verzióhoz</td></tr>
+    </tbody>
+  </table>
+
+  <div class="box warn">
+    <div class="box-title">Figyelem</div>
+    A verzió visszatöltése az aktuális tételeket <strong>felülírja</strong> a pillanatkép tartalmával. Az aktuális állapot visszatöltés előtt automatikusan mentődik.
+  </div>
+
+  <h3 id="katalogusba">4.6 Katalógusba mentés</h3>
+
+  <p>A projekt tételei elmenthetők az anyagár katalógusba a <strong>„Katalógusba ment"</strong> gombbal. Ha egy megnevezés már szerepel a katalógusban, az árak frissülnek (upsert). Ez az újrafelhasználhatóságot szolgálja.</p>
+
+
+  <!-- 5. Katalógus -->
+  <h2 class="ch" id="katalogus">5. Anyagár katalógus</h2>
+
+  <p>A <strong>Katalógus</strong> menüpontban karbantartható az anyagárak újrafelhasználható adatbázisa.</p>
+
+  <table>
+    <thead><tr><th>Funkció</th><th>Leírás</th></tr></thead>
+    <tbody>
+      <tr><td>Keresés</td><td>Szabad szöveges keresés a megnevezés alapján (GET ?q= paraméter)</td></tr>
+      <tr><td>Szerkesztés</td><td>Megnevezés, gyártó, típus, rendelési szám, egység, anyagár, munkadíj módosítható</td></tr>
+      <tr><td>Törlés</td><td>Egyedi katalógusbejegyzés törlése</td></tr>
+    </tbody>
+  </table>
+
+  <div class="box tip">
+    <div class="box-title">Katalógus feltöltése</div>
+    A katalógust legegyszerűbben a projekt „Katalógusba ment" gombjával tölthető fel. Így az elvégzett munkákból összeálló anyagárlista automatikusan bővül.
+  </div>
+
+
+  <!-- 6. Generált nézet -->
+  <h2 class="ch" id="generalt">6. Generált Munka3 nézet</h2>
+
+  <p>A projekt oldalán a <strong>„Munka3 generálás"</strong> gombra kattintva megjelenik a kész ajánlat táblázatos nézete.</p>
+
+  <h4>Táblázat oszlopai</h4>
+  <table>
+    <thead><tr><th>Oszlop</th><th>Anyag sor</th><th>Napidíj sor</th></tr></thead>
+    <tbody>
+      <tr><td>#</td><td>Sorszám</td><td>Sorszám</td></tr>
+      <tr><td>Megnevezés</td><td>Anyag neve</td><td>Egységár neve (kék, dőlt)</td></tr>
+      <tr><td>Gyártó / Típus</td><td>Adatok</td><td>—</td></tr>
+      <tr><td>Menny.</td><td>Mennyiség</td><td><strong>Törtszám</strong> (kék, félkövér)</td></tr>
+      <tr><td>Egység</td><td>Mértékegység</td><td>Egységár egysége</td></tr>
+      <tr><td>Anyagár/e</td><td>Anyagár egységár</td><td>—</td></tr>
+      <tr><td>Díj/egys.</td><td>0 Ft</td><td>Szerződött napidíj</td></tr>
+      <tr><td>Anyag Σ</td><td>Anyagár × mennyiség</td><td>0 Ft</td></tr>
+      <tr><td>Díj Σ</td><td>0 Ft</td><td>Csoport összes munkadíja</td></tr>
+    </tbody>
+  </table>
+
+  <h4>Összesítő sorok</h4>
+  <table>
+    <thead><tr><th>Sor</th><th>Anyag Σ oszlop</th><th>Díj Σ oszlop</th></tr></thead>
+    <tbody>
+      <tr><td>Összesen nettó:</td><td>Összes anyagár összege</td><td>Összes napidíj összege</td></tr>
+      <tr><td>Nettó végösszeg:</td><td colspan="2">Anyag Σ + Díj Σ együtt</td></tr>
+      <tr><td>27% ÁFA:</td><td colspan="2">Nettó végösszeg × 0,27</td></tr>
+      <tr><td>Bruttó végösszeg:</td><td colspan="2">Nettó + ÁFA</td></tr>
+    </tbody>
+  </table>
+
+  <div class="box info">
+    <div class="box-title">Munka1 összehasonlítás</div>
+    Ha a projektnél meg van adva a Munka1 referencia összeg, a generált nézet tetején megjelenik az eltérés forintban és százalékban (zöld = magasabb, piros = alacsonyabb).
+  </div>
+
+
+  <!-- 7. Export -->
+  <h2 class="ch" id="export">7. Export (CSV, XLSX, PDF)</h2>
+
+  <p>A generált nézet fejlécéből az ajánlat három formátumban exportálható:</p>
+
+  <table>
+    <thead><tr><th>Formátum</th><th>Jellemzők</th></tr></thead>
+    <tbody>
+      <tr><td><span class="badge badge-ok">CSV</span></td><td>UTF-8 BOM, pontosvessző elválasztó, „Ft" szöveges jelöléssel minden ároszlopban. Excel-kompatibilis.</td></tr>
+      <tr><td><span class="badge badge-info">XLSX</span></td><td>Valódi pénznem formátum (<code># ##0 Ft</code>), napidíj sorok kék háttérrel, bruttó sor sötétkék háttérrel, fehér szöveggel. Landscape elrendezés.</td></tr>
+      <tr><td><span class="badge badge-admin">PDF</span></td><td>A4 fekvő (landscape), mPDF generált. Nyomtatásra és elektronikus aláírásra alkalmas.</td></tr>
+    </tbody>
+  </table>
+
+  <h4>Fájlnév-séma</h4>
+  <p>Az exportált fájlok neve automatikusan generált: <code>projektnev_YYYY-MM-DD_vN.ext</code></p>
+  <p>Példa: <code>pks_irodaepulet_2026-04-25_v3.xlsx</code></p>
+
+
+  <!-- 8. Fogalmak -->
+  <h2 class="ch" id="fogalmak">8. Fogalmak és számítások</h2>
+
+  <table>
+    <thead><tr><th>Fogalom</th><th>Magyarázat</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><strong>Törtnapidíj</strong></td>
+        <td>
+          A csoport tételeinek összes munkadíja osztva a szerződött napidíjjal:<br>
+          <code>tort = Σ(mennyiség × munkadíj/egység) / egységdíj</code><br>
+          Pl. ha a csoport munkadíja 42 500 Ft és a napidíj 100 000 Ft, a törtnapidíj = 0,4250 klt.
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Csoport</strong></td>
+        <td>Összetartozó tételek halmaza, amelyhez egy egységárat rendelünk. Egy projekten belül több, különböző egységárú csoport is lehet.</td>
+      </tr>
+      <tr>
+        <td><strong>Egységár (napidíj)</strong></td>
+        <td>Szerződésben rögzített napi munkadíj típus, pl. „Technikus/nap = 85 000 Ft/klt". Ezekből lehet a törtnapidíj sorokat számolni.</td>
+      </tr>
+      <tr>
+        <td><strong>Anyagár katalógus</strong></td>
+        <td>Újrafelhasználható anyagárlista. Tételek felvételénél autocomplete forrásaként és katalógus modálban böngészhető.</td>
+      </tr>
+      <tr>
+        <td><strong>Verzió / Pillanatkép</strong></td>
+        <td>Minden mentéskor a rendszer JSON formátumban tárolja az összes tétel aktuális állapotát. A verzióválasztóval bármely korábbi állapot visszatölthető.</td>
+      </tr>
+      <tr>
+        <td><strong>Munka1 referencia</strong></td>
+        <td>A projekt szintjén megadható korábbi (pl. szerződéses) összeg, amelyhez képest az ajánlat eltérése kimutatható.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="box tip">
+    <div class="box-title">Inline szerkesztés gyorsbillentyűk</div>
+    <ul style="margin:0">
+      <li>Megnevezés mezőnél: <strong>↑ ↓</strong> a katalógus találatok közt, <strong>Enter</strong> a kiválasztáshoz</li>
+      <li>Sárga cellakiemelés = nem mentett módosítás</li>
+      <li>A mentési sáv automatikusan megjelenik, ha van módosítás</li>
+    </ul>
+  </div>
+
+  <hr>
+
+  <p style="color:#6c757d; font-size:9pt; text-align:center;">
+    Perfect-Phone 2026 – MJ-Ajánlat-PKS &nbsp;|&nbsp; Belső használatra &nbsp;|&nbsp; Kézikönyv készült: 2026-04-25
+  </p>
+
+</div>
+</body>
+</html>
