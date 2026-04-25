@@ -1877,7 +1877,25 @@ void setup() {
   delay(500);
   state.bootMs = millis();
 
+  // WS2812B: adj időt a tap stabilizalodara, majd reset pulse
+  delay(100);
   ring.begin();
+  ring.setBrightness(20);
+  ring.clear();
+  ring.show();
+  delay(10);
+
+  // ── LED sor teszt: minden LED feher 600ms-ra ──────────
+  // Ha valamelyik LED nem vilagit, az HARDVERES problema:
+  //   Megoldas: 300-500 ohm ellenallas a DATA vonalba (ESP GPIO4 -> LED DIN)
+  //   Ok: ESP32 csak 3.3V-ot ad, WS2812B 3.5V-ot var (0.7 * 5V)
+  for (uint16_t i = 0; i < LED_RING_COUNT; i++) ring.setPixelColor(i, ring.Color(30, 30, 30));
+  ring.show();
+  delay(600);
+  ring.clear();
+  ring.show();
+  delay(100);
+
   analogSetPinAttenuation(USB_SENSE_PIN, ADC_11db);
   pinMode(USB_SENSE_PIN, INPUT);
   pinMode(UPS_CHARGE_PIN, INPUT_PULLUP);
@@ -1951,6 +1969,17 @@ void setup() {
   mqttClient.setCallback(mqttCallback);
   mqttClient.setBufferSize(4096);
   mqttClient.setKeepAlive(60);  // 60s keepalive (SIM800 poll blokkolás ellen)
+
+  // Rescue arm torlese: a SIM800 init blokkol, emiatt a 10 masodperces
+  // ablak lejart mielott a loop() elindult volna. Ha idaig eljutottunk,
+  // a boot normal volt – torolni kell az NVS flagot.
+  if (state.rescueArmPendingClear) {
+    bootPrefs.begin("bootctl", false);
+    bootPrefs.putBool("rescue_arm", false);
+    bootPrefs.end();
+    state.rescueArmPendingClear = false;
+    logLine("Rescue arm torolve (normal boot befejezodott)");
+  }
 
   refreshWiFiFlags();
   updateLedRing();
