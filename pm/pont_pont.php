@@ -5,10 +5,6 @@ $password_db = "abrakadabra";
 $dbname = "Robot";
 
 session_start();
-if (!isset($_SESSION["loggedin"]) || $_SESSION["loggedin"] !== true) {
-    header("location: login.php");
-    exit;
-}
 
 $conn = new mysqli($servername, $username_db, $password_db, $dbname);
 if ($conn->connect_error) { die("Connection failed: " . $conn->connect_error); }
@@ -21,6 +17,9 @@ $goals = [];
 $result = $conn->query("SELECT Index_, Goal_name, Megjegyzes FROM Goals WHERE Active='Y' ORDER BY Megjegyzes");
 while ($row = $result->fetch_assoc()) { $goals[] = $row; }
 $conn->close();
+
+// Szerver aktuális ideje + 1 óra, datetime-local formátumban
+$default_idopont = date('Y-m-d\TH:i');
 ?>
 <!DOCTYPE html>
 <html>
@@ -51,14 +50,14 @@ select, input[type=datetime-local] {
 <body>
 <div class="bg-image"></div>
 <div class="bg-text">
-Felhasználó: <?php echo htmlspecialchars($_SESSION["username"]); ?>
+Felhasználó: <?php echo isset($_SESSION["username"]) ? htmlspecialchars($_SESSION["username"]) : htmlspecialchars($_SERVER['REMOTE_ADDR']); ?>
 <center><br>
 <a href="index.php" class="button_x">Főmenü</a><br><br><hr>
 <h2 style="color:#fff;">Pont-pont útvonal</h2>
 
 <?php if (!$kozbenso_ok): ?>
 <div class="figyelmeztes">Figyelem: a közbenső célpont nincs beállítva! Az útvonal nem indítható.<br>
-<?php if ($_SESSION["admin"] == "on"): ?>
+<?php if (isset($_SESSION["admin"]) && $_SESSION["admin"] == "on"): ?>
 <a href="admin_kozbenso_goal.php" style="color:#ffdd88;">Beállítás itt</a>
 <?php endif; ?>
 </div>
@@ -122,9 +121,7 @@ function toggleIdopont(show) {
     sor.style.display = show ? 'table-row' : 'none';
     inp.required = show;
     if (show && !inp.value) {
-        var d = new Date(Date.now() + 3600000);
-        d.setSeconds(0, 0);
-        inp.value = d.toISOString().slice(0, 16);
+        inp.value = '<?php echo $default_idopont; ?>';
     }
 }
 </script>

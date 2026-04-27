@@ -24,15 +24,15 @@ if (isset($_GET["delete"])) {
 
 // Mentés (új vagy szerkesztés)
 if (isset($_POST["mentes"])) {
-    $id     = (int)$_POST["id"];
-    $ip     = $conn->real_escape_string(trim($_POST["ip"]));
-    $nev    = $conn->real_escape_string(trim($_POST["nev"]));
+    $id  = (int)$_POST["id"];
+    $ip  = $conn->real_escape_string(trim($_POST["ip"]));
+    $nev = $conn->real_escape_string(trim($_POST["nev"]));
     $cel    = (int)$_POST["cel_goal_index"];
     $vissza = (int)$_POST["vissza_goal_index"];
 
     if ($id === 0) {
         $conn->query("INSERT INTO munkaallomas(ip, nev, cel_goal_index, vissza_goal_index, allapot)
-                      VALUES('$ip', '$nev', $cel, $vissza, 'vissza')");
+                      VALUES('$ip', '$nev', $cel, $vissza, 'szabad')");
         $uzenet = "Új munkaállomás hozzáadva.";
     } else {
         $conn->query("UPDATE munkaallomas SET ip='$ip', nev='$nev', cel_goal_index=$cel, vissza_goal_index=$vissza WHERE id=$id");
@@ -47,7 +47,7 @@ $res = $conn->query(
             gv.Megjegyzes as vissza_megjegyzes, gv.Goal_name as vissza_goal_name
      FROM munkaallomas m
      JOIN Goals gc ON m.cel_goal_index = gc.Index_
-     JOIN Goals gv ON m.vissza_goal_index = gv.Index_
+     LEFT JOIN Goals gv ON m.vissza_goal_index = gv.Index_
      ORDER BY m.nev"
 );
 if ($res) { while ($row = $res->fetch_assoc()) { $allomas_list[] = $row; } }
@@ -112,8 +112,8 @@ Felhasználó: <?php echo htmlspecialchars($_SESSION["username"]); ?>
   <td><?php echo htmlspecialchars($a['nev']); ?></td>
   <td><?php echo htmlspecialchars($a['ip']); ?></td>
   <td><?php echo htmlspecialchars($a['cel_megjegyzes'] ?: $a['cel_goal_name']); ?></td>
-  <td><?php echo htmlspecialchars($a['vissza_megjegyzes'] ?: $a['vissza_goal_name']); ?></td>
-  <td><?php echo $a['allapot'] === 'ide' ? 'Robot itt van' : 'Robot visszament'; ?></td>
+  <td><?php echo htmlspecialchars($a['vissza_megjegyzes'] ?: ($a['vissza_goal_name'] ?? '—')); ?></td>
+  <td><?php echo $a['allapot'] === 'uton' ? 'Robot úton' : 'Szabad'; ?></td>
   <td style="white-space:nowrap;">
     <a href="admin_munkaallomas.php?edit=<?php echo (int)$a['id']; ?>" class="button_mentes" style="font-size:12px;padding:4px 10px;display:block;margin-bottom:4px;">Szerkesztés</a>
     <a href="admin_munkaallomas.php?delete=<?php echo (int)$a['id']; ?>" class="button_delete" style="display:block;" onclick="return confirm('Biztosan törlöd ezt a munkaállomást?')">Törlés</a>

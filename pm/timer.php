@@ -1,4 +1,6 @@
 <?php
+date_default_timezone_set('Europe/Budapest');
+
 $dsn = 'mysql:host=localhost;dbname=Robot';
 $username = 'robot';
 $password = 'abrakadabra';
@@ -171,9 +173,16 @@ $results_pp = $stmt_pp->fetchAll(PDO::FETCH_ASSOC);
 
 foreach ($results_pp as $re) {
     $datum2   = date('Y_m_d_H_i_s');
+    $job_id   = $datum2 . "_PP";
     $filename = '/var/www/html/pm/tmp/timer_pp_' . $re['id'] . '_' . $datum2 . '.fleet';
-    $string   = "queuemulti 3 2 " . $re['indulo_name'] . " pickup 10 " . $re['kozbenso_name'] . " pickup 10 " . $re['cel_name'] . " pickup 10 " . $datum2 . "_PP";
+    $string   = "queuemulti 3 2 {$re['indulo_name']} pickup 10 {$re['kozbenso_name']} pickup 10 {$re['cel_name']} pickup 10 $job_id";
     file_put_contents($filename, $string);
+
+    // Button_Goals bejegyzések – ugyanúgy mint az azonnali esetben
+    $ins = $pdo->prepare("INSERT INTO Button_Goals(Goal_name, Megjegyzes, akcio) VALUES(:gn, :jid, 'aktiv')");
+    foreach ([$re['indulo_name'], $re['kozbenso_name'], $re['cel_name']] as $gn) {
+        $ins->execute([':gn' => $gn, ':jid' => $job_id]);
+    }
 
     $upd = $pdo->prepare("UPDATE egyedi_utemezesek SET active = 0 WHERE id = :id");
     $upd->execute([':id' => $re['id']]);
