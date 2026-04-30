@@ -13,6 +13,56 @@ use App\Services\DeviceService;
 use PhpMqtt\Client\ConnectionSettings;
 use PhpMqtt\Client\MqttClient;
 
+/**
+ * Kiértékeli a health-check feltételeket egy nyers firmware payload alapján.
+ * Visszaad egy bool tömböt: hcKey => true ha hiba van.
+ */
+function evaluateHcConditions(array $raw, float $battLowPct): array
+{
+    $power  = is_array($raw['power']  ?? null) ? $raw['power']  : [];
+    $wifi   = is_array($raw['wifi']   ?? null) ? $raw['wifi']   : [];
+    $signal = is_array($raw['signal'] ?? null) ? $raw['signal'] : [];
+    $gsm    = is_array($raw['gsm']    ?? null) ? $raw['gsm']    : [];
+
+    // WiFi: explicit wifi_ok mező, fallback wifi.connected, fallback transport
+    $wifiOk = $raw['wifi_ok'] ?? $wifi['connected'] ?? null;
+    if ($wifiOk === null) {
+        $transport = $raw['telemetry_transport'] ?? $signal['transport'] ?? null;
+        if ($transport !== null) {
+            $wifiOk = ($transport === 'wifi');
+        }
+    }
+
+    // Power mode
+    $powerMode = $raw['power_mode'] ?? $power['mode'] ?? null;
+    if ($powerMode === null) {
+        $usbPresent = $power['usb'] ?? $power['usb_present'] ?? null;
+        if ($usbPresent !== null) {
+            $powerMode = $usbPresent ? 'usb' : 'battery';
+        }
+    }
+
+    // Battery %
+    $battPct = $raw['battery_pct'] ?? $power['battery_pct'] ?? null;
+
+    // GSM
+    $gsmModemOk = $gsm['modem_ok'] ?? $raw['gsm_modem_ok'] ?? null;
+    $gsmOperator = trim((string) ($gsm['operator'] ?? $raw['gsm_operator'] ?? $signal['gsm_operator'] ?? ''));
+
+    // Szenzor
+    $sensorOk = $raw['sensor_ok'] ?? null;
+
+    return [
+        'no_wifi'         => ($wifiOk !== null) ? !(bool) $wifiOk : false,
+        'no_gsm_modem'    => ($gsmModemOk !== null) ? !(bool) $gsmModemOk : false,
+        'no_gsm_operator' => ($gsmModemOk === true && $gsmOperator === ''),
+        'no_usb_power'    => ($powerMode === 'battery'),
+        'no_sensor'       => ($sensorOk !== null) ? !(bool) $sensorOk : false,
+        'mqtt_offline'    => false,  // ha telemetria érkezik, MQTT él
+        'battery_low'     => ($battPct !== null) ? ((float) $battPct <= $battLowPct) : false,
+    ];
+}
+
 $telemetryService = new TelemetryService();
 $alertService = new AlertService();
 $commandService = new CommandService();
@@ -92,6 +142,102 @@ while (true) {
                                 ]
                             );
                         }
+
+                        // ── Health-check figyelő ────────────────────────────────────────
+                        $configRow  = $deviceService->currentConfig($deviceId);
+                        $configJson = is_string($configRow['config_json'] ?? null)
+                            ? (json_decode($configRow['config_json'], true) ?? [])
+                            : [];
+                        $hcConfig   = is_array($configJson['health_checks'] ?? null) ? $configJson['health_checks'] : [];
+
+                        if (!empty($hcConfig)) {
+                            $battLowPct = (float) ($configJson['thresholds']['battery_low_pct'] ?? 20.0);
+                            $prevRaw    = is_string($previousState['raw_json'] ?? null)
+                                ? (json_decode($previousState['raw_json'], true) ?? [])
+                                : [];
+                            $prevConds  = evaluateHcConditions($prevRaw, $battLowPct);
+                            $newConds   = evaluateHcConditions($payload, $battLowPct);
+
+                            $hcLabels = [
+                                'no_wifi'         => 'Nincs WiFi kapcsolat',
+                                'no_gsm_modem'    => 'Nincs GSM modem',
+                                'no_gsm_operator' => 'Nincs GSM szolgáltató',
+                                'no_usb_power'    => 'Nincs USB táp (akkuról megy)',
+                                'no_sensor'       => 'Szenzor nem elérhető',
+                                'mqtt_offline'    => 'MQTT elérhetetlen',
+                                'battery_low'     => 'Alacsony akkumulátor szint',
+                            ];
+
+                            foreach ($hcConfig as $hcKey => $hc) {
+                                if (!($hc['alarm'] ?? false)) {
+                                    continue;
+                                }
+                                $nowBad = $newConds[$hcKey] ?? false;
+                                $wasBad = $prevConds[$hcKey] ?? false;
+                                if ($nowBad === $wasBad) {
+                                    continue;
+                                }
+                                $hcLabel = $hcLabels[$hcKey] ?? $hcKey;
+
+                                if ($nowBad) {
+                                    // Átmenet: OK → HIBA — csak ha nincs már nyitott alert
+                                    if ($alertService->isActiveHcAlert($deviceId, $hcKey)) {
+                                        continue;
+                                    }
+                                    $alertService->store($deviceId, [
+                                        'device_id'  => $deviceId,
+                                        'event_type' => 'hc_' . $hcKey,
+                                        'severity'   => 'warning',
+                                        'message'    => 'Health check hiba: ' . $hcLabel,
+                                        'ts'         => $payload['ts'] ?? null,
+                                    ]);
+                                    Logger::write('worker', 'HC hiba detektálva', ['device' => $deviceId, 'key' => $hcKey]);
+
+                                    // SMS/hívás: az ESP maga küldi firmware szinten (GSM-en,
+                                    // WiFi/MQTT nélkül is működik). A szerver csak Mattermost-ot küld.
+                                    if ($hc['mattermost'] ?? false) {
+                                        $mattermost->notify(
+                                            '⚠️ Hibaállapot: ' . $deviceName,
+                                            $hcLabel,
+                                            'warning',
+                                            [
+                                                'Eszköz'        => $deviceId,
+                                                'Feltétel'      => $hcKey,
+                                                'Idő (szerver)' => date('Y-m-d H:i:s'),
+                                            ]
+                                        );
+                                    }
+                                } else {
+                                    // Átmenet: HIBA → OK (helyreállt)
+                                    if (!$alertService->isActiveHcAlert($deviceId, $hcKey)) {
+                                        continue;
+                                    }
+                                    $alertService->store($deviceId, [
+                                        'device_id'  => $deviceId,
+                                        'event_type' => 'hc_' . $hcKey . '_cleared',
+                                        'severity'   => 'info',
+                                        'message'    => 'Helyreállt: ' . $hcLabel,
+                                        'ts'         => $payload['ts'] ?? null,
+                                    ]);
+                                    Logger::write('worker', 'HC helyreállt', ['device' => $deviceId, 'key' => $hcKey]);
+
+                                    if ($hc['mattermost'] ?? false) {
+                                        $mattermost->notify(
+                                            '✅ Helyreállt: ' . $deviceName,
+                                            $hcLabel,
+                                            'good',
+                                            [
+                                                'Eszköz'        => $deviceId,
+                                                'Feltétel'      => $hcKey,
+                                                'Idő (szerver)' => date('Y-m-d H:i:s'),
+                                            ]
+                                        );
+                                    }
+                                }
+                            }
+                        }
+                        // ── Health-check figyelő vége ───────────────────────────────────
+
                         return;
                     }
 
@@ -124,6 +270,43 @@ while (true) {
 
                     if (str_ends_with($topic, '/alert')) {
                         $normalizedAlert = $alertService->store($deviceId, $payload);
+                        $eventType = strtolower(trim((string) ($normalizedAlert['event_type'] ?? '')));
+
+                        // Eszköz újrainduláskor ragadt riasztásokat automatikusan lezárjuk
+                        if ($eventType === 'device_boot') {
+                            $alertService->autoClearAlarmsOnBoot($deviceId);
+                        }
+
+                        // Tápváltás eseményekhez dedikált, informatív Mattermost üzenet
+                        if ($eventType === 'power_loss') {
+                            $mattermost->notify(
+                                '⚠️ Tápellátás kiesett: ' . $deviceName,
+                                'Az eszköz USB tápról akkumulátorra váltott.',
+                                'warning',
+                                [
+                                    'Eszköz'          => $deviceId,
+                                    'Idő (szerver)'   => (string) ($normalizedAlert['server_received_at'] ?? date('Y-m-d H:i:s')),
+                                    'Üzenet'          => (string) ($normalizedAlert['message'] ?? '—'),
+                                    'GSM szolgáltató' => $payloadGsmOperator !== '' ? $payloadGsmOperator : '—',
+                                ]
+                            );
+                            return;
+                        }
+                        if ($eventType === 'power_restored') {
+                            $mattermost->notify(
+                                '✅ Tápellátás visszaállt: ' . $deviceName,
+                                'Az eszköz ismét USB tápról működik.',
+                                'good',
+                                [
+                                    'Eszköz'          => $deviceId,
+                                    'Idő (szerver)'   => (string) ($normalizedAlert['server_received_at'] ?? date('Y-m-d H:i:s')),
+                                    'Üzenet'          => (string) ($normalizedAlert['message'] ?? '—'),
+                                    'GSM szolgáltató' => $payloadGsmOperator !== '' ? $payloadGsmOperator : '—',
+                                ]
+                            );
+                            return;
+                        }
+
                         $severity = $normalizedAlert['severity'] ?? 'info';
                         $mattermost->notify(
                             'Eszköz riasztás: ' . ($normalizedAlert['device_id'] ?? $deviceId),

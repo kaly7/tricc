@@ -178,6 +178,16 @@ include __DIR__ . '/../templates/header.php';
     <section class="panel chart-panel">
         <div class="section-head mb-2">
             <div>
+                <h2>Légnyomás</h2>
+                <div class="muted small">BME280 barometrikus nyomás hPa-ban.</div>
+            </div>
+        </div>
+        <div id="chart-pressure" class="svg-chart" data-empty="Nincs légnyomás adat a kiválasztott időszakban."></div>
+    </section>
+
+    <section class="panel chart-panel">
+        <div class="section-head mb-2">
+            <div>
                 <h2>Wi‑Fi jelszint</h2>
                 <div class="muted small">dBm értékek időben.</div>
             </div>
@@ -641,9 +651,10 @@ const alertTimeline = <?= json_encode($timeline, JSON_UNESCAPED_UNICODE | JSON_U
             addSvgEl(g, 'text', { x: margin.left - 10, y: y + 4, 'text-anchor': 'end', class: 'chart-axis-label' }, value.toFixed(0) + ' ' + label);
         });
 
+        const lineClass = valueKey === 'gsm_rssi' ? 'chart-line-gsm' : (valueKey === 'pressure_hpa' ? 'chart-line-pressure' : 'chart-line-wifi');
         const path = toXYPath(points, valueKey, xFn, yFn);
         if (path) {
-            addSvgEl(g, 'path', { d: path, class: valueKey === 'gsm_rssi' ? 'chart-line chart-line-gsm' : 'chart-line chart-line-wifi' });
+            addSvgEl(g, 'path', { d: path, class: 'chart-line ' + lineClass });
         }
 
         el.innerHTML = '';
@@ -659,14 +670,16 @@ const alertTimeline = <?= json_encode($timeline, JSON_UNESCAPED_UNICODE | JSON_U
                 if (!point || point[valueKey] === null || point[valueKey] === undefined) {
                     return null;
                 }
-                const seriesName = valueKey === 'gsm_rssi' ? 'GSM jelszint' : 'Wi‑Fi jelszint';
+                const seriesName = valueKey === 'gsm_rssi' ? 'GSM jelszint' : (valueKey === 'pressure_hpa' ? 'Légnyomás' : 'Wi‑Fi jelszint');
+                const tipClass = valueKey === 'gsm_rssi' ? 'chart-tip-gsm' : (valueKey === 'pressure_hpa' ? 'chart-tip-pressure' : 'chart-tip-wifi');
+                const decimals = valueKey === 'pressure_hpa' ? 1 : 0;
                 return {
                     point,
                     x: xFn(point.epoch),
                     markers: [{ y: yFn(Number(point[valueKey])) }],
                     html: `
                         <div class="chart-tooltip-title">${fmtDate.format(new Date(point.epoch * 1000)).replace(',', '')}</div>
-                        <div><span class="chart-tip-swatch ${valueKey === 'gsm_rssi' ? 'chart-tip-gsm' : 'chart-tip-wifi'}"></span>${seriesName}: <strong>${Number(point[valueKey]).toFixed(0)} ${label}</strong></div>
+                        <div><span class="chart-tip-swatch ${tipClass}"></span>${seriesName}: <strong>${Number(point[valueKey]).toFixed(decimals)} ${label}</strong></div>
                     `,
                 };
             }
@@ -809,6 +822,7 @@ const alertTimeline = <?= json_encode($timeline, JSON_UNESCAPED_UNICODE | JSON_U
     }
 
     renderDualAxisChart(document.getElementById('chart-temp-humidity'), points);
+    renderSignalChart(document.getElementById('chart-pressure'), 'pressure_hpa', 'hPa');
     renderSignalChart(document.getElementById('chart-wifi'), 'wifi_rssi', 'dBm');
     renderSignalChart(document.getElementById('chart-gsm'), 'gsm_rssi', 'dBm');
     renderAlertTimeline(document.getElementById('chart-alert-timeline'), alertTimeline);

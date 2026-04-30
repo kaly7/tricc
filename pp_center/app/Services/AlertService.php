@@ -158,6 +158,75 @@ class AlertService
     }
 
 
+    /**
+     * Eszköz újrainduláskor (device_boot) lezárja a ragadt riasztásokat.
+     * Ha az eszköz elvesztette állapotát és nem küldött _cleared eventet, ez pótolja.
+     */
+    public function autoClearAlarmsOnBoot(string $deviceId): void
+    {
+        $sql = "
+            SELECT a.event_type
+            FROM alerts a
+            INNER JOIN (
+                SELECT device_id,
+                       CASE
+                           WHEN event_type IN ('temp_high', 'temp_high_cleared') THEN 'temp_high'
+                           WHEN event_type IN ('temp_low', 'temp_low_cleared') THEN 'temp_low'
+                           WHEN event_type IN ('contact_active', 'contact_cleared') THEN 'contact'
+                       END AS alert_family,
+                       MAX(id) AS max_id
+                FROM alerts
+                WHERE device_id = :device_id
+                  AND event_type IN ('temp_high', 'temp_high_cleared', 'temp_low', 'temp_low_cleared', 'contact_active', 'contact_cleared')
+                GROUP BY device_id, alert_family
+            ) latest_ids ON latest_ids.max_id = a.id
+            WHERE a.device_id = :device_id2
+              AND a.event_type IN ('temp_high', 'temp_low', 'contact_active')
+        ";
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute(['device_id' => $deviceId, 'device_id2' => $deviceId]);
+        $activeEvents = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        $clearMap = [
+            'temp_high'      => ['event_type' => 'temp_high_cleared', 'message' => 'Auto-lezaras: eszkoz ujrainditasa utan ragadt riasztas'],
+            'temp_low'       => ['event_type' => 'temp_low_cleared',  'message' => 'Auto-lezaras: eszkoz ujrainditasa utan ragadt riasztas'],
+            'contact_active' => ['event_type' => 'contact_cleared',   'message' => 'Auto-lezaras: eszkoz ujrainditasa utan ragadt riasztas'],
+        ];
+
+        foreach ($activeEvents as $row) {
+            $eventType = (string) $row['event_type'];
+            if (!isset($clearMap[$eventType])) {
+                continue;
+            }
+            $clear = $clearMap[$eventType];
+            $ins = $this->db->prepare("
+                INSERT INTO alerts (device_id, ts, event_type, severity, message, actions_taken_json, raw_json)
+                VALUES (:device_id, NOW(), :event_type, 'info', :message, NULL, NULL)
+            ");
+            $ins->execute([
+                'device_id'  => $deviceId,
+                'event_type' => $clear['event_type'],
+                'message'    => $clear['message'],
+            ]);
+        }
+    }
+
+    /**
+     * Megvizsgálja, hogy az adott health-check feltétel jelenleg aktív hibában van-e.
+     * Akkor aktív, ha a legutolsó hc_<key> vagy hc_<key>_cleared alert típusa hc_<key>.
+     */
+    public function isActiveHcAlert(string $deviceId, string $hcKey): bool
+    {
+        $fault   = 'hc_' . $hcKey;
+        $cleared = 'hc_' . $hcKey . '_cleared';
+        $stmt = $this->db->prepare(
+            "SELECT event_type FROM alerts WHERE device_id = :device_id AND event_type IN (:fault, :cleared) ORDER BY id DESC LIMIT 1"
+        );
+        $stmt->execute(['device_id' => $deviceId, 'fault' => $fault, 'cleared' => $cleared]);
+        $row = $stmt->fetch();
+        return $row !== false && $row['event_type'] === $fault;
+    }
+
     public function timelineData(string $deviceId, \DateTimeImmutable $from, \DateTimeImmutable $to): array
     {
         if ($to <= $from) {

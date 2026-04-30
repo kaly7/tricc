@@ -109,6 +109,16 @@ function device_online_badge(bool $online): string
     return '<span class="badge-status status-offline">Offline</span>';
 }
 
+function power_mode_label(?string $mode): string
+{
+    return match (strtolower(trim((string) $mode))) {
+        'usb_charging', 'charging' => 'USB/töltés',
+        'usb'                      => 'USB',
+        'battery'                  => 'Akku',
+        default                    => $mode ?: '—',
+    };
+}
+
 function command_status_badge(string $status): string
 {
     $status = strtolower(trim($status));

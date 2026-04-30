@@ -23,7 +23,7 @@ class DeviceService
     {
         $offset = max(0, ($page - 1) * $perPage);
         $sql = "
-            SELECT d.*, s.last_seen_at, s.online, s.power_mode, s.battery_pct, s.temperature, s.humidity, s.air_quality, s.rssi,
+            SELECT d.*, s.last_seen_at, s.online, s.power_mode, s.battery_pct, s.temperature, s.humidity, s.pressure_hpa, s.air_quality, s.rssi,
                    s.raw_json, s.reported_config_version,
                    c.config_version AS desired_config_version,
                    CASE WHEN c.config_version IS NOT NULL AND s.reported_config_version IS NOT NULL AND c.config_version <> s.reported_config_version THEN 1 ELSE 0 END AS config_mismatch,
@@ -31,6 +31,7 @@ class DeviceService
                    COALESCE(aa.active_alert_count, 0) AS active_alert_count,
                    COALESCE(aa.active_temp_alert_count, 0) AS active_temp_alert_count,
                    COALESCE(aa.active_contact_alert_count, 0) AS active_contact_alert_count,
+                   COALESCE(hca.active_hc_count, 0) AS active_hc_count,
                    a.latest_alert_ts,
                    a.latest_alert_severity
             FROM devices d
@@ -97,6 +98,25 @@ class DeviceService
                 ) latest
                 GROUP BY latest.device_id
             ) aa ON aa.device_id = d.device_id
+            LEFT JOIN (
+                SELECT a.device_id, COUNT(*) AS active_hc_count
+                FROM alerts a
+                INNER JOIN (
+                    SELECT device_id,
+                           CASE WHEN event_type LIKE '%_cleared'
+                                THEN REPLACE(event_type, '_cleared', '')
+                                ELSE event_type END AS hc_family,
+                           MAX(id) AS max_id
+                    FROM alerts
+                    WHERE event_type LIKE 'hc_%'
+                    GROUP BY device_id,
+                             CASE WHEN event_type LIKE '%_cleared'
+                                  THEN REPLACE(event_type, '_cleared', '')
+                                  ELSE event_type END
+                ) latest_hc ON latest_hc.max_id = a.id
+                WHERE a.event_type LIKE 'hc_%' AND a.event_type NOT LIKE '%_cleared'
+                GROUP BY a.device_id
+            ) hca ON hca.device_id = d.device_id
             ORDER BY d.name ASC
             LIMIT {$perPage} OFFSET {$offset}
         ";
@@ -188,19 +208,25 @@ class DeviceService
         $deviceId = trim((string) ($data['device_id'] ?? ''));
         $exists = $this->find($deviceId);
 
+        $deviceType = (string) ($data['device_type'] ?? 'master');
+        if (!in_array($deviceType, ['master', 'slave'], true)) {
+            $deviceType = 'master';
+        }
+
         if ($exists) {
-            $stmt = $this->db->prepare("UPDATE devices SET name=:name, location=:location, sim_phone=:sim_phone, fw_version=:fw_version, active=:active, updated_at=NOW() WHERE device_id=:device_id");
+            $stmt = $this->db->prepare("UPDATE devices SET name=:name, location=:location, sim_phone=:sim_phone, fw_version=:fw_version, active=:active, device_type=:device_type, updated_at=NOW() WHERE device_id=:device_id");
         } else {
-            $stmt = $this->db->prepare("INSERT INTO devices (device_id, name, location, sim_phone, fw_version, active, created_at, updated_at) VALUES (:device_id, :name, :location, :sim_phone, :fw_version, :active, NOW(), NOW())");
+            $stmt = $this->db->prepare("INSERT INTO devices (device_id, name, location, sim_phone, fw_version, active, device_type, created_at, updated_at) VALUES (:device_id, :name, :location, :sim_phone, :fw_version, :active, :device_type, NOW(), NOW())");
         }
 
         $stmt->execute([
-            'device_id' => $deviceId,
-            'name' => trim((string) ($data['name'] ?? '')),
-            'location' => trim((string) ($data['location'] ?? '')),
-            'sim_phone' => trim((string) ($data['sim_phone'] ?? '')),
-            'fw_version' => trim((string) ($data['fw_version'] ?? '')),
-            'active' => isset($data['active']) ? 1 : 0,
+            'device_id'   => $deviceId,
+            'name'        => trim((string) ($data['name'] ?? '')),
+            'location'    => trim((string) ($data['location'] ?? '')),
+            'sim_phone'   => trim((string) ($data['sim_phone'] ?? '')),
+            'fw_version'  => trim((string) ($data['fw_version'] ?? '')),
+            'active'      => isset($data['active']) ? 1 : 0,
+            'device_type' => $deviceType,
         ]);
 
         return $deviceId;

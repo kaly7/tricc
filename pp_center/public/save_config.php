@@ -98,6 +98,30 @@ function build_payload_from_form(array $post): array
         $payload['routes'][$event] = csv_list_to_array((string) ($route['actions'] ?? ''));
     }
 
+    // Health checks – per-check: alarm bool + mattermost bool + sms_target + call_target
+    $knownHcKeys = ['no_wifi', 'no_gsm_modem', 'no_gsm_operator', 'no_usb_power', 'no_sensor', 'mqtt_offline', 'battery_low'];
+    $hcPost = (array) ($post['health_checks'] ?? []);
+    $payload['health_checks'] = [];
+    foreach ($knownHcKeys as $hcKey) {
+        $row = is_array($hcPost[$hcKey] ?? null) ? $hcPost[$hcKey] : [];
+        $payload['health_checks'][$hcKey] = [
+            'alarm'       => isset($row['alarm']) && ((string) $row['alarm']) === '1',
+            'mattermost'  => isset($row['mattermost']) && ((string) $row['mattermost']) === '1',
+            'sms_target'  => trim((string) ($row['sms_target'] ?? '')),
+            'call_target' => trim((string) ($row['call_target'] ?? '')),
+        ];
+    }
+
+    // ESP-NOW relay
+    $espnowPost  = is_array($post['espnow'] ?? null) ? $post['espnow'] : [];
+    $slavesTxt   = trim((string) ($espnowPost['slaves_txt'] ?? ''));
+    $slavesLines = preg_split('/[\r\n,]+/', $slavesTxt) ?: [];
+    $slaves      = array_values(array_filter(array_map('trim', $slavesLines), static fn ($v) => $v !== ''));
+    $payload['espnow'] = [
+        'enabled' => isset($espnowPost['enabled']) && ((string) $espnowPost['enabled']) === '1',
+        'slaves'  => $slaves,
+    ];
+
     return $payload;
 }
 

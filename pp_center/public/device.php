@@ -386,7 +386,9 @@ if (!is_array($stateRaw)) {
 $telemetryTransport = raw_pick($stateRaw, ['telemetry_transport', 'meta.telemetry_transport', 'signal.transport']);
 $wifiOk = raw_pick($stateRaw, ['wifi_ok', 'signal.wifi_ok']);
 $wifiRssi = raw_pick($stateRaw, ['wifi_rssi', 'signal.wifi_rssi', 'signal.rssi'], $state['rssi'] ?? null);
-$wifiIp = raw_pick($stateRaw, ['wifi_ip', 'details.wifi_ip', 'details.ip']);
+$wifiIp      = raw_pick($stateRaw, ['wifi_ip', 'details.wifi_ip', 'details.ip']);
+$wifiMac     = raw_pick($stateRaw, ['wifi_mac']);
+$wifiChannel = raw_pick($stateRaw, ['wifi_channel']);
 $gsmOk = raw_pick($stateRaw, ['gsm_ok', 'signal.gsm_ok']);
 $gsmRssi = raw_pick($stateRaw, ['gsm_rssi', 'signal.gsm_rssi']);
 $gsmOperator = raw_pick($stateRaw, ['gsm_operator', 'signal.gsm_operator', 'meta.gsm_operator', 'details.gsm_operator']);
@@ -409,13 +411,68 @@ if (!is_array($configData)) {
 $thresholds = (array) ($configData['thresholds'] ?? []);
 $contacts = (array) ($configData['contacts'] ?? []);
 $rules = array_values((array) ($configData['rules'] ?? []));
-$contactGroups = (array) ($configData['contact_groups'] ?? []);
+$contactGroups = (array) ($configData['contact_group'] ?? ($configData['contact_groups'] ?? []));
 $routes = (array) ($configData['routes'] ?? []);
+
+// ── ESP-NOW relay slave státusz ─────────────────────────────────────────────
+$relaySlaves = [];
+if ($deviceId && ($device['device_type'] ?? 'master') === 'master') {
+    $db = \App\Core\Database::connection();
+    $slaveStmt = $db->prepare("
+        SELECT dls.device_id, dls.last_seen_at,
+               TIMESTAMPDIFF(SECOND, dls.last_seen_at, NOW()) AS secs_ago,
+               COALESCE(d.name, dls.device_id) AS display_name
+        FROM device_last_state dls
+        LEFT JOIN devices d ON d.device_id = dls.device_id
+        WHERE JSON_UNQUOTE(JSON_EXTRACT(dls.raw_json, '$.relay_source')) = :master_id
+        ORDER BY dls.last_seen_at DESC
+    ");
+    $slaveStmt->execute([':master_id' => $deviceId]);
+    $relaySlaves = $slaveStmt->fetchAll();
+}
+
+// ── ESP-NOW relay konfig ────────────────────────────────────────────────────
+$espnowStored   = is_array($configData['espnow'] ?? null) ? $configData['espnow'] : [];
+$espnowEnabled  = (bool) ($espnowStored['enabled'] ?? false);
+$espnowSlaves   = is_array($espnowStored['slaves'] ?? null) ? $espnowStored['slaves'] : [];
+$espnowSlaveTxt = implode("\n", array_map('strval', $espnowSlaves));  // textarea: soronként egy ID
+
+// ── Hibaállapot-figyelő (health checks) ────────────────────────────────────
+$healthCheckDefs = [
+    'no_wifi'         => 'Nincs WiFi kapcsolat',
+    'no_gsm_modem'    => 'Nincs GSM modem (nem válaszol)',
+    'no_gsm_operator' => 'Nincs GSM hálózati regisztráció',
+    'no_usb_power'    => 'Nincs USB tápfeszültség (akkuról megy)',
+    'no_sensor'       => 'Szenzor nem elérhető (BME280 / I2C hiba)',
+    'mqtt_offline'    => 'MQTT offline / eszköz nem érhető el',
+    'battery_low'     => 'Alacsony akkumulátor szint (küszöb alatt)',
+];
+// Alapértelmezett alarm flags (true = hibának számít)
+$hcAlarmDefaults = [
+    'no_wifi' => true, 'no_gsm_modem' => false, 'no_gsm_operator' => false,
+    'no_usb_power' => false, 'no_sensor' => true, 'mqtt_offline' => true, 'battery_low' => true,
+];
+$hcStored = (array) ($configData['health_checks'] ?? []);
+// $healthChecks[key] = ['alarm'=>bool, 'mattermost'=>bool, 'sms_target'=>string, 'call_target'=>string]
+$healthChecks = [];
+foreach ($healthCheckDefs as $key => $label) {
+    $stored = is_array($hcStored[$key] ?? null) ? $hcStored[$key] : [];
+    // Visszafelé-kompatibilitás: régi bool érték
+    $oldBool = is_bool($hcStored[$key] ?? null) ? $hcStored[$key] : null;
+    $healthChecks[$key] = [
+        'alarm'       => $oldBool ?? (bool) ($stored['alarm'] ?? $hcAlarmDefaults[$key]),
+        'mattermost'  => (bool) ($stored['mattermost'] ?? false),
+        'sms_target'  => trim((string) ($stored['sms_target'] ?? '')),
+        'call_target' => trim((string) ($stored['call_target'] ?? '')),
+    ];
+}
 
 $builtinEventLabels = [
     'device_boot' => 'Eszköz elindult',
     'device_offline' => 'MQTT / eszköz offline',
     'device_online' => 'MQTT / eszköz online',
+    'power_loss' => 'Tápellátás kiesett (akkura váltott)',
+    'power_restored' => 'Tápellátás visszaállt (USB tápra váltott)',
     'temp_high' => 'Magas hőmérséklet',
     'temp_high_cleared' => 'Magas hőmérséklet megszűnt',
     'temp_low' => 'Alacsony hőmérséklet',
@@ -440,6 +497,36 @@ foreach ($rules as $rule) {
     $ruleIdLabels[$ruleId] = 'Egyedi szabály: ' . $ruleId;
 }
 $contactGroupNames = array_values(array_filter(array_map('strval', array_keys($contactGroups))));
+
+// Aktív riasztás típusonként (temp_high vs temp_low vs contact)
+$activeAlarmFamilies = [];
+if ($deviceId) {
+    try {
+        $db = \App\Core\Database::connection();
+        $astmt = $db->prepare("
+            SELECT a.event_type
+            FROM alerts a
+            INNER JOIN (
+                SELECT CASE
+                           WHEN event_type IN ('temp_high','temp_high_cleared') THEN 'temp_high'
+                           WHEN event_type IN ('temp_low','temp_low_cleared') THEN 'temp_low'
+                           WHEN event_type IN ('contact_active','contact_cleared') THEN 'contact'
+                       END AS alert_family,
+                       MAX(id) AS max_id
+                FROM alerts
+                WHERE device_id = :did
+                  AND event_type IN ('temp_high','temp_high_cleared','temp_low','temp_low_cleared','contact_active','contact_cleared')
+                GROUP BY alert_family
+            ) li ON li.max_id = a.id
+            WHERE a.event_type IN ('temp_high','temp_low','contact_active')
+        ");
+        $astmt->execute(['did' => $deviceId]);
+        foreach ($astmt->fetchAll(\PDO::FETCH_ASSOC) as $row) {
+            $activeAlarmFamilies[] = (string) $row['event_type'];
+        }
+    } catch (\Throwable) {}
+}
+
 $pageTitle = $device ? $device['name'] : 'Új eszköz';
 include __DIR__ . '/../templates/header.php';
 ?>
@@ -461,6 +548,88 @@ include __DIR__ . '/../templates/header.php';
     </div>
     <?php endif; ?>
 </div>
+
+<?php if ($device && $state): ?>
+<?php
+// ── LED állapotok kiszámítása ──────────────────────────────────────────────
+// LED 0 – WiFi
+$led0 = 'off';
+if ($wifiOk !== null)     { $led0 = $wifiOk ? 'green' : ($healthChecks['no_wifi']['alarm'] ? 'blink-red' : 'red'); }
+elseif ($state['online']) { $led0 = $telemetryTransport === 'wifi' ? 'green' : 'yellow'; }
+else                      { $led0 = $healthChecks['no_wifi']['alarm'] ? 'blink-red' : 'red'; }
+
+// LED 1 – MQTT
+$mqttConn = raw_pick($stateRaw, ['mqtt_connected']);
+if ($mqttConn !== null)       { $led1 = $mqttConn ? 'green' : ($healthChecks['mqtt_offline']['alarm'] ? 'blink-red' : 'red'); }
+elseif ($state['online'] && $telemetryTransport === 'wifi') { $led1 = 'green'; }
+else  { $led1 = $state['online'] ? 'yellow' : ($healthChecks['mqtt_offline']['alarm'] ? 'blink-red' : 'red'); }
+
+// LED 2 – GSM
+$gsmReg = raw_pick($stateRaw, ['gsm_registered', 'signal.gsm_registered']);
+$gsmEnabled = raw_pick($stateRaw, ['gsm_enabled', 'gsm_ok']) ?? $gsmOk;
+if (!$gsmEnabled && !$gsmReg) { $led2 = 'off'; }
+elseif ($gsmOk && $gsmReg)    { $led2 = 'green'; }
+elseif ($gsmOk)               { $led2 = $healthChecks['no_gsm_operator']['alarm'] ? 'blink-red' : 'yellow'; }
+else                          { $led2 = $healthChecks['no_gsm_modem']['alarm']    ? 'blink-red' : 'red'; }
+
+// LED 3 – BME280 szenzor
+$sensorOk = raw_pick($stateRaw, ['sensor_ok']);
+$led3 = $sensorOk === null ? 'off' : ($sensorOk ? 'green' : ($healthChecks['no_sensor']['alarm'] ? 'blink-red' : 'red'));
+
+// LED 4 – Kontakt bemenet
+$c1Mode = strtolower(trim((string) ($contacts['c1_mode'] ?? 'nc')));
+$contactAlarmActive = in_array('contact_active', $activeAlarmFamilies, true);
+if ($c1Mode === 'unused') { $led4 = 'off'; }
+elseif ($contactAlarmActive) { $led4 = 'blink-red'; }
+else { $led4 = 'green'; }
+
+// LED 5 – Hőmérséklet riasztás
+$tempHighActive = in_array('temp_high', $activeAlarmFamilies, true);
+$tempLowActive  = in_array('temp_low',  $activeAlarmFamilies, true);
+if ($tempHighActive)     { $led5 = 'blink-red'; }
+elseif ($tempLowActive)  { $led5 = 'blink-blue'; }
+else                     { $led5 = 'green'; }
+
+// LED 6 – USB táp / töltés
+$pm = strtolower(trim((string) ($state['power_mode'] ?? '')));
+$battPct = $state['battery_pct'] !== null ? (float) $state['battery_pct'] : null;
+if ($pm === 'usb_charging' || $pm === 'charging') { $led6 = 'teal'; }
+elseif ($pm === 'usb')                            { $led6 = 'green'; }
+elseif ($pm === 'battery')                        { $led6 = $healthChecks['no_usb_power']['alarm'] ? 'blink-red' : 'orange'; }
+else                                              { $led6 = 'off'; }
+
+// LED 7 – Akkumulátor töltöttség
+$battLowPct = (float) ($thresholds['battery_low_pct'] ?? 20);
+if ($battPct === null)                                              { $led7 = 'off'; }
+elseif ($healthChecks['battery_low']['alarm'] && $battPct <= $battLowPct)  { $led7 = 'blink-red'; }
+elseif ($battPct <= 15)     { $led7 = 'blink-red'; }
+elseif ($battPct <= 25)     { $led7 = 'red'; }
+elseif ($battPct <= 50)     { $led7 = 'yellow'; }
+elseif ($battPct <= 75)     { $led7 = 'blue'; }
+else                        { $led7 = 'green'; }
+
+$leds = [
+    ['color' => $led0, 'num' => '0', 'label' => 'WiFi',     'desc' => $wifiOk ? 'Csatlakozva' : ($state['online'] ? 'Aktív' : 'Offline')],
+    ['color' => $led1, 'num' => '1', 'label' => 'MQTT',     'desc' => ($mqttConn ? 'Csatlakozva' : ($state['online'] ? 'Aktív' : 'Offline'))],
+    ['color' => $led2, 'num' => '2', 'label' => 'GSM',      'desc' => ($gsmOk && $gsmReg ? 'Hálózaton' : ($gsmOk ? 'SIM OK' : ($led2 === 'off' ? 'Letiltva' : 'Hiba')))],
+    ['color' => $led3, 'num' => '3', 'label' => 'Szenzor',  'desc' => ($sensorOk === null ? 'Ismeretlen' : ($sensorOk ? 'OK' : 'I2C hiba'))],
+    ['color' => $led4, 'num' => '4', 'label' => 'Kontakt',  'desc' => ($c1Mode === 'unused' ? 'Nem figyelt' : ($contactAlarmActive ? 'Riasztás!' : 'Normál'))],
+    ['color' => $led5, 'num' => '5', 'label' => 'Hőmérs.',  'desc' => ($tempHighActive ? 'Magas!' : ($tempLowActive ? 'Alacsony!' : 'Normál'))],
+    ['color' => $led6, 'num' => '6', 'label' => 'Táp',      'desc' => power_mode_label($state['power_mode'] ?? null)],
+    ['color' => $led7, 'num' => '7', 'label' => 'Akku',     'desc' => ($battPct !== null ? round($battPct) . ' %' : 'Ismeretlen')],
+];
+?>
+<div class="device-led-strip" id="device-led-strip">
+    <?php foreach ($leds as $led): ?>
+    <div class="device-led" title="<?= e($led['label'] . ': ' . $led['desc']) ?>">
+        <div class="device-led__dot device-led__dot--<?= e($led['color']) ?>"></div>
+        <div class="device-led__num"><?= e($led['num']) ?></div>
+        <div class="device-led__label"><?= e($led['label']) ?></div>
+        <div class="device-led__desc"><?= e($led['desc']) ?></div>
+    </div>
+    <?php endforeach; ?>
+</div>
+<?php endif; ?>
 
 <div class="content-grid two-col">
     <section class="panel">
@@ -487,6 +656,13 @@ include __DIR__ . '/../templates/header.php';
                 <span>Firmware</span>
                 <input type="text" name="fw_version" value="<?= h($device['fw_version'] ?? '') ?>">
             </label>
+            <label>
+                <span>Eszköz típus</span>
+                <select name="device_type">
+                    <option value="master" <?= ($device['device_type'] ?? 'master') === 'master' ? 'selected' : '' ?>>Master (saját WiFi/MQTT)</option>
+                    <option value="slave"  <?= ($device['device_type'] ?? 'master') === 'slave'  ? 'selected' : '' ?>>Slave (ESP-NOW relay)</option>
+                </select>
+            </label>
             <label class="checkbox-row">
                 <input type="checkbox" name="active" <?= !isset($device['active']) || (int) $device['active'] === 1 ? 'checked' : '' ?>>
                 <span>Aktív eszköz</span>
@@ -497,26 +673,39 @@ include __DIR__ . '/../templates/header.php';
         </form>
     </section>
 
-    <section class="panel">
-        <div class="section-head"><h2>Utolsó ismert állapot</h2></div>
-        <div class="kv-grid">
-            <div><span>Online</span><strong><?= $state ? ((int) $state['online'] === 1 ? 'Igen' : 'Nem') : '—' ?></strong></div>
-            <div><span>Utolsó kapcsolat (szerver idő)</span><strong><?= h($state['last_seen_at'] ?? '—') ?></strong></div>
-            <div><span>Kívánt konfiguráció</span><strong><?= h($currentConfig['config_version'] ?? '—') ?></strong></div>
-            <div><span>Jelentett konfiguráció</span><strong><?= h($state['reported_config_version'] ?? '—') ?></strong></div>
-            <div><span>Hőmérséklet</span><strong><?= h(isset($state['temperature']) ? $state['temperature'] . ' °C' : '—') ?></strong></div>
-            <div><span>Páratartalom</span><strong><?= h(isset($state['humidity']) ? $state['humidity'] . ' %' : '—') ?></strong></div>
-            <div><span>Akku</span><strong><?= h(isset($state['battery_pct']) ? $state['battery_pct'] . ' %' : '—') ?></strong></div>
-            <div><span>Táp mód</span><strong><?= h($state['power_mode'] ?? '—') ?></strong></div>
-            <div><span>Átviteli út</span><strong><?= h($telemetryTransport ?? '—') ?></strong></div>
-            <div><span>Wi‑Fi OK</span><strong><?= h($wifiOk === null ? '—' : ((bool) $wifiOk ? 'Igen' : 'Nem')) ?></strong></div>
-            <div><span>Wi‑Fi RSSI</span><strong><?= h($wifiRssi !== null ? (string) $wifiRssi . ' dBm' : '—') ?></strong></div>
-            <div><span>Wi‑Fi IP</span><strong><?= h($wifiIp ?: '—') ?></strong></div>
-            <div><span>GSM OK</span><strong><?= h($gsmOk === null ? '—' : ((bool) $gsmOk ? 'Igen' : 'Nem')) ?></strong></div>
-            <div><span>GSM RSSI</span><strong><?= h($gsmRssi !== null ? (string) $gsmRssi . ' dBm' : '—') ?></strong></div>
-            <div><span>GSM szolgáltató</span><strong><?= h($gsmOperator ?: '—') ?></strong></div>
+    <?php
+    // Utolsó ismert állapot – hibás sorok kiemelése health_checks alapján
+    $rowErrPower  = !empty($healthChecks['no_usb_power']['alarm'])  && $pm === 'battery';
+    $rowErrBatt   = !empty($healthChecks['battery_low']['alarm'])   && $battPct !== null && $battPct <= $battLowPct;
+    $rowErrWifi   = !empty($healthChecks['no_wifi']['alarm'])       && $wifiOk === false;
+    $rowErrGsmMod = !empty($healthChecks['no_gsm_modem']['alarm'])  && $gsmOk === false;
+    $rowErrGsmOp  = !empty($healthChecks['no_gsm_operator']['alarm']) && $gsmOk === true && empty($gsmOperator);
+    $rowErrSensor = !empty($healthChecks['no_sensor']['alarm'])     && $sensorOk === false;
+    $rowErrClass  = static fn(bool $err): string => $err ? ' class="kv-row--error"' : '';
+    ?>
+    <section class="panel" id="state-panel">
+        <div class="section-head"><h2>Utolsó ismert állapot</h2><span class="muted small" title="Az oldal 5 másodpercenként kérdezi le a szervert. Az eszköz adatainak frissessége a mintavételi intervallumtól függ.">JS lekérdezés: <span id="state-refresh-countdown">…</span> &nbsp;|&nbsp; Eszköz: <span id="sv-device-age">…</span></span></div>
+        <div class="kv-grid" id="state-kv-grid">
+            <div><span>Online</span><strong id="sv-online"><?= $state ? ((int) $state['online'] === 1 ? 'Igen' : 'Nem') : '—' ?></strong></div>
+            <div><span>Utolsó kapcsolat (szerver idő)</span><strong id="sv-last-seen"><?= h($state['last_seen_at'] ?? '—') ?></strong></div>
+            <div><span>Kívánt konfiguráció</span><strong id="sv-desired-cfg"><?= h($currentConfig['config_version'] ?? '—') ?></strong></div>
+            <div><span>Jelentett konfiguráció</span><strong id="sv-reported-cfg"><?= h($state['reported_config_version'] ?? '—') ?></strong></div>
+            <div id="sv-sensor-temp-row"<?= $rowErrClass($rowErrSensor) ?>><span>Hőmérséklet</span><strong id="sv-temp"><?= h(isset($state['temperature']) ? $state['temperature'] . ' °C' : '—') ?></strong></div>
+            <div id="sv-sensor-hum-row"<?= $rowErrClass($rowErrSensor) ?>><span>Páratartalom</span><strong id="sv-hum"><?= h(isset($state['humidity']) ? $state['humidity'] . ' %' : '—') ?></strong></div>
+            <div id="sv-sensor-pres-row"<?= $rowErrClass($rowErrSensor) ?>><span>Légnyomás</span><strong id="sv-pressure"><?= h(isset($state['pressure_hpa']) ? $state['pressure_hpa'] . ' hPa' : '—') ?></strong></div>
+            <div id="sv-batt-row"<?= $rowErrClass($rowErrBatt) ?>><span>Akku</span><strong id="sv-batt"><?= h(isset($state['battery_pct']) ? $state['battery_pct'] . ' %' : '—') ?></strong></div>
+            <div id="sv-power-row"<?= $rowErrClass($rowErrPower) ?>><span>Táp mód</span><strong id="sv-power"><?= h(power_mode_label($state['power_mode'] ?? null)) ?></strong></div>
+            <div><span>Átviteli út</span><strong id="sv-transport"><?= h($telemetryTransport ?? '—') ?></strong></div>
+            <div id="sv-wifi-ok-row"<?= $rowErrClass($rowErrWifi) ?>><span>Wi‑Fi OK</span><strong id="sv-wifi-ok"><?= h($wifiOk === null ? '—' : ((bool) $wifiOk ? 'Igen' : 'Nem')) ?></strong></div>
+            <div><span>Wi‑Fi RSSI</span><strong id="sv-wifi-rssi"><?= h($wifiRssi !== null ? (string) $wifiRssi . ' dBm' : '—') ?></strong></div>
+            <div><span>Wi‑Fi IP</span><strong id="sv-wifi-ip"><?= h($wifiIp ?: '—') ?></strong></div>
+            <div><span>Wi‑Fi MAC</span><strong id="sv-wifi-mac"><?= h($wifiMac ?: '—') ?></strong></div>
+            <div><span>Wi‑Fi csatorna</span><strong id="sv-wifi-ch"><?= h($wifiChannel !== null ? (string) $wifiChannel : '—') ?></strong></div>
+            <div id="sv-gsm-ok-row"<?= $rowErrClass($rowErrGsmMod) ?>><span>GSM OK</span><strong id="sv-gsm-ok"><?= h($gsmOk === null ? '—' : ((bool) $gsmOk ? 'Igen' : 'Nem')) ?></strong></div>
+            <div><span>GSM RSSI</span><strong id="sv-gsm-rssi"><?= h($gsmRssi !== null ? (string) $gsmRssi . ' dBm' : '—') ?></strong></div>
+            <div id="sv-gsm-op-row"<?= $rowErrClass($rowErrGsmOp) ?>><span>GSM szolgáltató</span><strong id="sv-gsm-op"><?= h($gsmOperator ?: '—') ?></strong></div>
         </div>
-        <div class="mini-stats mt-3">
+        <div class="mini-stats mt-3" id="sv-alert-badges">
             <span class="badge-status status-warn">Queue: <?= h((string) $queueStats['queued']) ?></span>
             <span class="badge-status status-info">Sent: <?= h((string) $queueStats['sent']) ?></span>
             <span class="badge-status status-online">Acked: <?= h((string) $queueStats['acked']) ?></span>
@@ -524,6 +713,37 @@ include __DIR__ . '/../templates/header.php';
         </div>
     </section>
 </div>
+
+<?php if (($device['device_type'] ?? 'master') === 'master'): ?>
+<section class="panel" id="relay-slaves-panel">
+    <div class="section-head">
+        <h2>Kapcsolódó ESP-NOW slave-ek</h2>
+        <span class="muted small">Zöld = aktív (≤ 5 perc), piros = inaktív (> 5 perc)</span>
+    </div>
+    <?php if (empty($relaySlaves)): ?>
+        <p class="muted small" style="margin:.5rem 0">Még nem érkezett relayelt adat ettől a mestertől.</p>
+    <?php else: ?>
+        <div class="kv-grid" style="grid-template-columns: repeat(auto-fill, minmax(220px,1fr)); gap:.6rem">
+            <?php foreach ($relaySlaves as $sl):
+                $secsAgo = (int)($sl['secs_ago'] ?? PHP_INT_MAX);
+                $active  = $secsAgo <= 300;
+                $statusClass = $active ? 'status-online' : 'status-offline';
+                $statusLabel = $active ? 'Aktív' : 'Inaktív';
+                $lastSeen = $sl['last_seen_at'] ?? '—';
+                $slUrl = app_url('device.php?device_id=' . urlencode($sl['device_id']));
+            ?>
+            <div style="display:flex;align-items:center;gap:.5rem;padding:.4rem .5rem;background:var(--bg-card,#fff);border:1px solid var(--border,#e5e7eb);border-radius:6px">
+                <span class="badge-status <?= $statusClass ?>" style="min-width:60px;text-align:center"><?= $statusLabel ?></span>
+                <div style="overflow:hidden">
+                    <a href="<?= e($slUrl) ?>" style="font-weight:600;font-size:.9rem;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><?= h($sl['display_name']) ?></a>
+                    <span class="muted small" style="font-size:.75rem"><?= h($lastSeen) ?></span>
+                </div>
+            </div>
+            <?php endforeach; ?>
+        </div>
+    <?php endif; ?>
+</section>
+<?php endif; ?>
 
 <section class="panel">
     <div class="section-head">
@@ -553,12 +773,137 @@ include __DIR__ . '/../templates/header.php';
 
             <section class="config-card">
                 <div class="config-card-head"><h3>Küszöbök</h3></div>
+                <?php
+                // Aktuális értékek + LED-szerű színezés
+                $curTemp    = isset($state['temperature']) ? (float) $state['temperature'] : null;
+                $curHum     = isset($state['humidity'])    ? (float) $state['humidity']    : null;
+                $curBatt    = isset($state['battery_pct']) ? (float) $state['battery_pct'] : null;
+                $tMin = isset($thresholds['temp_min'])     ? (float) $thresholds['temp_min']     : null;
+                $tMax = isset($thresholds['temp_max'])     ? (float) $thresholds['temp_max']     : null;
+                $hMin = isset($thresholds['humidity_min']) ? (float) $thresholds['humidity_min'] : null;
+                $hMax = isset($thresholds['humidity_max']) ? (float) $thresholds['humidity_max'] : null;
+                $bLow = isset($thresholds['battery_low_pct']) ? (float) $thresholds['battery_low_pct'] : null;
+
+                // Chip CSS osztály LED logika alapján
+                $tempClass = 'chip-ok';
+                if ($curTemp !== null) {
+                    if (($tMax !== null && $curTemp >= $tMax) || ($tMin !== null && $curTemp <= $tMin)) {
+                        $tempClass = 'chip-alarm';
+                    } elseif (($tMax !== null && $curTemp >= $tMax - 1.5) || ($tMin !== null && $curTemp <= $tMin + 1.5)) {
+                        $tempClass = 'chip-warn';
+                    }
+                }
+                $humClass = 'chip-ok';
+                if ($curHum !== null) {
+                    if (($hMax !== null && $curHum >= $hMax) || ($hMin !== null && $curHum <= $hMin)) {
+                        $humClass = 'chip-alarm';
+                    } elseif (($hMax !== null && $curHum >= $hMax - 5) || ($hMin !== null && $curHum <= $hMin + 5)) {
+                        $humClass = 'chip-warn';
+                    }
+                }
+                $battClass = 'chip-ok';
+                if ($curBatt !== null) {
+                    if ($curBatt <= 15) {
+                        $battClass = 'chip-alarm';
+                    } elseif ($bLow !== null && $curBatt <= $bLow) {
+                        $battClass = 'chip-warn';
+                    } elseif ($curBatt <= 50) {
+                        $battClass = 'chip-mid';
+                    }
+                }
+                ?>
+                <div class="live-value-strip" id="live-value-strip">
+                    <span class="live-chip <?= $tempClass ?>">
+                        <span class="live-chip__label">Hő</span>
+                        <span class="live-chip__val"><?= $curTemp !== null ? number_format($curTemp, 1) . ' °C' : '—' ?></span>
+                        <?php if ($tMin !== null || $tMax !== null): ?>
+                            <span class="live-chip__range"><?= h(($tMin ?? '?') . '…' . ($tMax ?? '?') . ' °C') ?></span>
+                        <?php endif; ?>
+                    </span>
+                    <span class="live-chip <?= $humClass ?>">
+                        <span class="live-chip__label">Pára</span>
+                        <span class="live-chip__val"><?= $curHum !== null ? number_format($curHum, 1) . ' %' : '—' ?></span>
+                        <?php if ($hMin !== null || $hMax !== null): ?>
+                            <span class="live-chip__range"><?= h(($hMin ?? '?') . '…' . ($hMax ?? '?') . ' %') ?></span>
+                        <?php endif; ?>
+                    </span>
+                    <span class="live-chip <?= $battClass ?>">
+                        <span class="live-chip__label">Akku</span>
+                        <span class="live-chip__val"><?= $curBatt !== null ? number_format($curBatt, 0) . ' %' : '—' ?></span>
+                        <?php if ($bLow !== null): ?>
+                            <span class="live-chip__range">low: <?= h((string) $bLow) ?> %</span>
+                        <?php endif; ?>
+                    </span>
+                    <?php if ($state): ?>
+                    <span class="live-chip <?= (int) ($state['online'] ?? 0) === 1 ? 'chip-ok' : 'chip-alarm' ?>">
+                        <span class="live-chip__label">Online</span>
+                        <span class="live-chip__val"><?= (int) ($state['online'] ?? 0) === 1 ? 'Igen' : 'Nem' ?></span>
+                    </span>
+                    <?php endif; ?>
+                </div>
                 <div class="form-grid compact-grid">
                     <label><span>Temp min</span><input type="number" step="0.1" name="thresholds[temp_min]" value="<?= h($thresholds['temp_min'] ?? '') ?>"></label>
                     <label><span>Temp max</span><input type="number" step="0.1" name="thresholds[temp_max]" value="<?= h($thresholds['temp_max'] ?? '') ?>"></label>
                     <label><span>Páratartalom min</span><input type="number" step="0.1" name="thresholds[humidity_min]" value="<?= h($thresholds['humidity_min'] ?? '') ?>"></label>
                     <label><span>Páratartalom max</span><input type="number" step="0.1" name="thresholds[humidity_max]" value="<?= h($thresholds['humidity_max'] ?? '') ?>"></label>
                     <label><span>Akku low %</span><input type="number" step="1" name="thresholds[battery_low_pct]" value="<?= h($thresholds['battery_low_pct'] ?? '') ?>"></label>
+                </div>
+            </section>
+
+            <section class="config-card">
+                <div class="config-card-head">
+                    <div>
+                        <h3>Hibaállapot-figyelő</h3>
+                        <div class="muted small">✓ Hiba = LED pirosan villog. Mattermost/SMS/Hívás: melyik értesítés menjen hiba esetén.</div>
+                    </div>
+                </div>
+                <div class="hc-table">
+                    <div class="hc-table-head">
+                        <span>Feltétel</span>
+                        <span title="Hibának számít">Hiba</span>
+                        <span>MM</span>
+                        <span>SMS cél</span>
+                        <span>Hívás cél</span>
+                    </div>
+                    <?php foreach ($healthCheckDefs as $hcKey => $hcLabel):
+                        $hc = $healthChecks[$hcKey];
+                    ?>
+                    <div class="hc-table-row">
+                        <span class="hc-label"><?= h($hcLabel) ?></span>
+                        <span class="hc-cell-center">
+                            <input type="checkbox" name="health_checks[<?= h($hcKey) ?>][alarm]" value="1"<?= $hc['alarm'] ? ' checked' : '' ?>>
+                        </span>
+                        <span class="hc-cell-center">
+                            <input type="checkbox" name="health_checks[<?= h($hcKey) ?>][mattermost]" value="1"<?= $hc['mattermost'] ? ' checked' : '' ?> title="Mattermost üzenet">
+                        </span>
+                        <span>
+                            <input type="text" class="hc-target-input" name="health_checks[<?= h($hcKey) ?>][sms_target]" value="<?= h($hc['sms_target']) ?>" placeholder="csoport / +36…" title="SMS célcím (üres = nem küld)">
+                        </span>
+                        <span>
+                            <input type="text" class="hc-target-input" name="health_checks[<?= h($hcKey) ?>][call_target]" value="<?= h($hc['call_target']) ?>" placeholder="csoport / +36…" title="Hívás célcím (üres = nem hív)">
+                        </span>
+                    </div>
+                    <?php endforeach; ?>
+                </div>
+            </section>
+
+            <section class="config-card">
+                <div class="config-card-head">
+                    <div>
+                        <h3>ESP-NOW relay</h3>
+                        <div class="muted small">A master ESP32 begyűjti a slave eszközök adatait ESP-NOW-on keresztül, és továbbítja MQTT-en. SMS/hívás a saját SIM800L-en keresztül kezelt.</div>
+                    </div>
+                </div>
+                <div class="form-grid">
+                    <label class="label-row">
+                        <input type="hidden" name="espnow[enabled]" value="0">
+                        <input type="checkbox" name="espnow[enabled]" value="1"<?= $espnowEnabled ? ' checked' : '' ?>>
+                        <span>Relay engedélyezve</span>
+                    </label>
+                    <label>
+                        <span>Engedélyezett slave ID-k <span class="muted">(soronként egy; üres = mindenki elfogadva)</span></span>
+                        <textarea name="espnow[slaves_txt]" rows="4" placeholder="slave01&#10;slave02&#10;teraszszenzor" style="font-family:monospace;width:100%"><?= h($espnowSlaveTxt) ?></textarea>
+                    </label>
                 </div>
             </section>
 
@@ -680,6 +1025,8 @@ window.DEVICE_CONFIG_UI = <?= json_encode([
     'builtinEvents' => $builtinEventLabels,
     'contactsMeta' => $contactsMeta,
 ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;
+window.DEVICE_HEALTH_CHECKS = <?= json_encode(array_map(fn($hc) => $hc['alarm'], $healthChecks), JSON_UNESCAPED_UNICODE) ?>;
+window.DEVICE_BATT_LOW_PCT  = <?= json_encode((float) ($thresholds['battery_low_pct'] ?? 20)) ?>;
 </script>
 <section class="panel" id="raw-json">
     <div class="section-head"><h2>Raw JSON tartalék szerkesztés</h2></div>
@@ -813,4 +1160,203 @@ window.DEVICE_CONFIG_UI = <?= json_encode([
 </template>
 
 <script src="<?= e(app_url('assets/js/device-config.js')) ?>"></script>
+<script>
+(function () {
+    var deviceId = <?= json_encode($device['device_id'] ?? '') ?>;
+    var countdownEl = document.getElementById('state-refresh-countdown');
+
+    function pm(mode) {
+        var map = { 'usb_charging': 'USB/töltés', 'charging': 'USB/töltés', 'usb': 'USB', 'battery': 'Akku' };
+        return map[(mode || '').toLowerCase()] || (mode || '—');
+    }
+    function set(id, val) { var el = document.getElementById(id); if (el) el.textContent = val; }
+
+    // LED sáv frissítése – a firmware által küldött leds[] tömb alapján (pontos!)
+    var LED_LABELS = ['WiFi', 'MQTT', 'GSM', 'Szenzor', 'Kontakt', 'Hőmérs.', 'Táp', 'Akku'];
+    var LED_DESCS = {
+        'green':'OK', 'yellow':'Figyelem', 'orange':'Akku', 'red':'Hiba',
+        'teal':'Tölt', 'blue':'Jó', 'off':'—',
+        'blink-red':'Riasztás!', 'blink-blue':'Riasztás!', 'blink-orange':'Riasztás!'
+    };
+
+    function setLed(idx, color, desc) {
+        var strip = document.getElementById('device-led-strip');
+        if (!strip) return;
+        var leds = strip.querySelectorAll('.device-led');
+        if (!leds[idx]) return;
+        var dot = leds[idx].querySelector('.device-led__dot');
+        var descEl = leds[idx].querySelector('.device-led__desc');
+        if (dot) dot.className = 'device-led__dot device-led__dot--' + color;
+        if (descEl && desc !== undefined) descEl.textContent = desc;
+    }
+
+    function applyState(d) {
+        if (!d || d.error) return;
+
+        // Értékek frissítése
+        set('sv-online',       d.online ? 'Igen' : 'Nem');
+        set('sv-last-seen',    d.last_seen_at || '—');
+        set('sv-reported-cfg', d.reported_config_version || '—');
+        set('sv-temp',         d.temperature !== null ? d.temperature + ' °C' : '—');
+        set('sv-hum',          d.humidity    !== null ? d.humidity    + ' %'  : '—');
+        set('sv-pressure',     d.pressure_hpa !== null ? d.pressure_hpa + ' hPa' : '—');
+        set('sv-batt',         d.battery_pct !== null ? d.battery_pct + ' %' : '—');
+        set('sv-power',        pm(d.power_mode));
+        set('sv-transport',    d.telemetry_transport || '—');
+        set('sv-wifi-ok',      d.wifi_ok === null ? '—' : (d.wifi_ok ? 'Igen' : 'Nem'));
+        set('sv-wifi-rssi',    d.wifi_rssi !== null ? d.wifi_rssi + ' dBm' : '—');
+        set('sv-wifi-ip',      d.wifi_ip || '—');
+        set('sv-gsm-ok',       d.gsm_ok === null ? '—' : (d.gsm_ok ? 'Igen' : 'Nem'));
+        set('sv-gsm-rssi',     d.gsm_rssi !== null ? d.gsm_rssi + ' dBm' : '—');
+        set('sv-gsm-op',       d.gsm_operator || '—');
+
+        // KV-grid sor hibakiemelések (health_checks alapján)
+        function rowErr(id, isErr) {
+            var el = document.getElementById(id);
+            if (el) el.classList.toggle('kv-row--error', !!isErr);
+        }
+        var hcCfg = window.DEVICE_HEALTH_CHECKS || {};
+        var battLowPct2 = window.DEVICE_BATT_LOW_PCT || 20;
+        var pModeNow = (d.power_mode || '').toLowerCase();
+        var bpNow = d.battery_pct;
+        rowErr('sv-power-row',       pModeNow === 'battery' && !!hcCfg.no_usb_power);
+        rowErr('sv-batt-row',        bpNow !== null && bpNow !== undefined && !!hcCfg.battery_low && +bpNow <= battLowPct2);
+        rowErr('sv-wifi-ok-row',     d.wifi_ok === false && !!hcCfg.no_wifi);
+        rowErr('sv-gsm-ok-row',      d.gsm_ok === false && !!hcCfg.no_gsm_modem);
+        rowErr('sv-gsm-op-row',      d.gsm_ok === true && (!d.gsm_operator || d.gsm_operator === '—') && !!hcCfg.no_gsm_operator);
+        var sOkNow = (d.sensor_ok === false);
+        rowErr('sv-sensor-temp-row', sOkNow && !!hcCfg.no_sensor);
+        rowErr('sv-sensor-hum-row',  sOkNow && !!hcCfg.no_sensor);
+        rowErr('sv-sensor-pres-row', sOkNow && !!hcCfg.no_sensor);
+
+        // LED sáv frissítése – értékekből deriválva, health_checks figyelembevételével
+        var leds = d.leds || [];
+        var hc = window.DEVICE_HEALTH_CHECKS || {};
+        var battLowPct = window.DEVICE_BATT_LOW_PCT || 20;
+
+        // LED 0 – WiFi
+        var wifiOk = d.wifi_ok;
+        var w0, wd0;
+        if (wifiOk) { w0 = 'green'; wd0 = 'Csatlakozva'; }
+        else if (d.online && d.telemetry_transport === 'wifi') { w0 = 'green'; wd0 = 'Aktív'; }
+        else if (d.online) { w0 = 'yellow'; wd0 = 'GSM útvonal'; }
+        else { w0 = hc.no_wifi ? 'blink-red' : 'red'; wd0 = hc.no_wifi ? 'Hiba!' : 'Offline'; }
+        setLed(0, w0, wd0);
+
+        // LED 1 – MQTT
+        var w1 = d.online ? 'green' : (hc.mqtt_offline ? 'blink-red' : 'red');
+        setLed(1, w1, d.online ? 'Csatlakozva' : (hc.mqtt_offline ? 'Hiba!' : 'Offline'));
+
+        // LED 2 – GSM
+        var g2, gd2;
+        if (d.gsm_ok) { g2 = 'green'; gd2 = 'Hálózaton'; }
+        else if (d.gsm_operator) { g2 = hc.no_gsm_operator ? 'blink-red' : 'yellow'; gd2 = hc.no_gsm_operator ? 'Hiba!' : 'SIM OK'; }
+        else { g2 = hc.no_gsm_modem ? 'blink-red' : 'off'; gd2 = hc.no_gsm_modem ? 'Hiba!' : 'Letiltva'; }
+        setLed(2, g2, gd2);
+
+        // LED 3 – Szenzor: sensor_ok flag > leds[3] > hőm. érvényességéből
+        var s3, sd3;
+        if (d.sensor_ok !== null && d.sensor_ok !== undefined) {
+            s3 = d.sensor_ok ? 'green' : (hc.no_sensor ? 'blink-red' : 'red');
+        } else if (leds[3]) {
+            s3 = leds[3];
+        } else {
+            s3 = (d.temperature !== null && d.temperature !== undefined) ? 'green' : 'off';
+        }
+        sd3 = s3 === 'green' ? 'OK' : (s3.indexOf('red') >= 0 ? (hc.no_sensor ? 'Hiba!' : 'I2C hiba') : '—');
+        setLed(3, s3, sd3);
+
+        // LED 4 – Kontakt
+        var c4 = d.active_contact_alert_count > 0 ? 'blink-orange' : 'green';
+        setLed(4, c4, d.active_contact_alert_count > 0 ? 'Riasztás!' : 'Normál');
+
+        // LED 5 – Hőmérséklet
+        var alarms = d.active_alarm_types || [];
+        var l5 = alarms.indexOf('temp_high') >= 0 ? 'blink-red' : (alarms.indexOf('temp_low') >= 0 ? 'blink-blue' : 'green');
+        var d5 = alarms.indexOf('temp_high') >= 0 ? 'Magas!' : (alarms.indexOf('temp_low') >= 0 ? 'Alacsony!' : 'Normál');
+        setLed(5, l5, d5);
+
+        // LED 6 – Táp
+        var pMode = (d.power_mode || '').toLowerCase();
+        var l6, ld6;
+        if (pMode === 'usb_charging' || pMode === 'charging') { l6 = 'teal';  ld6 = 'USB/töltés'; }
+        else if (pMode === 'usb')    { l6 = 'green'; ld6 = 'USB táp'; }
+        else if (pMode === 'battery'){ l6 = hc.no_usb_power ? 'blink-red' : 'orange'; ld6 = hc.no_usb_power ? 'Hiba! Akku' : 'Akku'; }
+        else                         { l6 = 'off'; ld6 = '—'; }
+        setLed(6, l6, ld6);
+
+        // LED 7 – Akku
+        var bp = d.battery_pct;
+        var l7;
+        if (bp === null || bp === undefined) { l7 = 'off'; }
+        else if (hc.battery_low && bp <= battLowPct) { l7 = 'blink-red'; }
+        else if (bp <= 15)  { l7 = 'blink-red'; }
+        else if (bp <= 25)  { l7 = 'red'; }
+        else if (bp <= 50)  { l7 = 'yellow'; }
+        else if (bp <= 75)  { l7 = 'blue'; }
+        else                { l7 = 'green'; }
+        setLed(7, l7, bp !== null && bp !== undefined ? Math.round(bp) + ' %' : 'Ismeretlen');
+
+        // Live chip értékek + színek
+        var lv = document.getElementById('live-value-strip');
+        if (lv) {
+            var chips = lv.querySelectorAll('.live-chip__val');
+            var vals = [
+                (d.temperature !== null && d.temperature !== undefined) ? (+d.temperature).toFixed(1) + ' °C' : '—',
+                (d.humidity    !== null && d.humidity    !== undefined) ? (+d.humidity).toFixed(1)    + ' %'  : '—',
+                (d.battery_pct !== null && d.battery_pct !== undefined) ? Math.round(+d.battery_pct) + ' %'  : '—',
+                d.online ? 'Igen' : 'Nem'
+            ];
+            for (var j = 0; j < chips.length && j < vals.length; j++) {
+                chips[j].textContent = vals[j];
+            }
+            var chipEls = lv.querySelectorAll('.live-chip');
+            if (chipEls[0]) chipEls[0].className = 'live-chip ' + (d.active_temp_alert_count > 0 ? 'chip-alarm' : 'chip-ok');
+            if (chipEls[2]) {
+                chipEls[2].className = 'live-chip ' + (bp === null || bp === undefined ? 'chip-ok' : bp <= 15 ? 'chip-alarm' : bp <= 25 ? 'chip-warn' : bp <= 50 ? 'chip-mid' : 'chip-ok');
+            }
+            if (chipEls[3]) chipEls[3].className = 'live-chip ' + (d.online ? 'chip-ok' : 'chip-alarm');
+        }
+
+        // JS lekérdezés időbélyeg + eszköz kor
+        var now = new Date();
+        var hm = now.getHours().toString().padStart(2,'0') + ':' +
+                 now.getMinutes().toString().padStart(2,'0') + ':' +
+                 now.getSeconds().toString().padStart(2,'0');
+        if (countdownEl) countdownEl.textContent = hm;
+
+        var ageEl = document.getElementById('sv-device-age');
+        if (ageEl && d.last_seen_at) {
+            var seenMs = new Date(d.last_seen_at.replace(' ','T') + 'Z').getTime();
+            // A szerver UTC-ben tárolja, de PHP date() localtime → próbáljuk helyi időként is
+            if (isNaN(seenMs)) seenMs = new Date(d.last_seen_at.replace(' ','T')).getTime();
+            var ageSec = Math.round((Date.now() - seenMs) / 1000);
+            if (ageSec < 0) ageSec = 0;
+            ageEl.textContent = ageSec < 60 ? ageSec + 's' : Math.floor(ageSec/60) + 'm ' + (ageSec%60) + 's';
+            ageEl.style.color = ageSec > 300 ? '#f87171' : ageSec > 120 ? '#fbbf24' : '#4ade80';
+        }
+    }
+
+    // ── 5 másodperces polling ────────────────────────────────────────────────
+    if (!deviceId) return;
+
+    var fetchTimer = 5;
+    function fetchState() {
+        if (countdownEl) countdownEl.textContent = '…';
+        fetch('api_device_state.php?device_id=' + encodeURIComponent(deviceId))
+            .then(function (r) { return r.ok ? r.json() : Promise.reject('http ' + r.status); })
+            .then(function (d) {
+                if (d && !d.error) applyState(d);
+                else if (countdownEl) countdownEl.textContent = 'nincs adat';
+            })
+            .catch(function (e) {
+                if (countdownEl) countdownEl.textContent = 'hiba';
+                console.warn('fetchState hiba:', e);
+            });
+    }
+
+    fetchState();
+    setInterval(fetchState, 5000);
+})();
+</script>
 <?php include __DIR__ . '/../templates/footer.php'; ?>

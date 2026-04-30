@@ -39,6 +39,10 @@ $overviewRawPick = static function (array $raw, array $paths, mixed $default = n
             $recentAlertCount = (int) ($device['recent_alert_count'] ?? 0);
             $activeTempAlertCount = (int) ($device['active_temp_alert_count'] ?? 0);
             $activeContactAlertCount = (int) ($device['active_contact_alert_count'] ?? 0);
+            $activeHcCount = (int) ($device['active_hc_count'] ?? 0);
+            $hasAnyAlarm = $activeAlertCount > 0 || $activeHcCount > 0;
+            $powerMode = strtolower(trim((string) ($device['power_mode'] ?? '')));
+            $onBattery = ($powerMode === 'battery');
             $contactValue = '—';
             $transportValue = $overviewRawPick($raw, ['telemetry_transport', 'meta.telemetry_transport', 'signal.transport'], '—');
             $wifiRssiValue = $overviewRawPick($raw, ['wifi_rssi', 'signal.wifi_rssi', 'signal.rssi'], $device['rssi'] ?? null);
@@ -49,7 +53,7 @@ $overviewRawPick = static function (array $raw, array $paths, mixed $default = n
                 }
             }
         ?>
-        <article class="overview-device-card" data-device-id="<?= e((string) $device['device_id']) ?>">
+        <article class="overview-device-card<?= $hasAnyAlarm ? ' overview-device-card--hc-alarm' : '' ?>" data-device-id="<?= e((string) $device['device_id']) ?>">
             <div class="overview-device-card__top">
                 <span class="overview-device-id"><?= e((string) $device['device_id']) ?></span>
                 <a class="overview-device-link" href="<?= e($deviceUrl) ?>"><?= e((string) $device['name']) ?></a>
@@ -74,13 +78,14 @@ $overviewRawPick = static function (array $raw, array $paths, mixed $default = n
             <div class="overview-device-row overview-device-row--metrics">
                 <span class="overview-chip <?= $activeTempAlertCount > 0 ? 'overview-chip--alert' : '' ?>"><strong>Hő:</strong> <?= e($device['temperature'] !== null ? (string) $device['temperature'] . ' °C' : '—') ?></span>
                 <span class="overview-chip"><strong>Pára:</strong> <?= e($device['humidity'] !== null ? (string) $device['humidity'] . ' %' : '—') ?></span>
-                <span class="overview-chip"><strong>Levegő:</strong> <?= e($device['air_quality'] !== null ? (string) $device['air_quality'] : '—') ?></span>
+                <span class="overview-chip"><strong>Légnyomás:</strong> <?= e($device['pressure_hpa'] !== null ? (string) $device['pressure_hpa'] . ' hPa' : '—') ?></span>
             </div>
             <div class="overview-device-row overview-device-row--metrics">
-                <span class="overview-chip"><strong>Akku:</strong> <?= e($device['battery_pct'] !== null ? (string) $device['battery_pct'] . '%' : '—') ?></span>
+                <?php $battPctVal = $device['battery_pct']; ?>
+                <span class="overview-chip<?= ($battPctVal !== null && (float)$battPctVal <= 20) ? ' overview-chip--alert' : '' ?>"><strong>Akku:</strong> <?= e($battPctVal !== null ? (string) $battPctVal . '%' : '—') ?></span>
                 <span class="overview-chip"><strong>Átvitel:</strong> <?= e((string) $transportValue) ?></span>
                 <span class="overview-chip"><strong>Wi‑Fi:</strong> <?= e($wifiRssiValue !== null ? (string) $wifiRssiValue . ' dBm' : '—') ?></span>
-                <span class="overview-chip"><strong>Táp:</strong> <?= e((string) ($device['power_mode'] ?: '—')) ?></span>
+                <span class="overview-chip<?= $onBattery ? ($activeHcCount > 0 ? ' overview-chip--alert' : ' overview-chip--warn') : '' ?>"><strong>Táp:</strong> <?= e(power_mode_label($device['power_mode'] ?? null)) ?></span>
                 <span class="overview-chip <?= $activeContactAlertCount > 0 ? 'overview-chip--alert' : '' ?>"><strong>Kontakt:</strong> <?= e($contactValue) ?></span>
             </div>
         </article>

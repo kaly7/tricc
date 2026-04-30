@@ -9,6 +9,7 @@ CREATE TABLE IF NOT EXISTS devices (
     sim_phone VARCHAR(32) DEFAULT NULL,
     fw_version VARCHAR(50) DEFAULT NULL,
     active TINYINT(1) NOT NULL DEFAULT 1,
+    device_type ENUM('master','slave') NOT NULL DEFAULT 'master',
     created_at DATETIME NOT NULL,
     updated_at DATETIME NOT NULL,
     INDEX idx_devices_active (active)

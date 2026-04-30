@@ -67,16 +67,24 @@ final class PayloadNormalizer
                 $env['co2'] ?? null,
                 $env['voc'] ?? null,
             ]),
+            'pressure_hpa' => self::firstFloat([
+                $payload['pressure_hpa'] ?? null,
+                $payload['pressure'] ?? null,
+                $env['pressure_hpa'] ?? null,
+                $env['pressure'] ?? null,
+            ]),
             'battery_pct' => self::firstFloat([
                 $payload['battery_pct'] ?? null,
                 $battery['pct'] ?? null,
                 $battery['percent'] ?? null,
                 $battery['level'] ?? null,
+                $power['battery_pct'] ?? null,   // firmware: power.battery_pct
             ]),
             'battery_voltage' => self::firstFloat([
                 $battery['voltage'] ?? null,
                 $battery['vbat'] ?? null,
                 $payload['battery_voltage'] ?? null,
+                $power['battery_v'] ?? null,     // firmware: power.battery_v
             ]),
             'power_mode' => $powerMode,
             'rssi' => self::firstInt([
@@ -173,6 +181,11 @@ final class PayloadNormalizer
             'air_quality' => self::firstFloat([
                 $payload['air_quality'] ?? null,
                 $state['air_quality'] ?? null,
+            ]),
+            'pressure_hpa' => self::firstFloat([
+                $payload['pressure_hpa'] ?? null,
+                $payload['pressure'] ?? null,
+                $state['pressure_hpa'] ?? null,
             ]),
             'rssi' => self::firstInt([
                 $payload['wifi_rssi'] ?? null,

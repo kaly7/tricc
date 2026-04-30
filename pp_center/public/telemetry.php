@@ -85,6 +85,7 @@ include __DIR__ . '/../templates/header.php';
                 <th>Eszköz</th>
                 <th>Hőm.</th>
                 <th>Pára</th>
+                <th>Légnyomás</th>
                 <th>Akku</th>
                 <th>Táp</th>
                 <th>Kontaktok</th>
@@ -99,8 +100,9 @@ include __DIR__ . '/../templates/header.php';
                     <td><code><?= e($row['device_id']) ?></code></td>
                     <td><?= e($row['temperature'] !== null ? $row['temperature'] . ' °C' : '—') ?></td>
                     <td><?= e($row['humidity'] !== null ? $row['humidity'] . ' %' : '—') ?></td>
+                    <td><?= e($row['pressure_hpa'] !== null ? $row['pressure_hpa'] . ' hPa' : '—') ?></td>
                     <td><?= e($row['battery_pct'] !== null ? $row['battery_pct'] . ' %' : '—') ?></td>
-                    <td><?= e($row['power_mode'] ?: '—') ?></td>
+                    <td><?= e(power_mode_label($row['power_mode'] ?? null)) ?></td>
                     <td class="small"><?= e(($row['contact_1'] ?? '—') . ' / ' . ($row['contact_2'] ?? '—') . ' / ' . ($row['contact_3'] ?? '—') . ' / ' . ($row['contact_4'] ?? '—')) ?></td>
                     <td><?= e($row['rssi'] ?? '—') ?></td>
                     <td>

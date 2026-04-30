@@ -8,7 +8,9 @@
 #include <Adafruit_NeoPixel.h>
 #include <time.h>
 #include <Preferences.h>
+#include <esp_now.h>
 #include "sim800_modem.h"
+#include "INA219.h"
 
 // =========================
 // Hardware config
@@ -16,9 +18,11 @@
 // =========================
 static constexpr int I2C_SDA_PIN = 21;
 static constexpr int I2C_SCL_PIN = 22;
-static constexpr int LED_RING_PIN = 4;
+static constexpr int LED_RING_PIN = 13; // GPIO13 (GPIO2/4 boot-erzereny)
 // WS2812B-8 LED sor, bal->jobb: WiFi | MQTT | GSM | Szenzor | Kontakt | Hőm. riasztás | Táp | Akku
 static constexpr uint16_t LED_RING_COUNT = 8;
+static constexpr unsigned long LED_SWEEP_INTERVAL_MS = 4000UL; // futófény milyen sűrűn indul
+static constexpr unsigned long LED_SWEEP_STEP_MS     = 55UL;   // egy LED mennyi ideig fehéredik ki
 static constexpr int CONTACT_PIN = 27;
 static constexpr unsigned long CONTACT_DEBOUNCE_MS = 60UL;
 static constexpr int MODEM_RX_PIN = 19;  // ESP32 RX  <- SIM800L TXD
@@ -32,11 +36,14 @@ static constexpr size_t MAX_ROUTE_ACTIONS = 8;
 static constexpr size_t MAX_CALL_QUEUE = 16;
 static constexpr size_t MAX_RECENT_CALLS = 24;
 static constexpr unsigned long CALL_RING_DURATION_MS = 20000UL;
+static constexpr int HC_COUNT = 7;            // health-check feltételek száma
+static constexpr unsigned long HC_CHECK_INTERVAL_MS = 30000UL;  // 30 s
+static constexpr size_t MAX_RELAY_SLAVES = 8;          // ESP-NOW relay: max slave whitelist méret
+static constexpr size_t ESPNOW_PAYLOAD_MAX = 250;      // ESP-NOW max payload (protokoll korlát)
 static constexpr unsigned long CALL_GAP_MS = 5000UL;
 static constexpr unsigned long CALL_COOLDOWN_MS = 120000UL;
 static constexpr int USB_SENSE_PIN = 33;
-static constexpr int UPS_CHARGE_PIN = 32;
-static constexpr uint8_t UPS_I2C_ADDR = 0x36;
+static constexpr int UPS_CHARGE_PIN = 32;   // LOW = tölt (Waveshare UPS Mini)
 static constexpr uint16_t USB_SENSE_THRESHOLD_RAW = 1800;
 
 
@@ -103,6 +110,14 @@ struct RuntimeConfig {
   String routeEventNames[MAX_EVENT_ROUTES];
   size_t routeActionCounts[MAX_EVENT_ROUTES] = { 0 };
   String routeActions[MAX_EVENT_ROUTES][MAX_ROUTE_ACTIONS];
+  // Health-check config: per-feltétel alarm, SMS-cél, hívás-cél
+  bool   hcAlarm[HC_COUNT]     = {};
+  String hcSmsTarget[HC_COUNT];
+  String hcCallTarget[HC_COUNT];
+  // ESP-NOW relay config
+  bool   espNowEnabled = false;
+  size_t espNowSlaveCount = 0;                          // 0 = mindenki elfogadva (whitelist üres)
+  String espNowSlaveIds[MAX_RELAY_SLAVES];
   bool valid = false;
 };
 
@@ -128,7 +143,8 @@ struct DeviceState {
 
   bool usbPower = true;
   bool batteryCharging = false;
-  int batteryPct = -1;  // -1 = nem ismert / nincs meg
+  bool upsI2cOk = false;   // INA219 (0x43) válaszol-e
+  int batteryPct = -1;     // -1 = nem ismert / nincs meg
   bool gsmEnabled = false;
   bool gsmInitInProgress = false;
   bool gsmReady = false;
@@ -147,6 +163,11 @@ struct DeviceState {
   bool tempLowAlertSent = false;
   bool contactAlertSent = false;
   bool bootEventPublished = false;
+  bool powerStateInitialized = false;   // első olvasás után true; addig nincs event
+  bool prevUsbPower = true;             // előző olvasáskori USB-tápállás
+  // Health-check állapotkövetés
+  bool hcWasBad[HC_COUNT]  = {};
+  bool hcInitialized       = false;    // első ellenőrzés után true; addig nincs alert
   bool callInProgress = false;
   unsigned long callStartedMs = 0;
   unsigned long callBlockedUntilMs = 0;
@@ -184,6 +205,33 @@ NetConfig netCfg;
 RuntimeConfig runtimeCfg;
 DeviceState state;
 bool lastWifiConnectedState = false;
+
+// Tápellátás gyors frissítési timer (2 másodpercenként, külön a sensor-ciklustól)
+static unsigned long lastPowerReadMs = 0;
+static constexpr unsigned long POWER_READ_INTERVAL_MS = 2000UL;
+
+// Health-check periodikus ellenőrzés timer
+static unsigned long lastHcCheckMs = 0;
+
+// ESP-NOW relay: egyszeres vevő puffer (WiFi task írja, Arduino loop olvassa)
+struct RelayPacket {
+  uint8_t  mac[6];
+  char     data[ESPNOW_PAYLOAD_MAX + 1];
+  uint8_t  len;
+  volatile bool pending;
+};
+static RelayPacket relayBuf = {};
+
+// ESP-NOW relay: volt-e már init
+static bool espNowInitialized = false;
+
+// LED futófény sweep állapot
+static int          ledSweepPos         = -1;   // -1 = nem aktív
+static unsigned long ledSweepTriggerMs  = 0;
+static unsigned long ledSweepStepMs     = 0;
+
+// LED logikai állapotnevek – updateLedRing() tölti, reported state + JSON-ban publikálva
+static String ledNames[LED_RING_COUNT]  = {"off","off","off","off","off","off","off","off"};
 
 WebServer server(80);
 WiFiClient wifiClient;
@@ -458,6 +506,175 @@ void dispatchLocalActionsForEvent(const char* eventType, const String& message, 
   }
 }
 
+// SMS és hívás küldése közvetlenül a health-check konfigból (routes rendszertől független).
+// Működik WiFi/MQTT nélkül is, ha a GSM modem aktív.
+void dispatchHcAlert(int hcIdx, const char* eventKey, const char* label) {
+  if (!state.gsmEnabled) return;
+  const String& smsTarget  = runtimeCfg.hcSmsTarget[hcIdx];
+  const String& callTarget = runtimeCfg.hcCallTarget[hcIdx];
+  if (smsTarget.isEmpty() && callTarget.isEmpty()) return;
+
+  String text = "PP " + netCfg.deviceId + " HC HIBA: " + String(label);
+
+  auto sendSmsTo = [&](const String& target) {
+    if (target.startsWith("+")) {
+      bool ok = sim800.sendSms(target, text);
+      logLine(String("[HC] SMS ") + (ok ? "OK" : "HIBA") + " " + target);
+    } else {
+      size_t gi = 0;
+      if (findContactGroupIndex(target, gi)) {
+        for (size_t pi = 0; pi < runtimeCfg.contactGroupPhoneCounts[gi]; ++pi) {
+          const String& phone = runtimeCfg.contactGroupPhones[gi][pi];
+          if (!phone.isEmpty()) {
+            bool ok = sim800.sendSms(phone, text);
+            logLine(String("[HC] SMS ") + (ok ? "OK" : "HIBA") + " " + phone);
+          }
+        }
+      } else {
+        logLine(String("[HC] SMS csoport nem letezik: ") + target);
+      }
+    }
+  };
+
+  auto callTo = [&](const String& target) {
+    if (target.startsWith("+")) {
+      enqueueCallTarget(target, eventKey);
+    } else {
+      size_t gi = 0;
+      if (findContactGroupIndex(target, gi)) {
+        for (size_t pi = 0; pi < runtimeCfg.contactGroupPhoneCounts[gi]; ++pi) {
+          const String& phone = runtimeCfg.contactGroupPhones[gi][pi];
+          if (!phone.isEmpty()) enqueueCallTarget(phone, eventKey);
+        }
+      } else {
+        logLine(String("[HC] CALL csoport nem letezik: ") + target);
+      }
+    }
+  };
+
+  if (!smsTarget.isEmpty())  sendSmsTo(smsTarget);
+  if (!callTarget.isEmpty()) callTo(callTarget);
+}
+
+// Health-check feltételek periodikus ellenőrzése (30 s-ként).
+// OK→HIBA átmenetnél: MQTT alert (ha él), SMS + hívás az eszközről (GSM-en, WiFi nélkül is).
+// HIBA→OK átmenetnél: MQTT cleared alert (ha él), SMS nem kerül küldésre.
+void checkHealthConditions() {
+  if (!runtimeCfg.valid) return;
+  unsigned long now = millis();
+  if (now - lastHcCheckMs < HC_CHECK_INTERVAL_MS) return;
+  lastHcCheckMs = now;
+
+  static const char* hcKeys[HC_COUNT] = {
+    "hc_no_wifi","hc_no_gsm_modem","hc_no_gsm_operator",
+    "hc_no_usb_power","hc_no_sensor","hc_mqtt_offline","hc_battery_low"
+  };
+  static const char* hcLabels[HC_COUNT] = {
+    "Nincs WiFi kapcsolat","Nincs GSM modem","Nincs GSM szolgaltato",
+    "Nincs USB tap (akkurol megy)","Szenzor nem elerheto",
+    "MQTT elerhete tlen","Alacsony akkumulator szint"
+  };
+
+  bool conds[HC_COUNT];
+  // 0 – no_wifi: WiFi SSID be van állítva, de nincs kapcsolat
+  conds[0] = !netCfg.wifiSsid.isEmpty() && !state.wifiConnected;
+  // 1 – no_gsm_modem: GSM-et várunk, de a modem nem válaszol
+  conds[1] = state.gsmEnabled && !state.gsmReady;
+  // 2 – no_gsm_operator: modem él, de nincs regisztráció
+  conds[2] = state.gsmReady && state.gsmRegistered && state.gsmOperator.isEmpty();
+  // 3 – no_usb_power: USB táp nincs, akkuról megy
+  conds[3] = !state.usbPower;
+  // 4 – no_sensor: szenzor inicializált állapotban sem elérhető
+  conds[4] = state.runtimeConfigLoaded && !state.sensorOk;
+  // 5 – mqtt_offline: MQTT nincs csatlakozva (WiFi-n és GSM-en sem)
+  conds[5] = !netCfg.mqttHost.isEmpty() && !mqttIsConnected();
+  // 6 – battery_low: akkumulátor % a beállított küszöb alatt
+  conds[6] = (state.batteryPct >= 0) && ((uint32_t)state.batteryPct <= runtimeCfg.batteryLowPct);
+
+  for (int i = 0; i < HC_COUNT; ++i) {
+    bool nowBad = conds[i];
+    if (!runtimeCfg.hcAlarm[i]) {
+      // Nem figyelt feltétel – csak az állapotot tároljuk
+      state.hcWasBad[i] = nowBad;
+      continue;
+    }
+
+    bool wasBad = state.hcWasBad[i];
+    state.hcWasBad[i] = nowBad;
+
+    if (!state.hcInitialized) continue; // első körben csak alapállapot felvétele
+
+    if (nowBad && !wasBad) {
+      // OK → HIBA
+      logLine(String("[HC] HIBA: ") + hcKeys[i]);
+      if (mqttIsConnected()) {
+        publishAlertEvent(hcKeys[i], "warning", String("HC hiba: ") + hcLabels[i], NAN, NAN);
+      }
+      dispatchHcAlert(i, hcKeys[i], hcLabels[i]);
+    } else if (!nowBad && wasBad) {
+      // HIBA → OK
+      logLine(String("[HC] Helyrealt: ") + hcKeys[i]);
+      if (mqttIsConnected()) {
+        String clearedKey = String(hcKeys[i]) + "_cleared";
+        publishAlertEvent(clearedKey.c_str(), "info", String("HC helyrealt: ") + hcLabels[i], NAN, NAN);
+      }
+    }
+  }
+  state.hcInitialized = true;
+}
+
+// =========================
+// ESP-NOW relay
+// =========================
+
+// Vételi callback – ESP32 Arduino core 3.x szignatúra (esp_now_recv_info_t).
+// A WiFi task hivja, ne vegezzunk itt komoly munkát.
+void onEspNowRecv(const esp_now_recv_info_t *recv_info, const uint8_t *data, int len) {
+  if (!recv_info || !recv_info->src_addr) return;
+  if (relayBuf.pending) return;   // előző csomag még feldolgozás alatt, elejtjük
+  if (len <= 0) return;
+  if (len > (int)ESPNOW_PAYLOAD_MAX) len = (int)ESPNOW_PAYLOAD_MAX;
+  memcpy(relayBuf.mac, recv_info->src_addr, 6);
+  memcpy(relayBuf.data, data, len);
+  relayBuf.data[len] = '\0';
+  relayBuf.len = (uint8_t)len;
+  relayBuf.pending = true;
+}
+
+bool isRelaySlaveAllowed(const char* slaveId) {
+  if (runtimeCfg.espNowSlaveCount == 0) return true;  // üres whitelist = mindenki mehet
+  for (size_t i = 0; i < runtimeCfg.espNowSlaveCount; ++i) {
+    if (runtimeCfg.espNowSlaveIds[i] == slaveId) return true;
+  }
+  return false;
+}
+
+void initEspNow() {
+  if (!runtimeCfg.espNowEnabled) return;
+  if (espNowInitialized) return;
+  // esp_now_init() crash-el, ha a WiFi stack még nem indult el
+  if (WiFi.getMode() == WIFI_MODE_NULL) return;
+
+  if (esp_now_init() != ESP_OK) {
+    logLine("[ESPNOW] Init HIBA");
+    return;
+  }
+  esp_now_register_recv_cb(onEspNowRecv);
+  espNowInitialized = true;
+  logLine("[ESPNOW] Init OK - relay master aktiv");
+}
+
+// ESP-NOW konfig újraolvasás után: ha disabled lett, deinit
+void syncEspNowState() {
+  if (runtimeCfg.espNowEnabled && !espNowInitialized) {
+    initEspNow();
+  } else if (!runtimeCfg.espNowEnabled && espNowInitialized) {
+    esp_now_deinit();
+    espNowInitialized = false;
+    logLine("[ESPNOW] Letiltva, deinit OK");
+  }
+}
+
 bool shouldThrottleCall(const String& key) {
   unsigned long now = millis();
   for (size_t i = 0; i < MAX_RECENT_CALLS; ++i) {
@@ -577,85 +794,139 @@ void updateLedRing() {
   // LED 0 – WiFi / hálózat
   if (state.apEnabled) {
     setLedSafe(0, (state.rescueApMode && blinkState(350)) ? ledColor(80, 0, 80) : ledColor(80, 0, 0));
+    ledNames[0] = state.rescueApMode ? "blink-red" : "red";
   } else if (state.staValidated) {
-    setLedSafe(0, ledColor(0, 80, 0));        // zöld: WiFi + gateway OK
+    setLedSafe(0, ledColor(0, 80, 0));
+    ledNames[0] = "green";
   } else if (state.wifiConnected || state.staAttemptInProgress) {
-    setLedSafe(0, ledColor(80, 50, 0));       // sárga: csatlakozás / gateway teszt
+    setLedSafe(0, ledColor(80, 50, 0));
+    ledNames[0] = "yellow";
   } else {
-    setLedSafe(0, ledColor(80, 0, 0));        // piros: nincs WiFi
+    setLedSafe(0, ledColor(80, 0, 0));
+    ledNames[0] = "red";
   }
 
   // LED 1 – MQTT kapcsolat
   if (state.mqttConnected) {
-    setLedSafe(1, ledColor(0, 80, 0));        // zöld: csatlakozva
+    setLedSafe(1, ledColor(0, 80, 0));
+    ledNames[1] = "green";
   } else if (state.mqttConnecting) {
-    setLedSafe(1, blinkState(500) ? ledColor(0, 0, 80) : 0);  // kék villogó: csatlakozás
+    setLedSafe(1, blinkState(500) ? ledColor(0, 0, 80) : 0);
+    ledNames[1] = "blink-blue";
   } else {
-    setLedSafe(1, ledColor(80, 0, 0));        // piros: nincs MQTT
+    setLedSafe(1, ledColor(80, 0, 0));
+    ledNames[1] = "red";
   }
 
   // LED 2 – GSM modem (SIM800L)
   if (state.gsmEnabled) {
     if (state.gsmInitInProgress) {
-      setLedSafe(2, blinkState(500) ? ledColor(0, 0, 80) : 0);  // kék villogó: init
+      setLedSafe(2, blinkState(500) ? ledColor(0, 0, 80) : 0);
+      ledNames[2] = "blink-blue";
     } else if (state.gsmReady) {
-      setLedSafe(2, ledColor(0, 80, 0));      // zöld: modem + hálózat OK
+      setLedSafe(2, ledColor(0, 80, 0));
+      ledNames[2] = "green";
     } else if (state.gsmSimReady) {
-      setLedSafe(2, ledColor(80, 50, 0));     // sárga: SIM OK, nincs hálózat
+      setLedSafe(2, ledColor(80, 50, 0));
+      ledNames[2] = "yellow";
     } else {
-      setLedSafe(2, ledColor(80, 0, 0));      // piros: modem nem válaszol / nincs SIM
+      setLedSafe(2, ledColor(80, 0, 0));
+      ledNames[2] = "red";
     }
+  } else {
+    ledNames[2] = "off";
   }
-  // ha GSM disabled: LED 2 kialszik
 
   // LED 3 – BME280 szenzor
   setLedSafe(3, state.sensorOk ? ledColor(0, 80, 0) : ledColor(80, 0, 0));
+  ledNames[3] = state.sensorOk ? "green" : "red";
 
   // LED 4 – Kontakt bemenet
   if (normalizeContactMode(runtimeCfg.contact1Mode) == "unused") {
-    setLedSafe(4, 0);                         // kialszik: nem figyelt
+    setLedSafe(4, 0);
+    ledNames[4] = "off";
   } else if (state.contactActive) {
-    setLedSafe(4, blinkState(400) ? ledColor(80, 20, 0) : ledColor(80, 0, 0));  // piros/narancs villogó: riasztás
+    setLedSafe(4, blinkState(400) ? ledColor(80, 20, 0) : ledColor(80, 0, 0));
+    ledNames[4] = "blink-orange";
   } else {
-    setLedSafe(4, ledColor(0, 80, 0));        // zöld: normál állapot
+    setLedSafe(4, ledColor(0, 80, 0));
+    ledNames[4] = "green";
   }
 
   // LED 5 – Hőmérséklet riasztás
   if (state.tempHighAlarmActive) {
-    setLedSafe(5, blinkState(400) ? ledColor(80, 0, 0) : ledColor(40, 0, 0));  // piros villogó: túl meleg
+    setLedSafe(5, blinkState(400) ? ledColor(80, 0, 0) : ledColor(40, 0, 0));
+    ledNames[5] = "blink-red";
   } else if (state.tempLowAlarmActive) {
-    setLedSafe(5, blinkState(400) ? ledColor(0, 0, 80) : ledColor(0, 0, 40));  // kék villogó: túl hideg
+    setLedSafe(5, blinkState(400) ? ledColor(0, 0, 80) : ledColor(0, 0, 40));
+    ledNames[5] = "blink-blue";
   } else {
-    setLedSafe(5, ledColor(0, 20, 0));        // halvány zöld: normál
+    setLedSafe(5, ledColor(0, 80, 0));
+    ledNames[5] = "green";
   }
 
   // LED 6 – USB táp / töltés
   if (state.usbPower) {
-    setLedSafe(6, state.batteryCharging ? ledColor(0, 60, 80) : ledColor(0, 80, 0));  // zöldeskék: tölt, zöld: teli/USB
+    setLedSafe(6, state.batteryCharging ? ledColor(0, 60, 80) : ledColor(0, 80, 0));
+    ledNames[6] = state.batteryCharging ? "teal" : "green";
   } else {
-    setLedSafe(6, ledColor(80, 30, 0));       // narancs: akkuról megy
+    setLedSafe(6, ledColor(80, 30, 0));
+    ledNames[6] = "orange";
   }
 
   // LED 7 – Akkumulátor töltöttség
   uint32_t battColor = 0;
   if (state.batteryPct < 0) {
-    battColor = 0;                            // ismeretlen: kialszik
+    battColor = 0;
+    ledNames[7] = "off";
   } else if (state.batteryPct <= 15) {
-    battColor = blinkState(400) ? ledColor(80, 0, 0) : 0;  // piros villogó: kritikus
+    battColor = blinkState(400) ? ledColor(80, 0, 0) : 0;
+    ledNames[7] = "blink-red";
   } else if (state.batteryPct <= 25) {
-    battColor = ledColor(80, 0, 0);           // piros: alacsony
+    battColor = ledColor(80, 0, 0);
+    ledNames[7] = "red";
   } else if (state.batteryPct <= 50) {
-    battColor = ledColor(80, 50, 0);          // sárga: közepes
+    battColor = ledColor(80, 50, 0);
+    ledNames[7] = "yellow";
   } else if (state.batteryPct <= 75) {
-    battColor = ledColor(0, 0, 80);           // kék: jó
+    battColor = ledColor(0, 0, 80);
+    ledNames[7] = "blue";
   } else {
-    battColor = ledColor(0, 80, 0);           // zöld: teli
+    battColor = ledColor(0, 80, 0);
+    ledNames[7] = "green";
   }
   setLedSafe(7, battColor);
+
+  // Futófény overlay: az aktuális sweep pozícióban lévő LED fehér felvillanást kap
+  if (ledSweepPos >= 0 && ledSweepPos < (int)LED_RING_COUNT) {
+    uint32_t cur = ring.getPixelColor(ledSweepPos);
+    uint8_t r = min(255, (int)((cur >> 16) & 0xFF) + 130);
+    uint8_t g = min(255, (int)((cur >>  8) & 0xFF) + 130);
+    uint8_t b = min(255, (int)( cur        & 0xFF) + 130);
+    ring.setPixelColor(ledSweepPos, ring.Color(r, g, b));
+  }
 
   ring.show();
 }
 
+void tickLedSweep() {
+  unsigned long now = millis();
+  if (ledSweepPos < 0) {
+    if (now - ledSweepTriggerMs >= LED_SWEEP_INTERVAL_MS) {
+      ledSweepTriggerMs = now;
+      ledSweepStepMs    = now;
+      ledSweepPos       = 0;
+    }
+    return;
+  }
+  if (now - ledSweepStepMs >= LED_SWEEP_STEP_MS) {
+    ledSweepStepMs = now;
+    ledSweepPos++;
+    if (ledSweepPos >= (int)LED_RING_COUNT) {
+      ledSweepPos = -1;  // sweep vége, visszaáll a normál állapot
+    }
+  }
+}
 
 // =========================
 // SPIFFS config I/O
@@ -821,9 +1092,65 @@ bool applyRuntimeConfigDoc(const JsonDocument& doc) {
     }
   }
 
+  // Health checks – per-feltétel: alarm, sms_target, call_target
+  {
+    static const char* hcKeyNames[HC_COUNT] = {
+      "no_wifi","no_gsm_modem","no_gsm_operator","no_usb_power",
+      "no_sensor","mqtt_offline","battery_low"
+    };
+    static const bool hcAlarmDefaults[HC_COUNT] = {true,false,false,false,true,true,true};
+    JsonObjectConst hcObj = doc["health_checks"].as<JsonObjectConst>();
+    for (int i = 0; i < HC_COUNT; ++i) {
+      JsonVariantConst entry = hcObj[hcKeyNames[i]];
+      if (!hcObj.isNull() && !entry.isNull()) {
+        if (entry.is<JsonObjectConst>()) {
+          next.hcAlarm[i]      = entry["alarm"] | hcAlarmDefaults[i];
+          String sms  = String((const char*)(entry["sms_target"]  | ""));  sms.trim();
+          String call = String((const char*)(entry["call_target"] | "")); call.trim();
+          next.hcSmsTarget[i]  = sms;
+          next.hcCallTarget[i] = call;
+        } else {
+          // visszafelé-kompatibilitás: régi bool formátum
+          next.hcAlarm[i]      = entry | hcAlarmDefaults[i];
+          next.hcSmsTarget[i]  = "";
+          next.hcCallTarget[i] = "";
+        }
+      } else {
+        next.hcAlarm[i]      = hcAlarmDefaults[i];
+        next.hcSmsTarget[i]  = "";
+        next.hcCallTarget[i] = "";
+      }
+    }
+  }
+
+  // ESP-NOW relay konfig
+  {
+    JsonVariantConst espnowVar = doc["espnow"];
+    if (!espnowVar.isNull() && espnowVar.is<JsonObjectConst>()) {
+      JsonObjectConst espnowObj = espnowVar.as<JsonObjectConst>();
+      next.espNowEnabled = espnowObj["enabled"] | false;
+      next.espNowSlaveCount = 0;
+      JsonVariantConst slavesVar = espnowObj["slaves"];
+      if (!slavesVar.isNull() && slavesVar.is<JsonArrayConst>()) {
+        for (JsonVariantConst s : slavesVar.as<JsonArrayConst>()) {
+          if (next.espNowSlaveCount >= MAX_RELAY_SLAVES) break;
+          String sid = s.as<String>();
+          sid.trim();
+          if (!sid.isEmpty()) {
+            next.espNowSlaveIds[next.espNowSlaveCount++] = sid;
+          }
+        }
+      }
+    } else {
+      next.espNowEnabled = false;
+      next.espNowSlaveCount = 0;
+    }
+  }
+
   next.valid = true;
   runtimeCfg = next;
   state.runtimeConfigLoaded = true;
+  syncEspNowState();
   return true;
 }
 
@@ -1106,6 +1433,7 @@ void publishCommandReply(const String& requestId, bool ok, const String& message
 void publishAlertEvent(const char* eventType, const char* severity, const String& message, float value = NAN, float threshold = NAN);
 void publishBootEvent();
 void updateAlarmStateFlags();
+void syncEspNowState();
 void readContact();
 void evaluateAlerts();
 bool shouldThrottleCall(const String& key);
@@ -1371,30 +1699,28 @@ void readPowerState() {
   int raw = analogRead(USB_SENSE_PIN);
   state.usbPower = (raw >= USB_SENSE_THRESHOLD_RAW);
 
-  // Töltés érzékelése: CHRG active LOW (tölt = LOW)
+  // Töltés érzékelése: GPIO32 LOW = tölt (Waveshare UPS Mini CHRG pin, INPUT_PULLUP)
   state.batteryCharging = (digitalRead(UPS_CHARGE_PIN) == LOW);
 
-  // Akkumulátor töltöttség MAX17040-ből (Waveshare Mini UPS)
-  Wire.beginTransmission(UPS_I2C_ADDR);
-  Wire.write(0x02);  // VCELL regiszter
-  if (Wire.endTransmission(false) == 0) {
-    Wire.requestFrom((uint8_t)UPS_I2C_ADDR, (uint8_t)2);
-    if (Wire.available() >= 2) {
-      uint16_t vcell = ((uint16_t)Wire.read() << 8) | Wire.read();
-      state.batteryVoltage = (vcell >> 4) * 0.00125f;
-    }
+  // Akkumulátor feszültség és töltöttség INA219-ből (Waveshare Mini UPS, I2C 0x43)
+  Wire.beginTransmission(INA219_ADDRESS);
+  bool inaOk = (Wire.endTransmission() == 0);
+
+  if (inaOk) {
+    float busV = INA219_getBusVoltage_V();
+    state.batteryVoltage = busV;
+    // Waveshare képlet: 3.0V = 0%, 4.2V = 100%
+    float pct = (busV - 3.0f) / 1.2f * 100.0f;
+    if (pct < 0.0f)   pct = 0.0f;
+    if (pct > 100.0f) pct = 100.0f;
+    state.batteryPct = (int)pct;
+  } else {
+    logLine(String("[POWER] INA219 I2C hiba (0x43)! GPIO33 raw=") + raw +
+            " usbPower=" + state.usbPower +
+            " chrg_pin=" + digitalRead(UPS_CHARGE_PIN));
   }
 
-  Wire.beginTransmission(UPS_I2C_ADDR);
-  Wire.write(0x04);  // SOC regiszter
-  if (Wire.endTransmission(false) == 0) {
-    Wire.requestFrom((uint8_t)UPS_I2C_ADDR, (uint8_t)2);
-    if (Wire.available() >= 2) {
-      uint8_t soc_int = Wire.read();
-      Wire.read();  // frakcionális rész (nem kell)
-      state.batteryPct = constrain((int)soc_int, 0, 100);
-    }
-  }
+  state.upsI2cOk = inaOk;
 }
 
 // =========================
@@ -1426,7 +1752,7 @@ void publishLwtOnline() {
 }
 
 void publishReportedState(bool applied, const char* source) {
-  StaticJsonDocument<768> doc;
+  StaticJsonDocument<1536> doc;
   doc["device_id"] = netCfg.deviceId;
   doc["ts"] = isoNow();
   doc["config_version"] = runtimeCfg.configVersion;
@@ -1435,8 +1761,8 @@ void publishReportedState(bool applied, const char* source) {
   doc["config_source"] = source;
   doc["sampling_sec"] = runtimeCfg.samplingSec;
   doc["heartbeat_sec"] = runtimeCfg.heartbeatSec;
-  doc["fw"] = "clean-slate-0.4.0-bme280-ups";
-  doc["power_mode"] = state.usbPower ? "charging" : "battery";
+  doc["fw"] = "clean-slate-0.5.0-bme280-ups-ina219";
+  doc["power_mode"] = state.usbPower ? (state.batteryCharging ? "usb_charging" : "usb") : "battery";
   doc["telemetry_transport"] = currentTelemetryTransport();
   doc["wifi_ok"] = state.wifiConnected;
   if (state.wifiConnected) {
@@ -1444,13 +1770,26 @@ void publishReportedState(bool applied, const char* source) {
   } else {
     doc["wifi_rssi"] = nullptr;
   }
-  doc["wifi_ip"] = currentWiFiIp();
+  doc["wifi_ip"]      = currentWiFiIp();
+  doc["wifi_mac"]     = WiFi.macAddress();
+  doc["wifi_channel"] = state.wifiConnected ? (int)WiFi.channel() : 0;
   doc["gsm_ok"] = currentGsmOk();
+  doc["gsm_registered"] = state.gsmRegistered;
+  doc["gsm_sim_ready"] = state.gsmSimReady;
   doc["gsm_operator"] = currentGsmOperator();
   if (currentGsmRssiKnown()) {
     doc["gsm_rssi"] = state.gsmRssi;
   } else {
     doc["gsm_rssi"] = nullptr;
+  }
+  doc["sensor_ok"] = state.sensorOk;
+  doc["ups_i2c_ok"] = state.upsI2cOk;
+  doc["mqtt_connected"] = state.mqttConnected;
+
+  // LED állapotok – pontosan a fizikai LED-ek logikai nevei
+  JsonArray leds = doc.createNestedArray("leds");
+  for (uint16_t i = 0; i < LED_RING_COUNT; i++) {
+    leds.add(ledNames[i]);
   }
 
   String payload;
@@ -1460,7 +1799,7 @@ void publishReportedState(bool applied, const char* source) {
 }
 
 void publishTelemetry() {
-  StaticJsonDocument<1024> doc;
+  StaticJsonDocument<2560> doc;
   doc["device_id"] = netCfg.deviceId;
   doc["ts"] = isoNow();
   doc["telemetry_transport"] = currentTelemetryTransport();
@@ -1470,7 +1809,9 @@ void publishTelemetry() {
   } else {
     doc["wifi_rssi"] = nullptr;
   }
-  doc["wifi_ip"] = currentWiFiIp();
+  doc["wifi_ip"]      = currentWiFiIp();
+  doc["wifi_mac"]     = WiFi.macAddress();
+  doc["wifi_channel"] = state.wifiConnected ? (int)WiFi.channel() : 0;
   doc["gsm_ok"] = currentGsmOk();
   doc["gsm_operator"] = currentGsmOperator();
   if (currentGsmRssiKnown()) {
@@ -1487,7 +1828,7 @@ void publishTelemetry() {
   JsonObject power = doc["power"].to<JsonObject>();
   power["usb_present"] = state.usbPower;
   power["charging"] = state.batteryCharging;
-  power["mode"] = state.usbPower ? "charging" : "battery";
+  power["mode"] = state.usbPower ? (state.batteryCharging ? "usb_charging" : "usb") : "battery";
   if (state.batteryPct >= 0) power["battery_pct"] = state.batteryPct;
   if (!isnan(state.batteryVoltage)) power["battery_v"] = state.batteryVoltage;
 
@@ -1506,13 +1847,21 @@ void publishTelemetry() {
   }
 
   JsonObject meta = doc["meta"].to<JsonObject>();
-  meta["fw"] = "clean-slate-0.4.0-bme280-ups";
+  meta["fw"] = "clean-slate-0.5.0-bme280-ups-ina219";
   meta["uptime_sec"] = uptimeSec();
   meta["config_version"] = runtimeCfg.configVersion;
   meta["runtime_cfg_loaded"] = state.runtimeConfigLoaded;
   meta["contact_1_mode"] = normalizeContactMode(runtimeCfg.contact1Mode);
   meta["gsm_registered"] = state.gsmRegistered;
   meta["gsm_operator"] = state.gsmOperator;
+
+  // Szenzor és LED állapot – minden telemetriában küldjük, hogy a raw_json frissítésekor ne vesszék el
+  doc["sensor_ok"]   = state.sensorOk;
+  doc["ups_i2c_ok"]  = state.upsI2cOk;
+  JsonArray ledsArr = doc.createNestedArray("leds");
+  for (int i = 0; i < LED_RING_COUNT; i++) {
+    ledsArr.add(ledNames[i]);
+  }
 
   String payload;
   serializeJson(doc, payload);
@@ -1547,7 +1896,7 @@ void publishAlertEvent(const char* eventType, const char* severity, const String
 
   JsonObject details = doc["details"].to<JsonObject>();
   details["ip"] = currentWiFiIp();
-  details["fw"] = "clean-slate-0.4.0-bme280-ups";
+  details["fw"] = "clean-slate-0.5.0-bme280-ups-ina219";
   details["config_version"] = runtimeCfg.configVersion;
   details["contact_active"] = state.contactActive;
   details["contact_open"] = state.contactOpen;
@@ -1571,6 +1920,120 @@ void publishAlertEvent(const char* eventType, const char* severity, const String
   String payload;
   serializeJson(doc, payload);
   mqttPublish(topicAlert, payload, false);
+}
+
+// =========================
+// ESP-NOW relay – feldolgozó függvények
+// (mqttPublish és publishAlertEvent definíciója után kerülnek, mert ezeket hívják)
+// =========================
+
+void processRelayTelemetry(const char* slaveId, JsonObjectConst src) {
+  if (!mqttIsConnected()) return;
+
+  StaticJsonDocument<512> out;
+  out["device_id"]    = slaveId;
+  out["ts"]           = isoNow();
+  out["relay_source"] = netCfg.deviceId;
+
+  JsonVariantConst tempVal = src["temp"];
+  if (!tempVal.isNull()) {
+    JsonObject env = out["env"].to<JsonObject>();
+    env["temperature"] = tempVal.as<float>();
+    JsonVariantConst humVal = src["hum"];
+    if (!humVal.isNull()) env["humidity"] = humVal.as<float>();
+    JsonVariantConst presVal = src["pres"];
+    if (!presVal.isNull()) env["pressure_hpa"] = presVal.as<float>();
+  }
+
+  JsonVariantConst contVal = src["contact"];
+  if (!contVal.isNull()) {
+    JsonObject contacts = out["contacts"].to<JsonObject>();
+    contacts["c1"] = (contVal.as<int>() == 0) ? "closed" : "open";
+  }
+
+  JsonVariantConst batVal = src["bat"];
+  if (!batVal.isNull()) {
+    JsonObject power = out["power"].to<JsonObject>();
+    power["battery_pct"] = batVal.as<int>();
+    power["mode"]        = "battery";
+  }
+
+  String topic   = String("pp/") + slaveId + "/telemetry";
+  String pl;
+  serializeJson(out, pl);
+  mqttPublish(topic, pl, false);
+  logLine(String("[RELAY] tele -> ") + slaveId);
+}
+
+void processRelayNotify(const char* slaveId, JsonObjectConst src) {
+  const char* ch  = src["ch"]  | "";
+  const char* to  = src["to"]  | "";
+  const char* msg = src["msg"] | "";
+
+  String fullMsg = String("[") + slaveId + "] " + msg;
+  bool isSms  = (strcmp(ch, "sms")  == 0);
+  bool isCall = (strcmp(ch, "call") == 0);
+
+  if ((isSms || isCall) && state.gsmEnabled) {
+    String target = String(to);
+    if (target.startsWith("+")) {
+      if (isSms) { sim800.sendSms(target, fullMsg); }
+      else        { enqueueCallTarget(target, (String("relay_") + slaveId).c_str()); }
+    } else {
+      size_t gi = 0;
+      if (findContactGroupIndex(target, gi)) {
+        for (size_t pi = 0; pi < runtimeCfg.contactGroupPhoneCounts[gi]; ++pi) {
+          const String& phone = runtimeCfg.contactGroupPhones[gi][pi];
+          if (phone.isEmpty()) continue;
+          if (isSms) { sim800.sendSms(phone, fullMsg); }
+          else        { enqueueCallTarget(phone, (String("relay_") + slaveId).c_str()); }
+        }
+      } else {
+        logLine(String("[RELAY] csoport nem talalt: ") + target);
+      }
+    }
+  }
+
+  if (mqttIsConnected()) {
+    String evType = String("relay_notify_") + slaveId;
+    publishAlertEvent(evType.c_str(), "warning", fullMsg, NAN, NAN);
+  }
+  logLine(String("[RELAY] notify <- ") + slaveId + " ch=" + ch);
+}
+
+void processRelayQueue() {
+  if (!relayBuf.pending) return;
+
+  char buf[ESPNOW_PAYLOAD_MAX + 1];
+  uint8_t len = relayBuf.len;
+  memcpy(buf, relayBuf.data, len + 1);
+  relayBuf.pending = false;
+
+  StaticJsonDocument<300> doc;
+  DeserializationError err = deserializeJson(doc, buf, len);
+  if (err) {
+    logLine(String("[RELAY] JSON hiba: ") + err.c_str());
+    return;
+  }
+
+  const char* slaveId = doc["id"] | "";
+  if (strlen(slaveId) == 0) { logLine("[RELAY] hiányzó id mezo, eldobva"); return; }
+  if (strcmp(slaveId, netCfg.deviceId.c_str()) == 0) return;
+  if (!isRelaySlaveAllowed(slaveId)) {
+    logLine(String("[RELAY] nem engedélyezett slave: ") + slaveId);
+    return;
+  }
+
+  const char* type = doc["t"] | "";
+  JsonObjectConst srcObj = doc.as<JsonObjectConst>();
+
+  if (strcmp(type, "tele") == 0) {
+    processRelayTelemetry(slaveId, srcObj);
+  } else if (strcmp(type, "notify") == 0) {
+    processRelayNotify(slaveId, srcObj);
+  } else {
+    logLine(String("[RELAY] ismeretlen típus: ") + type);
+  }
 }
 
 void publishBootEvent() {
@@ -1714,6 +2177,7 @@ String buildIndexHtml() {
   html.reserve(5000);
   html += "<!doctype html><html><head><meta charset='utf-8'>";
   html += "<meta name='viewport' content='width=device-width,initial-scale=1'>";
+  // Nincs meta refresh – JS fetch frissíti az értékeket 5 másodpercenként
   html += "<title>PP ESP Clean Slate</title>";
   html += "<style>body{font-family:Arial,sans-serif;background:#0f172a;color:#e2e8f0;margin:0;padding:20px;}";
   html += ".wrap{max-width:860px;margin:0 auto;} .card{background:#111827;border:1px solid #334155;border-radius:14px;padding:16px;margin-bottom:16px;}";
@@ -1739,29 +2203,34 @@ String buildIndexHtml() {
   html += "<p style='opacity:.8'>Ha a web jelszo ures, a helyi webfelulet szabadon elerheto.</p>";
   html += "<p><button type='submit'>Mentes</button></p></form></div>";
 
-  html += "<div class='card'><h3>Aktualis allapot</h3><table>";
-  html += "<tr><td>WiFi IP</td><td class='mono'>" + WiFi.localIP().toString() + "</td></tr>";
+  html += "<div class='card' id='status-card'><h3>Aktualis allapot <span id='upd-ts' style='font-size:12px;opacity:.5'></span></h3><table>";
+  html += "<tr><td>WiFi IP</td><td class='mono' id='v-wip'>" + WiFi.localIP().toString() + "</td></tr>";
   html += "<tr><td>AP IP</td><td class='mono'>" + WiFi.softAPIP().toString() + "</td></tr>";
-  html += "<tr><td>WiFi RSSI</td><td>" + String(state.rssi) + " dBm</td></tr>";
-  html += "<tr><td>MQTT</td><td>" + String(state.mqttConnected ? "<span class='ok'>connected</span>" : "<span class='bad'>disconnected</span>") + "</td></tr>";
-  html += "<tr><td>SIM800</td><td>" + String(state.gsmReady ? "<span class='ok'>ready</span>" : "<span class='bad'>not ready</span>") + "</td></tr>";
-  html += "<tr><td>GSM halozat</td><td>" + String(state.gsmRegistered ? "<span class='ok'>feljelentkezve</span>" : "<span class='warn'>nincs regisztracio</span>") + "</td></tr>";
-  html += "<tr><td>GSM operátor</td><td>" + htmlEscape(state.gsmOperator.isEmpty() ? String("—") : state.gsmOperator) + "</td></tr>";
-  html += "<tr><td>GSM RSSI</td><td>" + String(currentGsmRssiKnown() ? String(state.gsmRssi) + " dBm" : String("—")) + "</td></tr>";
-  html += "<tr><td>Runtime cfg</td><td>" + String(state.runtimeConfigLoaded ? "<span class='ok'>loaded</span>" : "<span class='warn'>default</span>") + "</td></tr>";
-  html += "<tr><td>Config version</td><td>" + String(runtimeCfg.configVersion) + "</td></tr>";
-  html += "<tr><td>Temperature</td><td>" + String(state.temperature, 1) + " &deg;C</td></tr>";
-  html += "<tr><td>Humidity</td><td>" + String(state.humidity, 1) + " %</td></tr>";
-  html += "<tr><td>Pressure</td><td>" + String(state.pressure_hpa, 1) + " hPa</td></tr>";
-  html += "<tr><td>USB tap</td><td>" + String(state.usbPower ? "<span class='ok'>jelen</span>" : "<span class='warn'>nincs</span>") + "</td></tr>";
-  html += "<tr><td>Toltes</td><td>" + String(state.batteryCharging ? "<span class='ok'>tolt</span>" : "<span class='warn'>nem tolt</span>") + "</td></tr>";
-  html += "<tr><td>Akku %</td><td>" + String(state.batteryPct >= 0 ? String(state.batteryPct) + " %" : String("—")) + "</td></tr>";
-  html += "<tr><td>Akku feszultseg</td><td>" + String(!isnan(state.batteryVoltage) ? String(state.batteryVoltage, 3) + " V" : String("—")) + "</td></tr>";
+  html += "<tr><td>WiFi RSSI</td><td id='v-rssi'>" + String(state.rssi) + " dBm</td></tr>";
+  html += "<tr><td>MQTT</td><td id='v-mqtt'>" + String(state.mqttConnected ? "<span class='ok'>connected</span>" : "<span class='bad'>disconnected</span>") + "</td></tr>";
+  html += "<tr><td>SIM800</td><td id='v-gsm'>" + String(state.gsmReady ? "<span class='ok'>ready</span>" : "<span class='bad'>not ready</span>") + "</td></tr>";
+  html += "<tr><td>GSM halozat</td><td id='v-gsm-reg'>" + String(state.gsmRegistered ? "<span class='ok'>feljelentkezve</span>" : "<span class='warn'>nincs regisztracio</span>") + "</td></tr>";
+  html += "<tr><td>GSM operator</td><td id='v-gsm-op'>" + htmlEscape(state.gsmOperator.isEmpty() ? String("—") : state.gsmOperator) + "</td></tr>";
+  html += "<tr><td>GSM RSSI</td><td id='v-gsm-rssi'>" + String(currentGsmRssiKnown() ? String(state.gsmRssi) + " dBm" : String("—")) + "</td></tr>";
+  html += "<tr><td>Runtime cfg</td><td id='v-rtcfg'>" + String(state.runtimeConfigLoaded ? "<span class='ok'>loaded</span>" : "<span class='warn'>default</span>") + "</td></tr>";
+  html += "<tr><td>Config version</td><td id='v-cfgver'>" + String(runtimeCfg.configVersion) + "</td></tr>";
+  html += "<tr><td>BME280 I2C</td><td id='v-bme'>" + String(state.sensorOk ? "<span class='ok'>OK (0x76/0x77)</span>" : "<span class='bad'>HIBA - nem valaszol</span>") + "</td></tr>";
+  html += "<tr><td>Temperature</td><td id='v-temp'>" + String(state.temperature, 1) + " &deg;C</td></tr>";
+  html += "<tr><td>Humidity</td><td id='v-hum'>" + String(state.humidity, 1) + " %</td></tr>";
+  html += "<tr><td>Pressure</td><td id='v-pres'>" + String(state.pressure_hpa, 1) + " hPa</td></tr>";
+  html += "<tr><td>GPIO33 raw (ADC)</td><td class='mono' id='v-g33'>" + String(analogRead(USB_SENSE_PIN)) + " / 4095 (kuszob: " + String(USB_SENSE_THRESHOLD_RAW) + ")</td></tr>";
+  html += "<tr><td>GPIO32 ertek</td><td class='mono' id='v-g32'>" + String(digitalRead(UPS_CHARGE_PIN)) + " (0=tolt, 1=nem tolt)</td></tr>";
+  html += "<tr><td>USB tap (GPIO33)</td><td id='v-usb'>" + String(state.usbPower ? "<span class='ok'>jelen</span>" : "<span class='warn'>nincs - akkurol megy</span>") + "</td></tr>";
+  html += "<tr><td>Toltes (GPIO32)</td><td id='v-chrg'>" + String(state.batteryCharging ? "<span class='ok'>tolt</span>" : "<span class='warn'>nem tolt</span>") + "</td></tr>";
+  html += "<tr><td>Tap mod</td><td id='v-pmod'><b>" + String(state.usbPower ? (state.batteryCharging ? "USB/toltes" : "USB") : "Akku") + "</b></td></tr>";
+  html += "<tr><td>INA219 I2C (UPS)</td><td id='v-ina'>" + String(state.upsI2cOk ? "<span class='ok'>OK (0x43)</span>" : "<span class='bad'>HIBA - nem valaszol</span>") + "</td></tr>";
+  html += "<tr><td>Akku %</td><td id='v-bpct'>" + String(state.batteryPct >= 0 ? String(state.batteryPct) + " %" : String("— (INA219 I2C hiba)")) + "</td></tr>";
+  html += "<tr><td>Akku feszultseg</td><td id='v-bv'>" + String(!isnan(state.batteryVoltage) ? String(state.batteryVoltage, 3) + " V" : String("—")) + "</td></tr>";
   html += "<tr><td>Kontakt GPIO27 mod</td><td>" + contactModeLabel() + "</td></tr>";
-  html += "<tr><td>Kontakt GPIO27 allapot</td><td>" + String(normalizeContactMode(runtimeCfg.contact1Mode) == "unused" ? "<span class='warn'>nem hasznalt</span>" : (state.contactOpen ? "<span class='warn'>open</span>" : "<span class='ok'>closed</span>")) + "</td></tr>";
-  html += "<tr><td>Kontakt GPIO27 riasztas</td><td>" + String(state.contactActive ? "<span class='bad'>aktiv</span>" : "<span class='ok'>normal</span>") + "</td></tr>";
-  html += "<tr><td>Aktiv riasztas</td><td>" + String(state.anyActiveAlarm ? "<span class='bad'>igen</span>" : "<span class='ok'>nincs</span>") + "</td></tr>";
-  html += "<tr><td>Uptime</td><td>" + String(uptimeSec()) + " sec</td></tr>";
+  html += "<tr><td>Kontakt GPIO27 allapot</td><td id='v-con'>" + String(normalizeContactMode(runtimeCfg.contact1Mode) == "unused" ? "<span class='warn'>nem hasznalt</span>" : (state.contactOpen ? "<span class='warn'>open</span>" : "<span class='ok'>closed</span>")) + "</td></tr>";
+  html += "<tr><td>Kontakt GPIO27 riasztas</td><td id='v-calm'>" + String(state.contactActive ? "<span class='bad'>aktiv</span>" : "<span class='ok'>normal</span>") + "</td></tr>";
+  html += "<tr><td>Aktiv riasztas</td><td id='v-alarm'>" + String(state.anyActiveAlarm ? "<span class='bad'>igen</span>" : "<span class='ok'>nincs</span>") + "</td></tr>";
+  html += "<tr><td>Uptime</td><td id='v-up'>" + String(uptimeSec()) + " sec</td></tr>";
   html += "</table></div>";
 
   html += "<div class='card'><h3>MQTT topicok</h3><table>";
@@ -1775,6 +2244,48 @@ String buildIndexHtml() {
   html += "</table></div>";
 
   html += "<div class='card'><p><a href='/json' style='color:#93c5fd'>/json</a></p></div>";
+
+  // JS részleges frissítés – csak az értékek, nem az egész oldal
+  html += "<script>";
+  html += "function u(id,html){var e=document.getElementById(id);if(e)e.innerHTML=html;}";
+  html += "function ok(v){return\"<span class='ok'>\"+v+\"</span>\";}";
+  html += "function bad(v){return\"<span class='bad'>\"+v+\"</span>\";}";
+  html += "function warn(v){return\"<span class='warn'>\"+v+\"</span>\";}";
+  html += "function fetchState(){";
+  html += "  fetch('/json').then(function(r){return r.json();}).then(function(d){";
+  html += "    var ts=new Date().toLocaleTimeString();";
+  html += "    u('upd-ts','frissult: '+ts);";
+  html += "    u('v-wip',d.wifi_ip||'—');";
+  html += "    u('v-rssi',(d.wifi_rssi!==null?d.wifi_rssi+' dBm':'—'));";
+  html += "    u('v-mqtt',d.mqtt_connected?ok('connected'):bad('disconnected'));";
+  html += "    u('v-gsm',d.gsm_ok?ok('ready'):bad('not ready'));";
+  html += "    u('v-gsm-reg',d.gsm_registered?ok('feljelentkezve'):warn('nincs regisztracio'));";
+  html += "    u('v-gsm-op',d.gsm_operator||'—');";
+  html += "    u('v-gsm-rssi',(d.gsm_rssi!==null?d.gsm_rssi+' dBm':'—'));";
+  html += "    u('v-rtcfg',d.runtime_config_loaded?ok('loaded'):warn('default'));";
+  html += "    u('v-cfgver',d.config_version);";
+  html += "    u('v-bme',d.sensor_ok?ok('OK (0x76/0x77)'):bad('HIBA - nem valaszol'));";
+  html += "    u('v-temp',(d.temperature!==null?(+d.temperature).toFixed(1):'?')+' \\u00b0C');";
+  html += "    u('v-hum',(d.humidity!==null?(+d.humidity).toFixed(1):'?')+' %');";
+  html += "    u('v-pres',(d.pressure_hpa!==null?(+d.pressure_hpa).toFixed(1):'?')+' hPa');";
+  html += "    u('v-g33',(d.gpio33_raw||0)+' / 4095');";
+  html += "    u('v-g32',(d.gpio32_val||0)+' (0=tolt, 1=nem tolt)');";
+  html += "    u('v-usb',d.usb_power?ok('jelen'):warn('nincs - akkurol megy'));";
+  html += "    u('v-chrg',d.charging?ok('tolt'):warn('nem tolt'));";
+  html += "    var pm={'usb_charging':'USB/toltes','usb':'USB','battery':'Akku'};";
+  html += "    u('v-pmod','<b>'+(pm[d.power_mode]||d.power_mode||'—')+'</b>');";
+  html += "    u('v-ina',d.ups_i2c_ok?ok('OK (0x43)'):bad('HIBA - nem valaszol'));";
+  html += "    u('v-bpct',(d.battery_pct>=0?d.battery_pct+' %':'— (INA219 hiba)'));";
+  html += "    u('v-bv',(d.battery_v!==undefined?(+d.battery_v).toFixed(3)+' V':'—'));";
+  html += "    u('v-con',d.contact_open?warn('open'):ok('closed'));";
+  html += "    u('v-calm',d.contact_active?bad('aktiv'):ok('normal'));";
+  html += "    u('v-alarm',d.active_alarm?bad('igen'):ok('nincs'));";
+  html += "    u('v-up',d.uptime_sec+' sec');";
+  html += "  }).catch(function(){u('upd-ts','hiba');});";
+  html += "}";
+  html += "setInterval(fetchState, 5000);";
+  html += "</script>";
+
   html += "</div></body></html>";
   return html;
 }
@@ -1829,6 +2340,19 @@ void handleJson() {
   doc["temp_min"] = runtimeCfg.tempMin;
   doc["temp_max"] = runtimeCfg.tempMax;
   doc["uptime_sec"] = uptimeSec();
+  doc["sensor_ok"] = state.sensorOk;
+  doc["ups_i2c_ok"] = state.upsI2cOk;
+  doc["usb_power"] = state.usbPower;
+  doc["charging"] = state.batteryCharging;
+  doc["power_mode"] = state.usbPower ? (state.batteryCharging ? "usb_charging" : "usb") : "battery";
+  doc["gpio33_raw"] = analogRead(USB_SENSE_PIN);
+  doc["gpio32_val"] = digitalRead(UPS_CHARGE_PIN);
+  doc["gsm_registered"] = state.gsmRegistered;
+  doc["mqtt_connected"] = state.mqttConnected;
+  JsonArray ledsJ = doc.createNestedArray("leds");
+  for (uint16_t i = 0; i < LED_RING_COUNT; i++) {
+    ledsJ.add(ledNames[i]);
+  }
   String payload;
   serializeJsonPretty(doc, payload);
   server.send(200, "application/json; charset=utf-8", payload);
@@ -1877,38 +2401,6 @@ void setup() {
   delay(500);
   state.bootMs = millis();
 
-  // ── GPIO PIN KERESO TESZT ──────────────────────────────
-  // Minden pin 2 masodpercig HIGH – merd multimeterrel melyiken jelenik meg 3.3V
-  // Amelyiken 3.3V-ot mersz, az a helyes fizikai pin -> azt irod LED_RING_PIN-be
-  {
-    const int testPins[] = {2, 4, 5, 13, 14, 16, 17, 25, 26, 27, 32, 33};
-    const int pinCount   = sizeof(testPins) / sizeof(testPins[0]);
-    Serial.println("==============================");
-    Serial.println(" GPIO PIN KERESO TESZT");
-    Serial.println(" Tedd a multimeter + probajat az IN labra,");
-    Serial.println(" - labra GND-re. Merd melyiken jelenik meg 3.3V!");
-    Serial.println("==============================");
-    for (int i = 0; i < pinCount; i++) {
-      int pin = testPins[i];
-      pinMode(pin, OUTPUT);
-      digitalWrite(pin, LOW);
-    }
-    for (int i = 0; i < pinCount; i++) {
-      int pin = testPins[i];
-      Serial.printf(" >>> GPIO%d HIGH - merd most! (2 mp) <<<\n", pin);
-      digitalWrite(pin, HIGH);
-      delay(2000);
-      digitalWrite(pin, LOW);
-      delay(300);
-    }
-    Serial.println("==============================");
-    Serial.println(" PIN KERESO VEGE");
-    Serial.println(" Amelyiken 3.3V-ot mertél, azt add meg LED_RING_PIN-nek!");
-    Serial.println("==============================");
-    // Visszaallitas
-    for (int i = 0; i < pinCount; i++) pinMode(testPins[i], INPUT);
-  }
-
   // WS2812B: adj időt a tap stabilizalodara, majd reset pulse
   delay(100);
   ring.begin();
@@ -1920,7 +2412,7 @@ void setup() {
   // ── LED sor teszt: minden LED feher 600ms-ra ──────────
   for (uint16_t i = 0; i < LED_RING_COUNT; i++) ring.setPixelColor(i, ring.Color(30, 30, 30));
   ring.show();
-  Serial.println("[LED TESZT] 8 LED feher - ha semmi sem vilagit, ellenorizd a 3.3V/GND/DIN bekoteset");
+  Serial.println("[LED TESZT] 8 LED feher - ha semmi sem vilagit, ellenorizd a VCC/GND/DIN bekoteset");
   delay(600);
   ring.clear();
   ring.show();
@@ -1928,7 +2420,7 @@ void setup() {
 
   analogSetPinAttenuation(USB_SENSE_PIN, ADC_11db);
   pinMode(USB_SENSE_PIN, INPUT);
-  pinMode(UPS_CHARGE_PIN, INPUT_PULLUP);
+  pinMode(UPS_CHARGE_PIN, INPUT_PULLUP);   // LOW=tolt, HIGH=nem tolt (Waveshare UPS Mini)
   pinMode(CONTACT_PIN, INPUT_PULLUP);
   state.contactLastChangeMs = millis();
   state.lastContactRaw = (digitalRead(CONTACT_PIN) == HIGH);
@@ -1951,7 +2443,7 @@ void setup() {
   logLine("  [4] Kontakt bemenet:");
   logLine("      Zold=normalis | Piros/narancs villog=riasztas aktiv | Kialszik=nem figyelt");
   logLine("  [5] Homerseklet riasztas:");
-  logLine("      Halvany zold=normalis | Piros villog=tul meleg | Kek villog=tul hideg");
+  logLine("      Zold=normalis | Piros villog=tul meleg | Kek villog=tul hideg");
   logLine("  [6] USB tap / toltes:");
   logLine("      Zold=USB,teli | Zoldeskek=USB,tolt | Narancs=akkurol mukodik");
   logLine("  [7] Akkumulator toltotseg:");
@@ -1991,6 +2483,7 @@ void setup() {
 
   setupWebServer();
   setupBME280();
+  INA219_begin();   // INA219 kalibráció (Wire.begin() már lefutott a setupBME280()-ban)
   readPowerState();
   setupSim800();
   syncTime();
@@ -2012,6 +2505,7 @@ void setup() {
   }
 
   refreshWiFiFlags();
+  initEspNow();
   updateLedRing();
 }
 
@@ -2020,11 +2514,41 @@ void loop() {
   handleStaLifecycle();
   pollSim800();
   processQueuedCalls();
+  processRelayQueue();
   readContact();
+
+  // Tápellátás állapota 2 másodpercenként frissül (nem kell várni a telemetria-ciklusra)
+  if (millis() - lastPowerReadMs >= POWER_READ_INTERVAL_MS) {
+    lastPowerReadMs = millis();
+    bool prevUsb = state.usbPower;
+    readPowerState();
+
+    // Tápváltás detektálás (csak inicializálás után, és csak ha MQTT kapcsolat van)
+    if (state.powerStateInitialized && state.usbPower != prevUsb && mqttIsConnected()) {
+      if (!state.usbPower) {
+        // USB tápról akkumulátorra váltott
+        String msg = "Tapallas kiesett – eszkoz akkumulatorrol mukodik";
+        if (state.batteryPct >= 0) {
+          msg += " (akku: " + String(state.batteryPct) + "%)";
+        }
+        publishAlertEvent("power_loss", "warning", msg);
+        dispatchLocalActionsForEvent("power_loss", msg);
+        logLine("[POWER] power_loss alert kuldve");
+      } else {
+        // Akkumulátorról USB tápra váltott
+        String msg = "Tapallas visszaallt – eszkoz USB taprol mukodik";
+        publishAlertEvent("power_restored", "info", msg);
+        dispatchLocalActionsForEvent("power_restored", msg);
+        logLine("[POWER] power_restored alert kuldve");
+      }
+    }
+    state.prevUsbPower = state.usbPower;
+    state.powerStateInitialized = true;
+  }
 
   if (state.lastTelemetryMs == 0 || millis() - state.lastTelemetryMs > runtimeCfg.samplingSec * 1000UL) {
     readSensors();
-    readPowerState();
+    readPowerState();  // telemetria előtt friss adat
     evaluateAlerts();
     if (mqttIsConnected()) {
       publishTelemetry();
@@ -2065,6 +2589,9 @@ void loop() {
     }
   }
 
+  checkHealthConditions();
+
+  tickLedSweep();
   updateLedRing();
   delay(10);
 }

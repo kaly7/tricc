@@ -167,6 +167,36 @@ class ConfigService
         }
         $merged['routes'] = $routes;
 
+        // Health checks – per-check: alarm bool + mattermost bool + sms_target + call_target
+        $knownHcKeys = ['no_wifi', 'no_gsm_modem', 'no_gsm_operator', 'no_usb_power', 'no_sensor', 'mqtt_offline', 'battery_low'];
+        $hcAlarmDef  = ['no_wifi' => true, 'no_gsm_modem' => false, 'no_gsm_operator' => false,
+                        'no_usb_power' => false, 'no_sensor' => true, 'mqtt_offline' => true, 'battery_low' => true];
+        $hcRaw = (array) ($merged['health_checks'] ?? []);
+        $hcNorm = [];
+        foreach ($knownHcKeys as $key) {
+            $row = is_array($hcRaw[$key] ?? null) ? $hcRaw[$key] : [];
+            // Visszafelé-kompatibilitás: régi bool formátum
+            $oldBool = is_bool($hcRaw[$key] ?? null) ? $hcRaw[$key] : null;
+            $hcNorm[$key] = [
+                'alarm'       => $oldBool ?? (bool) ($row['alarm'] ?? $hcAlarmDef[$key]),
+                'mattermost'  => (bool) ($row['mattermost'] ?? false),
+                'sms_target'  => trim((string) ($row['sms_target'] ?? '')),
+                'call_target' => trim((string) ($row['call_target'] ?? '')),
+            ];
+        }
+        $merged['health_checks'] = $hcNorm;
+
+        // ESP-NOW relay konfig normalizálás
+        $espnowRaw = is_array($merged['espnow'] ?? null) ? $merged['espnow'] : [];
+        $espnowSlaves = array_values(array_filter(
+            array_map('trim', (array) ($espnowRaw['slaves'] ?? [])),
+            static fn ($v) => $v !== ''
+        ));
+        $merged['espnow'] = [
+            'enabled' => (bool) ($espnowRaw['enabled'] ?? false),
+            'slaves'  => $espnowSlaves,
+        ];
+
         return $merged;
     }
 }

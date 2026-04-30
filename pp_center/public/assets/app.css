@@ -209,6 +209,8 @@ a:hover { text-decoration: underline; }
   gap: 1rem;
 }
 .form-grid .full-row { grid-column: 1 / -1; }
+.form-grid label.label-row { display: flex; align-items: center; gap: .5rem; }
+.form-grid label.label-row span { display: inline; margin: 0; }
 .form-grid label span,
 .form-label-inline {
   display: block;
@@ -555,7 +557,41 @@ details summary { cursor: pointer; color: #0a58ca; font-weight: 600; }
   border-color: rgba(220,53,69,.18);
   color: #b02a37;
 }
+/* Figyelmeztetés chip – pl. akkuról megy, de nem kritikus */
+.overview-chip--warn {
+  background: rgba(253,126,20,.10);
+  border-color: rgba(253,126,20,.32);
+  color: #c8520a;
+}
 
+/* Eszközkártya – aktív HC riasztás esetén (sárga keret, sárga háttér) */
+.overview-device-card--hc-alarm {
+  border-color: rgba(255,193,7,.65);
+  background: rgba(255,250,220,.55);
+}
+/* Eszköz neve link – sárga háttér, fekete szöveg, SZÖGLETES (nem ovális) */
+.overview-device-card--hc-alarm .overview-device-link {
+  background: #ffc107;
+  color: #1a1a1a;
+  border-radius: 4px;
+  box-shadow: none;
+}
+.overview-device-card--hc-alarm .overview-device-link:hover {
+  background: #e0a800;
+  color: #1a1a1a;
+  border-radius: 4px;
+  box-shadow: none;
+  transform: none;
+}
+
+/* Utolsó ismert állapot – hibás sor piros kiemelés */
+.kv-row--error {
+  background: rgba(220,53,69,.06) !important;
+  border-color: rgba(220,53,69,.28) !important;
+}
+.kv-row--error strong {
+  color: #b02a37;
+}
 
 .mini-stats {
   display: flex;
@@ -699,6 +735,7 @@ details summary { cursor: pointer; color: #0a58ca; font-weight: 600; }
 }
 .chart-line-temp { stroke: #dc3545; }
 .chart-line-humidity { stroke: #0d6efd; }
+.chart-line-pressure { stroke: #6f42c1; }
 .chart-line-wifi { stroke: #198754; }
 .chart-line-gsm { stroke: #fd7e14; }
 .chart-step-c1 { stroke: #0d6efd; }
@@ -794,6 +831,7 @@ details summary { cursor: pointer; color: #0a58ca; font-weight: 600; }
 }
 .chart-tip-temp { background: #dc3545; }
 .chart-tip-humidity { background: #0d6efd; }
+.chart-tip-pressure { background: #6f42c1; }
 .chart-tip-wifi { background: #198754; }
 .chart-tip-gsm { background: #fd7e14; }
 .chart-tip-temp-high { background: #dc3545; }
@@ -1052,3 +1090,167 @@ details summary { cursor: pointer; color: #0a58ca; font-weight: 600; }
 }
 
 .action-builder-row [hidden] { display: none !important; }
+
+/* Live value strip – eszköz konfig oldal aktuális értékek */
+.live-value-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .5rem;
+  padding: .75rem 0 1rem;
+}
+.live-chip {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: .1rem;
+  padding: .45rem .8rem;
+  border-radius: 10px;
+  border-width: 1px;
+  border-style: solid;
+  min-width: 90px;
+  font-size: .8rem;
+  line-height: 1.3;
+}
+.live-chip__label {
+  font-size: .7rem;
+  font-weight: 600;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  opacity: .75;
+}
+.live-chip__val {
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+.live-chip__range {
+  font-size: .68rem;
+  opacity: .6;
+}
+.live-chip.chip-ok {
+  background: #f0faf4;
+  border-color: #86efac;
+  color: #14532d;
+}
+.live-chip.chip-warn {
+  background: #fffbeb;
+  border-color: #fcd34d;
+  color: #78350f;
+}
+.live-chip.chip-mid {
+  background: #eff6ff;
+  border-color: #93c5fd;
+  color: #1e3a5f;
+}
+.live-chip.chip-alarm {
+  background: #fef2f2;
+  border-color: #fca5a5;
+  color: #7f1d1d;
+}
+
+/* ── Device LED strip ────────────────────────────────────────────────────── */
+.device-led-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .75rem 1rem;
+  padding: 1rem 1.5rem;
+  background: #0f172a;
+  border-radius: var(--pp-radius);
+  margin-bottom: 1.25rem;
+  align-items: flex-start;
+}
+.device-led {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: .2rem;
+  min-width: 58px;
+  cursor: default;
+}
+.device-led__dot {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 3px rgba(255,255,255,.06);
+  transition: background .3s, box-shadow .3s;
+}
+.device-led__num {
+  font-size: .65rem;
+  color: #94a3b8;
+  font-family: monospace;
+}
+.device-led__label {
+  font-size: .72rem;
+  font-weight: 700;
+  color: #e2e8f0;
+  text-align: center;
+  white-space: nowrap;
+}
+.device-led__desc {
+  font-size: .68rem;
+  color: #cbd5e1;
+  text-align: center;
+  white-space: nowrap;
+  max-width: 70px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* LED színek */
+.device-led__dot--off    { background: #1e293b; }
+.device-led__dot--green  { background: #22c55e; box-shadow: 0 0 10px 2px rgba(34,197,94,.55); }
+.device-led__dot--yellow { background: #eab308; box-shadow: 0 0 10px 2px rgba(234,179,8,.55); }
+.device-led__dot--orange { background: #f97316; box-shadow: 0 0 10px 2px rgba(249,115,22,.5); }
+.device-led__dot--red    { background: #ef4444; box-shadow: 0 0 10px 2px rgba(239,68,68,.55); }
+.device-led__dot--blue   { background: #3b82f6; box-shadow: 0 0 10px 2px rgba(59,130,246,.55); }
+.device-led__dot--teal   { background: #06b6d4; box-shadow: 0 0 10px 2px rgba(6,182,212,.55); }
+
+/* Villogó LED-ek */
+@keyframes led-blink-red {
+  0%,100% { background: #ef4444; box-shadow: 0 0 10px 2px rgba(239,68,68,.55); }
+  50%      { background: #7f1d1d; box-shadow: none; }
+}
+@keyframes led-blink-blue {
+  0%,100% { background: #3b82f6; box-shadow: 0 0 10px 2px rgba(59,130,246,.55); }
+  50%      { background: #1e3a5f; box-shadow: none; }
+}
+.device-led__dot--blink-red  { animation: led-blink-red  .8s ease-in-out infinite; }
+.device-led__dot--blink-blue { animation: led-blink-blue .8s ease-in-out infinite; }
+
+@keyframes led-blink-orange {
+  0%,100% { background: #f97316; box-shadow: 0 0 10px 2px rgba(249,115,22,.55); }
+  50%      { background: #7c2d12; box-shadow: none; }
+}
+.device-led__dot--blink-orange { animation: led-blink-orange .8s ease-in-out infinite; }
+
+/* Hibaállapot-figyelő táblázat */
+.hc-table { display: flex; flex-direction: column; gap: 0; font-size: .82rem; }
+.hc-table-head,
+.hc-table-row {
+  display: grid;
+  grid-template-columns: 1fr 2.2rem 2.2rem minmax(80px,1fr) minmax(80px,1fr);
+  gap: .3rem;
+  align-items: center;
+  padding: .3rem .25rem;
+}
+.hc-table-head {
+  font-weight: 700;
+  font-size: .75rem;
+  color: var(--pp-muted, #64748b);
+  border-bottom: 1px solid var(--pp-line, #e2e8f0);
+  margin-bottom: .2rem;
+  text-align: center;
+}
+.hc-table-head span:first-child { text-align: left; }
+.hc-table-row:hover { background: rgba(0,0,0,.03); border-radius: 6px; }
+.hc-label { font-size: .8rem; line-height: 1.3; }
+.hc-cell-center { display: flex; justify-content: center; }
+.hc-cell-center input[type="checkbox"] { width: 1rem; height: 1rem; cursor: pointer; }
+.hc-table-row input[type="checkbox"] { width: 1rem; height: 1rem; cursor: pointer; }
+.hc-target-input {
+  width: 100%; font-size: .75rem;
+  padding: .2rem .35rem;
+  border: 1px solid var(--pp-line, #e2e8f0);
+  border-radius: 5px;
+  background: var(--pp-input-bg, #fff);
+  color: inherit;
+}
