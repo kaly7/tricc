@@ -1,6 +1,8 @@
 <?php
 declare(strict_types=1);
 
+date_default_timezone_set('Europe/Budapest');
+
 require_once __DIR__ . '/db.php';
 
 function base_url(string $path = ''): string {

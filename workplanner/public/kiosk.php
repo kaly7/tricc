@@ -65,12 +65,22 @@ $hunMonths = ['','január','február','március','április','május','június','
     .k-table thead th.k-today { background: #0d6efd; }
     .k-table thead th.k-we    { background: #495057; }
 
+    /* CSS változók – JS állítja be renderelés után */
+    :root {
+      --k-task-fs: .80rem;
+      --k-time-fs: .72rem;
+      --k-loc-fs:  .68rem;
+      --k-emp-fs:  .80rem;
+      --k-emp-sub-fs: .65rem;
+      --k-hdr-fs:  .76rem;
+    }
+
     /* Névsáv */
-    .k-emp  { background: #f8f9fa; font-size: .80rem; font-weight: 600; padding: 0 10px;
-        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    .k-emp  { background: #f8f9fa; font-size: var(--k-emp-fs); font-weight: 600; padding: 4px 10px;
+        overflow: hidden; word-break: break-word; line-height: 1.25;
         position: sticky; left: 0; z-index: 1; border-right: 2px solid #adb5bd;
         vertical-align: middle; width: 170px; min-width: 140px; }
-    .k-emp small { display: block; color: #6c757d; font-weight: 400; font-size: .65rem; }
+    .k-emp small { display: block; color: #6c757d; font-weight: 400; font-size: var(--k-emp-sub-fs); line-height: 1.2; }
 
     /* Nap cellák: egyenlő magasság, kitölti a képernyőt */
     .k-cell { background: #fff; vertical-align: top;
@@ -78,19 +88,22 @@ $hunMonths = ['','január','február','március','április','május','június','
         height: calc((100vh - 82px) / <?= $n ?>); }
     .k-cell.k-today { background: #eff6ff; }
 
-    /* Feladat sávok – flex elosztás (mint index.php-ban) */
+    /* Fejléc betűméret */
+    .k-table thead th { font-size: var(--k-hdr-fs) !important; }
+
+    /* Feladat sávok – flex elosztás */
     .k-cell-flex { display: flex; flex-direction: column; height: 100%; gap: 3px; }
     .k-task { flex: 1; min-height: 0; border-radius: 6px; padding: 4px 12px;
         display: flex; align-items: center; gap: 10px; overflow: hidden; white-space: nowrap;
-        font-size: .80rem; box-shadow: 0 1px 4px rgba(0,0,0,.15); cursor: default; position: relative; }
+        font-size: var(--k-task-fs); box-shadow: 0 1px 4px rgba(0,0,0,.15); cursor: default; position: relative; }
     .k-task.overlap::after { content: ''; position: absolute; inset: 0; border-radius: inherit;
         background: repeating-linear-gradient(45deg,
           transparent 0px, transparent 5px,
           rgba(0,0,0,.18) 5px, rgba(0,0,0,.18) 7px);
         pointer-events: none; }
-    .k-task-time  { font-weight: 700; font-size: .72rem; flex-shrink: 0; opacity: .9; }
+    .k-task-time  { font-weight: 700; font-size: var(--k-time-fs); flex-shrink: 0; opacity: .9; }
     .k-task-title { overflow: hidden; text-overflow: ellipsis; font-weight: 600; }
-    .k-task-loc   { font-size: .68rem; opacity: .8; flex-shrink: 0; }
+    .k-task-loc   { font-size: var(--k-loc-fs); opacity: .8; flex-shrink: 0; }
 
     /* Frissítés sáv */
     .k-rbar { position: fixed; bottom: 0; left: 0; right: 0; height: 3px;
@@ -186,6 +199,80 @@ function tick() {
     {year:'numeric', month:'long', day:'numeric', weekday:'long'});
 }
 tick(); setInterval(tick, 1000);
+
+function fitFonts() {
+  const R = document.documentElement;
+
+  // 1. Feladat sávok: legkisebb sáv magassága (legtöbb feladat = legszűkebb)
+  const tasks = document.querySelectorAll('.k-task');
+  if (tasks.length) {
+    let minH = Infinity;
+    tasks.forEach(t => { const h = t.getBoundingClientRect().height; if (h > 4) minH = Math.min(minH, h); });
+    if (isFinite(minH)) {
+      const taskFs = Math.max(9,  Math.min(minH * 0.52, 32));
+      R.style.setProperty('--k-task-fs',    taskFs.toFixed(1) + 'px');
+      R.style.setProperty('--k-time-fs',    Math.max(8,  taskFs * 0.84).toFixed(1) + 'px');
+      R.style.setProperty('--k-loc-fs',     Math.max(7,  taskFs * 0.76).toFixed(1) + 'px');
+    }
+  }
+
+  // 2. Dolgozó névsáv: canvas-alapú bináris keresés – DOM reflow nélkül
+  const empCells = document.querySelectorAll('td.k-emp');
+  if (empCells.length) {
+    const r      = empCells[0].getBoundingClientRect();
+    const availW = r.width - 20;   // padding levonva
+    const availH = r.height - 8;   // padding levonva
+    const LH     = 1.25;           // line-height
+
+    // Szövegek kiszedése (small tag nélkül)
+    const names = Array.from(empCells).map(cell => {
+      const small = cell.querySelector('small');
+      return small
+        ? cell.textContent.replace(small.textContent, '').trim()
+        : cell.textContent.trim();
+    });
+    // Divíziók (small tagok)
+    const subs = Array.from(empCells).map(cell => {
+      const s = cell.querySelector('small');
+      return s ? s.textContent.trim() : '';
+    });
+
+    // Canvas mérés – nincs layout reflow
+    const cvs = document.createElement('canvas').getContext('2d');
+    function textW(text, fs, weight) {
+      cvs.font = `${weight} ${fs}px system-ui,sans-serif`;
+      return cvs.measureText(text).width;
+    }
+    function fits(fs) {
+      return names.every((name, i) => {
+        const nameLines = Math.ceil(textW(name, fs, '600') / availW);
+        const subLines  = subs[i] ? Math.ceil(textW(subs[i], fs * 0.78, '400') / availW) : 0;
+        return (nameLines + subLines) * fs * LH <= availH;
+      });
+    }
+
+    // Bináris keresés: max fs ahol még minden név belefér
+    let lo = 8, hi = 26;
+    while (hi - lo > 0.4) {
+      const mid = (lo + hi) / 2;
+      if (fits(mid)) lo = mid; else hi = mid;
+    }
+    const empFs = Math.max(8, lo);
+    R.style.setProperty('--k-emp-fs',     empFs.toFixed(1) + 'px');
+    R.style.setProperty('--k-emp-sub-fs', Math.max(7, empFs * 0.78).toFixed(1) + 'px');
+  }
+
+  // 3. Fejléc dátumok: th szélesség és magasság alapján
+  const th = document.querySelector('.k-table thead th:nth-child(2)');
+  if (th) {
+    const r    = th.getBoundingClientRect();
+    const hFs  = Math.max(8, Math.min(r.width / 14, r.height * 0.52, 18));
+    R.style.setProperty('--k-hdr-fs', hFs.toFixed(1) + 'px');
+  }
+}
+
+window.addEventListener('load', fitFonts);
+window.addEventListener('resize', fitFonts);
 
 setInterval(() => {
   fetch('kiosk_check.php').then(r => r.json()).then(d => {
