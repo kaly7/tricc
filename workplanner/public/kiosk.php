@@ -266,7 +266,7 @@ function fitFonts() {
   const th = document.querySelector('.k-table thead th:nth-child(2)');
   if (th) {
     const r    = th.getBoundingClientRect();
-    const hFs  = Math.max(8, Math.min(r.width / 14, r.height * 0.52, 18));
+    const hFs  = Math.max(8, Math.min(r.width / 10, r.height * 0.65, 24));
     R.style.setProperty('--k-hdr-fs', hFs.toFixed(1) + 'px');
   }
 }
