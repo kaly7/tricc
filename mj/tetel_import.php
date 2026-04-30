@@ -27,48 +27,74 @@ function parse_xlsx(string $path, int $sheet_index = 0): array {
 
     // shared strings
     $shared = [];
+    $ns = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main';
     $ss = $zip->getFromName('xl/sharedStrings.xml');
     if ($ss) {
         $xml = simplexml_load_string($ss);
-        $xml->registerXPathNamespace('x', 'http://schemas.openxmlformats.org/spreadsheetml/2006/main');
-        foreach ($xml->xpath('//x:si') as $si) {
-            $t = $si->xpath('.//x:t');
-            $shared[] = $t ? implode('', array_map(fn($n) => (string)$n, $t)) : '';
+        if ($xml !== false) {
+            // Rekurzív t-elem gyűjtő (nem igényel xpath névtér regisztrációt)
+            $collectT = function($el) use (&$collectT, $ns): array {
+                $parts = [];
+                foreach ($el->children($ns) as $child) {
+                    if ($child->getName() === 't') {
+                        $parts[] = (string)$child;
+                    } else {
+                        $parts = array_merge($parts, $collectT($child));
+                    }
+                }
+                return $parts;
+            };
+            foreach ($xml->children($ns) as $si) {
+                $shared[] = implode('', $collectT($si));
+            }
         }
     }
 
     // sheet path
     $wb = $zip->getFromName('xl/workbook.xml');
+    if ($wb === false) { $zip->close(); return $rows; }
     $wb_xml = simplexml_load_string($wb);
+    if ($wb_xml === false) { $zip->close(); return $rows; }
     $wb_xml->registerXPathNamespace('x', 'http://schemas.openxmlformats.org/spreadsheetml/2006/main');
-    $rels_xml = simplexml_load_string($zip->getFromName('xl/_rels/workbook.xml.rels'));
+    $rels_raw = $zip->getFromName('xl/_rels/workbook.xml.rels');
+    if ($rels_raw === false) { $zip->close(); return $rows; }
+    $rels_xml = simplexml_load_string($rels_raw);
+    if ($rels_xml === false) { $zip->close(); return $rows; }
     $rels_xml->registerXPathNamespace('r', 'http://schemas.openxmlformats.org/package/2006/relationships');
 
     $sheets = $wb_xml->xpath('//x:sheet');
     if (!isset($sheets[$sheet_index])) { $zip->close(); return $rows; }
     $rid = (string)$sheets[$sheet_index]->attributes('http://schemas.openxmlformats.org/officeDocument/2006/relationships')['id'];
     $rels = $rels_xml->xpath("//r:Relationship[@Id='$rid']");
-    $sheet_path = 'xl/' . (string)$rels[0]['Target'];
+    if (!$rels) { $zip->close(); return $rows; }
+    $target = (string)$rels[0]['Target'];
+    // Target lehet "worksheets/sheet1.xml" vagy "../worksheets/sheet1.xml"
+    $sheet_path = strpos($target, '../') === 0 ? 'xl/' . substr($target, 3) : 'xl/' . $target;
 
     $sh = $zip->getFromName($sheet_path);
     if (!$sh) { $zip->close(); return $rows; }
     $sh_xml = simplexml_load_string($sh);
-    $sh_xml->registerXPathNamespace('x', 'http://schemas.openxmlformats.org/spreadsheetml/2006/main');
+    if ($sh_xml === false) { $zip->close(); return $rows; }
+    $ns = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main';
+    $sh_xml->registerXPathNamespace('x', $ns);
 
     foreach ($sh_xml->xpath('//x:row') as $row) {
+        $row->registerXPathNamespace('x', $ns);
         $cells = [];
         $max_col = 0;
         foreach ($row->xpath('x:c') as $c) {
             // oszlop index kinyerése a cella referenciából (pl. "C5" → 2)
             preg_match('/^([A-Z]+)/', (string)$c['r'], $m);
+            if (empty($m[1])) continue;
             $col = 0;
             foreach (str_split($m[1]) as $ch) $col = $col * 26 + (ord($ch) - 64);
             $col--; // 0-based
             $max_col = max($max_col, $col);
             $t = (string)$c['t'];
+            $c->registerXPathNamespace('x', $ns);
             $v_node = $c->xpath('x:v');
             $val = '';
-            if ($v_node) {
+            if ($v_node && (string)$v_node[0] !== '') {
                 $v = (string)$v_node[0];
                 $val = ($t === 's') ? ($shared[(int)$v] ?? '') : $v;
             }
@@ -135,7 +161,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['step'] ?? '') === 'upload'
         $tmp = $file['tmp_name'];
 
         if ($ext === 'xlsx') {
-            $sorok = parse_xlsx($tmp);
+            // Magic bytes ellenőrzés: XLSX = ZIP = 50 4B; XLS (régi) = D0 CF
+            $fh = fopen($tmp, 'rb');
+            $magic = $fh ? fread($fh, 2) : '';
+            if ($fh) fclose($fh);
+            if ($magic !== "\x50\x4B") {
+                $msg = '<div class="alert alert-danger">'
+                     . '<strong>Nem valódi XLSX fájl!</strong> '
+                     . 'A feltöltött fájl valószínűleg régi XLS (.xls) formátumban van .xlsx kiterjesztéssel mentve.<br>'
+                     . 'Mentsd el újra Excelből: <em>Fájl → Mentés másként → Excel munkafüzet (*.xlsx)</em>'
+                     . '</div>';
+            } else {
+                $sorok = parse_xlsx($tmp);
+            }
         } elseif (in_array($ext, ['csv', 'txt'])) {
             $sorok = parse_csv($tmp);
         } else {
@@ -143,12 +181,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['step'] ?? '') === 'upload'
         }
 
         if ($sorok) {
-            // Session-be mentjük a sorokat
-            session_start();
+            // Session-be mentjük a sorokat (session már aktív a bootstrap.php-ból)
             $_SESSION['mj_import_sorok']      = $sorok;
             $_SESSION['mj_import_projekt_id'] = $projekt_id;
             $step   = 'preview';
             $fejlec = $sorok[0];
+        } elseif (!$msg && ($ext === 'xlsx' || in_array($ext, ['csv', 'txt']))) {
+            $msg = '<div class="alert alert-warning">A fájl beolvasása sikertelen vagy üres.</div>';
         }
     }
 }
@@ -157,7 +196,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['step'] ?? '') === 'upload'
 // STEP 2: IMPORTÁLÁS
 // ──────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['step'] ?? '') === 'import') {
-    session_start();
     $sorok = $_SESSION['mj_import_sorok'] ?? [];
     $pid   = intval($_SESSION['mj_import_projekt_id'] ?? 0);
 
@@ -221,7 +259,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['step'] ?? '') === 'import'
 
 // Preview session visszatöltés (ha újra megjelenik a preview oldal)
 if ($step === 'upload' && isset($_GET['preview'])) {
-    session_start();
     if (!empty($_SESSION['mj_import_sorok']) && $_SESSION['mj_import_projekt_id'] == $projekt_id) {
         $sorok  = $_SESSION['mj_import_sorok'];
         $fejlec = $sorok[0] ?? [];

@@ -224,97 +224,38 @@ require __DIR__.'/_header.php'; ?>
 </div>
 
 <script>
-// ── Katalógus adatok ────────────────────────────────────
 const KAT_DATA = <?= $kat_json ?>;
 let katKivalasztott = null;
 let acIndex = -1;
 let acEredmenyek = [];
 
-// ── Autocomplete (gépelés közben) ───────────────────────
-const nevInput = document.getElementById('megnevezes-input');
-const acLista  = document.getElementById('ac-lista');
-let acTimer    = null;
-
-nevInput.addEventListener('input', function() {
-  clearTimeout(acTimer);
-  const q = this.value.trim().toLowerCase();
-  if (q.length < 2) { acZar(); return; }
-  acTimer = setTimeout(() => acMutat(q), 180);
-});
-
-nevInput.addEventListener('keydown', function(e) {
-  const items = acLista.querySelectorAll('.ac-item');
-  if (e.key === 'ArrowDown') {
-    e.preventDefault();
-    acIndex = Math.min(acIndex + 1, items.length - 1);
-    acHighlight(items);
-  } else if (e.key === 'ArrowUp') {
-    e.preventDefault();
-    acIndex = Math.max(acIndex - 1, -1);
-    acHighlight(items);
-  } else if (e.key === 'Enter' && acIndex >= 0) {
-    e.preventDefault();
-    if (acEredmenyek[acIndex]) formBetolt(acEredmenyek[acIndex]);
-    acZar();
-  } else if (e.key === 'Escape') {
-    acZar();
-  }
-});
-
-nevInput.addEventListener('blur', () => setTimeout(acZar, 200));
-
-function acMutat(q) {
-  acEredmenyek = KAT_DATA.filter(t =>
-    t.megnevezes.toLowerCase().includes(q) ||
-    (t.gyarto||'').toLowerCase().includes(q) ||
-    (t.tipus||'').toLowerCase().includes(q)
-  ).slice(0, 12);
-
-  if (!acEredmenyek.length) { acZar(); return; }
+// ── Segédek (globális) ──────────────────────────────────
+function esc(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function fmt(n) {
+  return new Intl.NumberFormat('hu-HU',{maximumFractionDigits:0}).format(n||0);
+}
+function acZar() {
+  const acLista = document.getElementById('ac-lista');
+  if (acLista) acLista.style.display = 'none';
   acIndex = -1;
-  acLista.innerHTML = acEredmenyek.map((t, i) => `
-    <div class="ac-item" data-i="${i}" onmousedown="formBetolt(KAT_DATA.find(x=>x.id==${t.id}));acZar()">
-      <div class="ac-nev">${esc(t.megnevezes)}</div>
-      <div class="ac-meta d-flex gap-3">
-        ${t.gyarto ? `<span>${esc(t.gyarto)}${t.tipus ? ' / '+esc(t.tipus) : ''}</span>` : ''}
-        <span class="ac-ar">Anyag: <b>${fmt(t.anyagar_egyseg)} Ft</b></span>
-        <span class="ac-ar">Munkadíj: <b>${fmt(t.munkadij_egyseg)} Ft</b></span>
-        <span class="text-muted">${esc(t.egyseg)}</span>
-      </div>
-    </div>`).join('');
-  acLista.style.display = 'block';
 }
 
-function acHighlight(items) {
-  items.forEach((el, i) => el.classList.toggle('active', i === acIndex));
-  if (acIndex >= 0) items[acIndex]?.scrollIntoView({block:'nearest'});
-}
-
-function acZar() { acLista.style.display = 'none'; acIndex = -1; }
-
-// ── Katalógus modal ─────────────────────────────────────
-const katModal  = new bootstrap.Modal(document.getElementById('kat-modal'));
-const katKerTxt = document.getElementById('kat-kereses');
-const katTbody  = document.getElementById('kat-modal-tbody');
-const katDbInfo = document.getElementById('kat-db-info');
-const katKivInfo= document.getElementById('kat-kivalasztott-info');
-const katBetBtn = document.getElementById('kat-betolt-btn');
-
+// ── Katalógus modal (globális, mert onclick="..." hívja) ─
 function katModalMegnyit() {
   katKivalasztott = null;
-  katBetBtn.disabled = true;
-  katKivInfo.textContent = 'Kattints egy sorra a kiválasztáshoz.';
-  katKerTxt.value = '';
+  document.getElementById('kat-betolt-btn').disabled = true;
+  document.getElementById('kat-kivalasztott-info').textContent = 'Kattints egy sorra a kiválasztáshoz.';
+  document.getElementById('kat-kereses').value = '';
   katSzur('');
-  katModal.show();
-  setTimeout(() => katKerTxt.focus(), 300);
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('kat-modal')).show();
+  setTimeout(() => document.getElementById('kat-kereses').focus(), 300);
 }
 
-katKerTxt.addEventListener('input', function() {
-  katSzur(this.value.trim().toLowerCase());
-});
-
 function katSzur(q) {
+  const katTbody  = document.getElementById('kat-modal-tbody');
+  const katDbInfo = document.getElementById('kat-db-info');
   const eredmeny = q.length === 0
     ? KAT_DATA
     : KAT_DATA.filter(t =>
@@ -323,14 +264,11 @@ function katSzur(q) {
         (t.tipus||'').toLowerCase().includes(q) ||
         (t.rendeles_szam||'').toLowerCase().includes(q)
       );
-
   katDbInfo.textContent = `${eredmeny.length} / ${KAT_DATA.length} tétel`;
-
   if (!eredmeny.length) {
     katTbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-3">Nincs találat.</td></tr>';
     return;
   }
-
   katTbody.innerHTML = eredmeny.map(t => `
     <tr data-id="${t.id}" onclick="katSorKivalaszt(${t.id})">
       <td>${esc(t.megnevezes)}</td>
@@ -346,18 +284,19 @@ function katSzur(q) {
 function katSorKivalaszt(id) {
   katKivalasztott = KAT_DATA.find(t => t.id === id);
   if (!katKivalasztott) return;
-  katTbody.querySelectorAll('tr').forEach(tr => tr.classList.toggle('kat-kiv', parseInt(tr.dataset.id) === id));
-  katKivInfo.innerHTML = `<b>Kiválasztva:</b> ${esc(katKivalasztott.megnevezes)} — Anyag: <b>${fmt(katKivalasztott.anyagar_egyseg)} Ft</b>, Munkadíj: <b>${fmt(katKivalasztott.munkadij_egyseg)} Ft</b>`;
-  katBetBtn.disabled = false;
+  document.querySelectorAll('#kat-modal-tbody tr').forEach(tr =>
+    tr.classList.toggle('kat-kiv', parseInt(tr.dataset.id) === id));
+  document.getElementById('kat-kivalasztott-info').innerHTML =
+    `<b>Kiválasztva:</b> ${esc(katKivalasztott.megnevezes)} — Anyag: <b>${fmt(katKivalasztott.anyagar_egyseg)} Ft</b>, Munkadíj: <b>${fmt(katKivalasztott.munkadij_egyseg)} Ft</b>`;
+  document.getElementById('kat-betolt-btn').disabled = false;
 }
 
 function katBetolt() {
   if (!katKivalasztott) return;
   formBetolt(katKivalasztott);
-  katModal.hide();
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('kat-modal')).hide();
 }
 
-// ── Form kitöltés katalógus-tételből ────────────────────
 function formBetolt(t) {
   document.getElementById('megnevezes-input').value = t.megnevezes || '';
   document.getElementById('f-gyarto').value         = t.gyarto     || '';
@@ -366,7 +305,6 @@ function formBetolt(t) {
   document.getElementById('f-egyseg').value         = t.egyseg     || 'db';
   document.getElementById('f-anyagar').value        = t.anyagar_egyseg  || '0';
   document.getElementById('f-munkadij').value       = t.munkadij_egyseg || '0';
-  // Vizuális visszajelzés
   ['f-anyagar','f-munkadij','f-egyseg'].forEach(id => {
     const el = document.getElementById(id);
     el.classList.add('border-success');
@@ -374,12 +312,69 @@ function formBetolt(t) {
   });
 }
 
-// ── Segédek ─────────────────────────────────────────────
-function esc(s) {
-  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
-function fmt(n) {
-  return new Intl.NumberFormat('hu-HU',{maximumFractionDigits:0}).format(n||0);
-}
+// ── Autocomplete + event listenerek (DOM kész után) ─────
+document.addEventListener('DOMContentLoaded', function() {
+  const nevInput = document.getElementById('megnevezes-input');
+  const acLista  = document.getElementById('ac-lista');
+  let acTimer    = null;
+
+  nevInput.addEventListener('input', function() {
+    clearTimeout(acTimer);
+    const q = this.value.trim().toLowerCase();
+    if (q.length < 2) { acZar(); return; }
+    acTimer = setTimeout(() => acMutat(q), 180);
+  });
+
+  nevInput.addEventListener('keydown', function(e) {
+    const items = acLista.querySelectorAll('.ac-item');
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      acIndex = Math.min(acIndex + 1, items.length - 1);
+      acHighlight(items);
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      acIndex = Math.max(acIndex - 1, -1);
+      acHighlight(items);
+    } else if (e.key === 'Enter' && acIndex >= 0) {
+      e.preventDefault();
+      if (acEredmenyek[acIndex]) formBetolt(acEredmenyek[acIndex]);
+      acZar();
+    } else if (e.key === 'Escape') {
+      acZar();
+    }
+  });
+
+  nevInput.addEventListener('blur', () => setTimeout(acZar, 200));
+
+  document.getElementById('kat-kereses').addEventListener('input', function() {
+    katSzur(this.value.trim().toLowerCase());
+  });
+
+  function acMutat(q) {
+    acEredmenyek = KAT_DATA.filter(t =>
+      t.megnevezes.toLowerCase().includes(q) ||
+      (t.gyarto||'').toLowerCase().includes(q) ||
+      (t.tipus||'').toLowerCase().includes(q)
+    ).slice(0, 12);
+    if (!acEredmenyek.length) { acZar(); return; }
+    acIndex = -1;
+    acLista.innerHTML = acEredmenyek.map((t, i) => `
+      <div class="ac-item" data-i="${i}" onmousedown="formBetolt(KAT_DATA.find(x=>x.id==${t.id}));acZar()">
+        <div class="ac-nev">${esc(t.megnevezes)}</div>
+        <div class="ac-meta d-flex gap-3">
+          ${t.gyarto ? `<span>${esc(t.gyarto)}${t.tipus ? ' / '+esc(t.tipus) : ''}</span>` : ''}
+          <span class="ac-ar">Anyag: <b>${fmt(t.anyagar_egyseg)} Ft</b></span>
+          <span class="ac-ar">Munkadíj: <b>${fmt(t.munkadij_egyseg)} Ft</b></span>
+          <span class="text-muted">${esc(t.egyseg)}</span>
+        </div>
+      </div>`).join('');
+    acLista.style.display = 'block';
+  }
+
+  function acHighlight(items) {
+    items.forEach((el, i) => el.classList.toggle('active', i === acIndex));
+    if (acIndex >= 0) items[acIndex]?.scrollIntoView({block:'nearest'});
+  }
+});
 </script>
 <?php require __DIR__.'/_footer.php'; ?>

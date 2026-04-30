@@ -3,7 +3,9 @@ require_once __DIR__.'/bootstrap.php';
 
 $projekt_id = intval($_GET['projekt_id'] ?? 0);
 $format     = $_GET['format'] ?? 'csv';
+$munka      = intval($_GET['munka'] ?? 3);
 if (!in_array($format, ['csv','pdf','xlsx'])) $format = 'csv';
+if (!in_array($munka, [3, 4])) $munka = 3;
 if (!$projekt_id) { http_response_code(400); exit('Hiányzó projekt_id'); }
 
 $db = db();
@@ -78,6 +80,29 @@ $vegosszeg = $anyag_total + $napidij_total;
 $afa       = $vegosszeg * 0.27;
 $brutto    = $vegosszeg + $afa;
 
+// ── Munka4: cél ár alapú arányos napidíj elosztás ────────────────────────────
+if ($munka === 4) {
+  $cel_ar = (float)($projekt['cel_ar'] ?? 0);
+  if ($cel_ar > 0 && $napidij_total > 0 && $cel_ar >= $anyag_total) {
+    $cel_napidij = $cel_ar - $anyag_total;
+    $m4_szorzo   = $cel_napidij / $napidij_total;
+    $m4_sorok = [];
+    foreach ($gen_sorok as $sor) {
+      if ($sor['tipus'] === 'napidij') {
+        $new_dij  = $sor['dij_osszesen'] * $m4_szorzo;
+        $sor['dij_osszesen'] = $new_dij;
+        $sor['tort']         = ($sor['egyseg_dij'] > 0) ? ($new_dij / $sor['egyseg_dij']) : 0;
+      }
+      $m4_sorok[] = $sor;
+    }
+    $gen_sorok     = $m4_sorok;
+    $napidij_total = $cel_napidij;
+    $vegosszeg     = $cel_ar;
+    $afa           = $vegosszeg * 0.27;
+    $brutto        = $vegosszeg + $afa;
+  }
+}
+
 // ── Fájlnév ────────────────────────────────────────────────────────────────────
 function safe_fn(string $s): string {
   $s = mb_strtolower($s);
@@ -87,12 +112,13 @@ function safe_fn(string $s): string {
 }
 $datum     = date('Y-m-d');
 $v_str     = $verzio > 0 ? '_v'.$verzio : '';
-$fajlnev   = safe_fn($projekt['nev']).'_'.$datum.$v_str;
+$m_str     = $munka === 4 ? '_M4' : '';
+$fajlnev   = safe_fn($projekt['nev']).'_'.$datum.$v_str.$m_str;
 
 // ── Szám formázók ──────────────────────────────────────────────────────────────
 // Magyaros ezreselválasztós, Ft-tal
 function ft(float $n): string { return number_format($n, 0, ',', ' ').' Ft'; }
-function dec(float $n): string { return rtrim(rtrim(number_format($n, 4, ',', ' '), '0'), ','); }
+function dec(float $n): string { return rtrim(rtrim(number_format($n, 5, ',', ' '), '0'), ','); }
 
 /*
  * OSZLOPSZERKEZET (10 col, azonos a generalt.php-val):
@@ -241,8 +267,8 @@ if ($format === 'xlsx') {
   $styles_xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
   <numFmts count="2">
-    <numFmt numFmtId="164" formatCode="# ##0&quot; Ft&quot;"/>
-    <numFmt numFmtId="165" formatCode="0.0000"/>
+    <numFmt numFmtId="164" formatCode="#,##0&quot; Ft&quot;"/>
+    <numFmt numFmtId="165" formatCode="0.00000"/>
   </numFmts>
   <fonts count="5">
     <font><sz val="9"/><name val="Calibri"/></font>
@@ -333,10 +359,11 @@ if ($format === 'xlsx') {
   $sheet_xml .= '<pageSetup orientation="landscape" fitToPage="1" fitToWidth="1" fitToHeight="0"/>';
   $sheet_xml .= '</worksheet>';
 
+  $sheet_name = $munka === 4 ? 'Munka4' : 'Munka3';
   $workbook_xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"
   xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
-  <sheets><sheet name="Munka3" sheetId="1" r:id="rId1"/></sheets>
+  <sheets><sheet name="'.$sheet_name.'" sheetId="1" r:id="rId1"/></sheets>
 </workbook>';
 
   $wb_rels = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
@@ -411,11 +438,11 @@ if ($format === 'pdf') {
     td.lbl     { text-align:right; font-style:normal; }
   </style>
 
-  <h2><?= htmlspecialchars($projekt['nev']) ?></h2>
+  <h2><?= htmlspecialchars($projekt['nev']) ?><?= $munka === 4 ? ' – Munka4' : '' ?></h2>
   <div class="meta">
     Generálva: <?= date('Y-m-d H:i') ?>
     <?php if ($verzio>0): ?> | <?= $verzio ?>. verzió<?php endif; ?>
-    <?php if ($projekt['munka1_osszeg']): ?> | Ref.: <?= ft((float)$projekt['munka1_osszeg']) ?><?php endif; ?>
+    <?php if ($munka === 4 && ($projekt['cel_ar'] ?? 0) > 0): ?> | Cél ár: <?= ft((float)$projekt['cel_ar']) ?><?php elseif ($projekt['munka1_osszeg']): ?> | Ref.: <?= ft((float)$projekt['munka1_osszeg']) ?><?php endif; ?>
   </div>
 
   <table>

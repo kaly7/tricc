@@ -12,17 +12,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $nev            = trim($_POST['nev'] ?? '');
     $leiras         = trim($_POST['leiras'] ?? '');
     $munka1_osszeg  = $_POST['munka1_osszeg'] !== '' ? floatval(str_replace([' ', "\xc2\xa0", ','], ['', '', '.'], $_POST['munka1_osszeg'])) : null;
+    $cel_ar         = $_POST['cel_ar'] !== '' ? floatval(str_replace([' ', "\xc2\xa0", ','], ['', '', '.'], $_POST['cel_ar'])) : null;
 
     if ($nev === '') {
       $msg = '<div class="alert alert-danger">A projekt neve kötelező.</div>';
     } else {
       if ($id > 0) {
-        $db->prepare('UPDATE projektek SET nev=?, leiras=?, munka1_osszeg=? WHERE id=?')
-           ->execute([$nev, $leiras, $munka1_osszeg, $id]);
+        $db->prepare('UPDATE projektek SET nev=?, leiras=?, munka1_osszeg=?, cel_ar=? WHERE id=?')
+           ->execute([$nev, $leiras, $munka1_osszeg, $cel_ar, $id]);
         $msg = '<div class="alert alert-success">Projekt frissítve.</div>';
       } else {
-        $db->prepare('INSERT INTO projektek (nev,leiras,munka1_osszeg) VALUES (?,?,?)')
-           ->execute([$nev, $leiras, $munka1_osszeg]);
+        $db->prepare('INSERT INTO projektek (nev,leiras,munka1_osszeg,cel_ar) VALUES (?,?,?,?)')
+           ->execute([$nev, $leiras, $munka1_osszeg, $cel_ar]);
         $msg = '<div class="alert alert-success">Projekt létrehozva.</div>';
       }
     }
@@ -64,17 +65,21 @@ $projektek = $db->query('SELECT p.*, (SELECT COUNT(*) FROM tetelek t WHERE t.pro
         <input type="hidden" name="action" value="save">
         <input type="hidden" name="id" value="<?= $edit['id'] ?? 0 ?>">
         <div class="row g-2">
-          <div class="col-md-5">
+          <div class="col-md-4">
             <label class="form-label">Projekt neve <span class="text-danger">*</span></label>
             <input type="text" name="nev" class="form-control" value="<?= htmlspecialchars($edit['nev'] ?? '') ?>" required>
           </div>
-          <div class="col-md-4">
+          <div class="col-md-3">
             <label class="form-label">Leírás</label>
             <input type="text" name="leiras" class="form-control" value="<?= htmlspecialchars($edit['leiras'] ?? '') ?>">
           </div>
-          <div class="col-md-3">
-            <label class="form-label">Munka1 ref. összeg (Ft)</label>
+          <div class="col-md-2">
+            <label class="form-label">Munka1 ref. (Ft)</label>
             <input type="text" name="munka1_osszeg" class="form-control" value="<?= htmlspecialchars($edit['munka1_osszeg'] ?? '') ?>" placeholder="pl. 1434090">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Munka4 cél ár – nettó (Ft)</label>
+            <input type="text" name="cel_ar" class="form-control" value="<?= htmlspecialchars($edit['cel_ar'] ?? '') ?>" placeholder="pl. 1500000">
           </div>
         </div>
         <div class="mt-3 d-flex gap-2">
@@ -97,6 +102,7 @@ $projektek = $db->query('SELECT p.*, (SELECT COUNT(*) FROM tetelek t WHERE t.pro
             <th>Projekt neve</th>
             <th>Leírás</th>
             <th class="text-end">Ref. összeg</th>
+            <th class="text-end">Cél ár (M4)</th>
             <th class="text-center">Tételek</th>
             <th>Létrehozva</th>
             <th></th>
@@ -108,6 +114,7 @@ $projektek = $db->query('SELECT p.*, (SELECT COUNT(*) FROM tetelek t WHERE t.pro
             <td><a href="projekt.php?id=<?= $p['id'] ?>" class="fw-semibold text-decoration-none"><?= htmlspecialchars($p['nev']) ?></a></td>
             <td class="text-muted small"><?= htmlspecialchars($p['leiras']) ?></td>
             <td class="text-end"><?= $p['munka1_osszeg'] !== null ? number_format($p['munka1_osszeg'], 0, ',', ' ').' Ft' : '<span class="text-muted">—</span>' ?></td>
+            <td class="text-end"><?= $p['cel_ar'] !== null ? number_format($p['cel_ar'], 0, ',', ' ').' Ft' : '<span class="text-muted">—</span>' ?></td>
             <td class="text-center"><?= $p['tetel_db'] ?> db</td>
             <td class="small text-muted"><?= substr($p['letrehozva'], 0, 10) ?></td>
             <td class="text-end">
@@ -122,7 +129,7 @@ $projektek = $db->query('SELECT p.*, (SELECT COUNT(*) FROM tetelek t WHERE t.pro
           </tr>
           <?php endforeach; ?>
           <?php if (!$projektek): ?>
-          <tr><td colspan="6" class="text-center text-muted py-3">Még nincs projekt.</td></tr>
+          <tr><td colspan="7" class="text-center text-muted py-3">Még nincs projekt.</td></tr>
           <?php endif; ?>
         </tbody>
       </table>
