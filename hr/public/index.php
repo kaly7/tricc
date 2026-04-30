@@ -23,6 +23,8 @@ require APP_ROOT . '/app/controllers/DivisionsController.php';
 require APP_ROOT . '/app/controllers/DocTypesController.php';
 require APP_ROOT . '/app/controllers/DocumentsController.php';
 require APP_ROOT . '/app/controllers/FieldsController.php';
+require APP_ROOT . '/app/controllers/HrPermissionsController.php';
+require APP_ROOT . '/app/core/HrPermission.php';
 
 $db    = new Db();
 $view  = new View();
@@ -80,6 +82,8 @@ $router->post('/documents_delete',function() use ($docController){ $docControlle
 // Employees
 $empController = new EmployeesController($db, $view, $flash, $csrf, $auth);
 $router->get('/employees',        function() use ($empController){ $empController->index(); });
+$router->get('/employees_export', function() use ($empController){ $empController->showExport(); });
+$router->post('/employees_export',function() use ($empController){ $empController->export(); });
 $router->get('/employees_create', function() use ($empController){ $empController->showCreate(); });
 $router->post('/employees_create',function() use ($empController){ $empController->create(); });
 $router->get('/employees_view',   function() use ($empController){ $empController->showView(); });
@@ -97,5 +101,13 @@ $router->post('/fields_create',function() use ($fieldsController){ $fieldsContro
 $router->get('/fields_edit',   function() use ($fieldsController){ $fieldsController->showEdit(); });
 $router->post('/fields_edit',  function() use ($fieldsController){ $fieldsController->edit(); });
 $router->post('/fields_toggle',function() use ($fieldsController){ $fieldsController->toggle(); });
+
+// HR Permissions (admin)
+$permCtrl = new HrPermissionsController($db, $view, $flash, $csrf, $auth);
+$router->get('/hr_permissions',       function() use ($permCtrl){ $permCtrl->index(); });
+$router->get('/hr_permissions_edit',  function() use ($permCtrl){ $permCtrl->showEdit(); });
+$router->post('/hr_permissions_save', function() use ($permCtrl){ $permCtrl->save(); });
+$router->post('/hr_permissions_delete',function() use ($permCtrl){ $permCtrl->delete(); });
+$router->get('/hr_audit_log',         function() use ($permCtrl){ $permCtrl->auditLog(); });
 
 $router->dispatch();

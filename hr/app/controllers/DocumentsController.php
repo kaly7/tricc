@@ -15,8 +15,19 @@ class DocumentsController
     return $this->auth->user() ?? [];
   }
 
-  private function getEmployeesForSelect(): array
+  private function getEmployeesForSelect(?array $perm = null): array
   {
+    if ($perm !== null) {
+      if (empty($perm['divisions'])) return [];
+      $ph   = implode(',', array_fill(0, count($perm['divisions']), '?'));
+      $stmt = $this->db->pdo()->prepare(
+        "SELECT id, full_name, is_active FROM employees
+         WHERE COALESCE(division_id,0) IN ($ph)
+         ORDER BY is_active DESC, full_name ASC LIMIT 500"
+      );
+      $stmt->execute($perm['divisions']);
+      return $stmt->fetchAll();
+    }
     $stmt = $this->db->pdo()->query("SELECT id, full_name, is_active FROM employees ORDER BY is_active DESC, full_name ASC LIMIT 500");
     return $stmt->fetchAll();
   }
@@ -96,8 +107,9 @@ class DocumentsController
 
   public function index(): void
   {
-    $user = $this->requireLogin();
+    $user    = $this->requireLogin();
     $isAdmin = (($user['role'] ?? '') === 'admin');
+    $perm    = $isAdmin ? null : HrPermission::load($this->db, (int)$user['id']);
 
     $employeeId = (int)($_GET['employee_id'] ?? 0);
     $divisionId = (int)($_GET['division_id'] ?? 0);
@@ -127,6 +139,17 @@ class DocumentsController
     if ($divisionId > 0) { $whereParts[] = "e.division_id = :did"; $params['did'] = $divisionId; }
     if ($typeId > 0)     { $whereParts[] = "d.document_type_id = :tid"; $params['tid'] = $typeId; }
 
+    // Nem-admin: csak az engedélyezett divíziók dokumentumai
+    if ($perm !== null) {
+      if (empty($perm['divisions'])) {
+        $whereParts[] = "1=0";
+      } else {
+        $ph = implode(',', array_fill(0, count($perm['divisions']), '?'));
+        $whereParts[] = "COALESCE(e.division_id,0) IN ($ph)";
+        foreach ($perm['divisions'] as $did) $params[] = $did;
+      }
+    }
+
     if ($q !== '') {
       $whereParts[] = "(e.full_name LIKE :q OR dv.name LIKE :q OR t.name LIKE :q OR d.title LIKE :q OR d.original_name LIKE :q)";
       $params['q'] = '%' . $q . '%';
@@ -155,7 +178,7 @@ class DocumentsController
     $this->view->render('documents/index', [
       'docs' => $docs,
       'is_admin' => $isAdmin,
-      'employees' => $this->getEmployeesForSelect(),
+      'employees' => $this->getEmployeesForSelect($perm),
       'divisions' => $this->getDivisionsForFilter(),
       'types' => $this->getDocTypesForFilter(),
       'employee_id' => $employeeId,
@@ -173,8 +196,9 @@ class DocumentsController
 
   public function delete(): void
   {
-    // Admin only
-    $this->auth->requireRole('admin');
+    $user    = $this->requireLogin();
+    $isAdmin = (($user['role'] ?? '') === 'admin');
+    $perm    = $isAdmin ? null : HrPermission::load($this->db, (int)$user['id']);
 
     if (!$this->csrf->verify($_POST['_csrf'] ?? null)) {
       $this->flash->set('error', 'Érvénytelen kérés (CSRF).');
@@ -190,12 +214,25 @@ class DocumentsController
     }
 
     // Load the document row first (needed for file deletion and redirect)
-    $stmt = $this->db->pdo()->prepare("SELECT id, employee_id, file_path, original_name FROM employee_documents WHERE id = :id LIMIT 1");
+    $stmt = $this->db->pdo()->prepare("
+      SELECT d.id, d.employee_id, d.file_path, d.original_name, e.division_id
+      FROM employee_documents d
+      JOIN employees e ON e.id = d.employee_id
+      WHERE d.id = :id LIMIT 1
+    ");
     $stmt->execute(['id' => $id]);
     $doc = $stmt->fetch();
 
     if (!$doc) {
       $this->flash->set('error', 'A dokumentum nem található.');
+      header('Location: /documents');
+      exit;
+    }
+
+    // Nem-admin: divízió ellenőrzés
+    if ($perm !== null && !in_array((int)($doc['division_id'] ?? 0), $perm['divisions'], true)) {
+      http_response_code(403);
+      $this->flash->set('error', 'Nincs jogosultságod ehhez a dokumentumhoz.');
       header('Location: /documents');
       exit;
     }
@@ -219,6 +256,7 @@ class DocumentsController
 
       $label = $doc['original_name'] ?: basename((string)$doc['file_path']);
       $this->flash->set('success', 'Dokumentum törölve: ' . (string)$label);
+      HrPermission::audit($this->db, (int)$user['id'], $user['name'], 'doc_delete', (int)$doc['employee_id'], null, $label);
 
       // keep employee filter if possible
       $eid = (int)($doc['employee_id'] ?? 0);
@@ -235,16 +273,18 @@ class DocumentsController
 
   public function showUpload(): void
   {
-    $user = $this->requireLogin();
+    $user    = $this->requireLogin();
+    $isAdmin = (($user['role'] ?? '') === 'admin');
+    $perm    = $isAdmin ? null : HrPermission::load($this->db, (int)$user['id']);
     $employeeId = (int)($_GET['employee_id'] ?? 0);
 
     $this->view->render('layout/header', ['title' => 'Dokumentum feltöltés', 'user' => $user]);
     $this->view->render('documents/upload', [
-      'error' => $this->flash->get('error'),
-      'success' => $this->flash->get('success'),
-      'csrf' => $this->csrf->token(),
-      'types' => $this->getDocTypes(),
-      'employees' => $this->getEmployeesForSelect(),
+      'error'       => $this->flash->get('error'),
+      'success'     => $this->flash->get('success'),
+      'csrf'        => $this->csrf->token(),
+      'types'       => $this->getDocTypes(),
+      'employees'   => $this->getEmployeesForSelect($perm),
       'employee_id' => $employeeId,
     ]);
     $this->view->render('layout/footer');
@@ -252,7 +292,9 @@ class DocumentsController
 
   public function upload(): void
   {
-    $this->requireLogin();
+    $user    = $this->requireLogin();
+    $isAdmin = (($user['role'] ?? '') === 'admin');
+    $perm    = $isAdmin ? null : HrPermission::load($this->db, (int)$user['id']);
 
     if (!$this->csrf->verify($_POST['_csrf'] ?? null)) {
       $this->flash->set('error', 'Érvénytelen kérés (CSRF).');
@@ -273,6 +315,19 @@ class DocumentsController
       header('Location: /documents_upload');
       exit;
     }
+
+    // Nem-admin: ellenőrzés, hogy a kiválasztott dolgozó az engedélyezett divízióban van-e
+    if ($perm !== null) {
+      $empDiv = $this->db->pdo()->prepare("SELECT division_id FROM employees WHERE id=? LIMIT 1");
+      $empDiv->execute([$employeeId]);
+      $empDiv = $empDiv->fetch();
+      if (!$empDiv || !in_array((int)($empDiv['division_id'] ?? 0), $perm['divisions'], true)) {
+        $this->flash->set('error', 'Nincs jogosultságod ehhez a dolgozóhoz.');
+        header('Location: /documents_upload');
+        exit;
+      }
+    }
+
     if ($typeId <= 0) {
       $this->flash->set('error', 'Válassz dokumentumtípust.');
       header('Location: /documents_upload?employee_id=' . $employeeId);
@@ -305,6 +360,7 @@ class DocumentsController
       ]);
 
       $this->flash->set('success', 'Dokumentum feltöltve.');
+      HrPermission::audit($this->db, (int)$user['id'], $user['name'], 'doc_upload', $employeeId, null, null, $up['original_name']);
       header('Location: /documents?employee_id=' . $employeeId);
       exit;
 

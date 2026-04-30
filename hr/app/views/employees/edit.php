@@ -1,5 +1,7 @@
 <?php
-// expects: $emp, $divisions, $csrf, $success, $error, $docs, $docTypes
+// expects: $emp, $divisions, $csrf, $success, $error, $docs, $docTypes, $canSee, $canSeeExtra
+if (!isset($canSee))      $canSee      = fn(string $key): bool => true;
+if (!isset($canSeeExtra)) $canSeeExtra = fn(int $id): bool => true;
 ?>
 <div class="d-flex align-items-center justify-content-between mb-3">
   <h3 class="m-0">Dolgozó szerkesztése</h3>
@@ -32,43 +34,59 @@
               <label class="form-label">Név *</label>
               <input class="form-control" type="text" name="full_name" value="<?= h($emp['full_name'] ?? '') ?>" required>
             </div>
+            <?php if ($canSee('birth_name')): ?>
             <div class="col-md-6">
               <label class="form-label">Születési név</label>
               <input class="form-control" type="text" name="birth_name" value="<?= h($emp['birth_name'] ?? '') ?>">
             </div>
+            <?php endif; ?>
+            <?php if ($canSee('mother_name')): ?>
             <div class="col-md-6">
               <label class="form-label">Anyja neve</label>
               <input class="form-control" type="text" name="mother_name" value="<?= h($emp['mother_name'] ?? '') ?>">
             </div>
+            <?php endif; ?>
+            <?php if ($canSee('birth_place')): ?>
             <div class="col-md-3">
               <label class="form-label">Születési hely</label>
               <input class="form-control" type="text" name="birth_place" value="<?= h($emp['birth_place'] ?? '') ?>">
             </div>
+            <?php endif; ?>
+            <?php if ($canSee('birth_date')): ?>
             <div class="col-md-3">
               <label class="form-label">Születési dátum</label>
               <input class="form-control" type="date" name="birth_date" value="<?= h($emp['birth_date'] ?? '') ?>">
             </div>
+            <?php endif; ?>
           </div>
         </div>
       </div>
 
       <!-- Céges / azonosító -->
+      <?php if ($canSee('tax_id') || $canSee('taj') || $canSee('company_emp_no') || $canSee('division_name') || !empty($is_admin)): ?>
       <div class="col-12">
         <div class="border rounded p-3">
           <h6 class="text-muted mb-3">Céges / azonosító</h6>
           <div class="row g-3">
+            <?php if ($canSee('tax_id')): ?>
             <div class="col-md-4">
               <label class="form-label">Adóazonosító</label>
               <input class="form-control" type="text" name="tax_id" value="<?= h($emp['tax_id'] ?? '') ?>">
             </div>
+            <?php endif; ?>
+            <?php if ($canSee('taj')): ?>
             <div class="col-md-4">
               <label class="form-label">TAJ szám</label>
               <input class="form-control" type="text" name="taj" value="<?= h($emp['taj'] ?? '') ?>">
             </div>
+            <?php endif; ?>
+            <?php if ($canSee('company_emp_no')): ?>
             <div class="col-md-4">
               <label class="form-label">Céges törzsszám</label>
               <input class="form-control" type="text" name="company_emp_no" value="<?= h($emp['company_emp_no'] ?? '') ?>">
             </div>
+            <?php endif; ?>
+            <?php if (!empty($is_admin)): ?>
             <div class="col-md-4">
               <label class="form-label">Divízió</label>
               <select class="form-select" name="division_id">
@@ -80,91 +98,127 @@
                 <?php endforeach; ?>
               </select>
             </div>
+            <?php elseif ($canSee('division_name')): ?>
+            <div class="col-md-4">
+              <label class="form-label">Divízió</label>
+              <input class="form-control" type="text" value="<?= h($emp['division_name'] ?? '—') ?>" readonly>
+            </div>
+            <?php endif; ?>
           </div>
         </div>
       </div>
+      <?php endif; ?>
 
       <!-- Bankszámla -->
+      <?php if ($canSee('bank_account') || $canSee('bank_name')): ?>
       <div class="col-12">
         <div class="border rounded p-3">
           <h6 class="text-muted mb-3">Bankszámla</h6>
           <div class="row g-3">
+            <?php if ($canSee('bank_account')): ?>
             <div class="col-md-6">
               <label class="form-label">Bankszámlaszám</label>
               <input class="form-control" type="text" name="bank_account" id="bank_account"
                      value="<?= h($emp['bank_account'] ?? '') ?>"
                      placeholder="12345678-12345678-12345678">
             </div>
+            <?php endif; ?>
+            <?php if ($canSee('bank_name')): ?>
             <div class="col-md-6">
               <label class="form-label">Bank neve</label>
               <input class="form-control" type="text" name="bank_name" id="bank_name"
                      value="<?= h($emp['bank_name'] ?? '') ?>"
                      placeholder="automatikusan kitöltve">
             </div>
+            <?php endif; ?>
           </div>
         </div>
       </div>
+      <?php endif; ?>
 
       <!-- Munkaviszony -->
+      <?php if ($canSee('hired_on') || $canSee('left_on')): ?>
       <div class="col-12">
         <div class="border rounded p-3">
           <h6 class="text-muted mb-3">Munkaviszony</h6>
           <div class="row g-3">
+            <?php if ($canSee('hired_on')): ?>
             <div class="col-md-4">
               <label class="form-label">Belépés dátuma</label>
               <input class="form-control" type="date" name="hired_on" value="<?= h($emp['hired_on'] ?? '') ?>">
             </div>
+            <?php endif; ?>
+            <?php if ($canSee('left_on')): ?>
             <div class="col-md-4">
               <label class="form-label">Kilépés dátuma</label>
               <input class="form-control" type="date" name="left_on" value="<?= h($emp['left_on'] ?? '') ?>">
             </div>
+            <?php endif; ?>
           </div>
         </div>
       </div>
+      <?php endif; ?>
 
       <!-- Lakcím -->
+      <?php if ($canSee('addr_zip') || $canSee('addr_city') || $canSee('addr_line')): ?>
       <div class="col-12">
         <div class="border rounded p-3">
           <h6 class="text-muted mb-3">Lakcím</h6>
           <div class="row g-3">
+            <?php if ($canSee('addr_zip')): ?>
             <div class="col-md-3">
               <label class="form-label">Irányítószám</label>
               <input class="form-control" type="text" name="addr_zip" value="<?= h($emp['addr_zip'] ?? '') ?>">
             </div>
+            <?php endif; ?>
+            <?php if ($canSee('addr_city')): ?>
             <div class="col-md-3">
               <label class="form-label">Település</label>
               <input class="form-control" type="text" name="addr_city" value="<?= h($emp['addr_city'] ?? '') ?>">
             </div>
+            <?php endif; ?>
+            <?php if ($canSee('addr_line')): ?>
             <div class="col-md-6">
               <label class="form-label">Cím</label>
               <input class="form-control" type="text" name="addr_line" value="<?= h($emp['addr_line'] ?? '') ?>">
             </div>
+            <?php endif; ?>
           </div>
         </div>
       </div>
+      <?php endif; ?>
 
       <!-- Kapcsolat -->
+      <?php if ($canSee('email') || $canSee('phone') || $canSee('notes')): ?>
       <div class="col-12">
         <div class="border rounded p-3">
           <h6 class="text-muted mb-3">Kapcsolat</h6>
           <div class="row g-3">
+            <?php if ($canSee('email')): ?>
             <div class="col-md-6">
               <label class="form-label">Email</label>
               <input class="form-control" type="email" name="email" value="<?= h($emp['email'] ?? '') ?>">
             </div>
+            <?php endif; ?>
+            <?php if ($canSee('phone')): ?>
             <div class="col-md-6">
               <label class="form-label">Telefonszám</label>
               <input class="form-control" type="text" name="phone" value="<?= h($emp['phone'] ?? '') ?>">
             </div>
+            <?php endif; ?>
+            <?php if ($canSee('notes')): ?>
             <div class="col-12">
               <label class="form-label">Megjegyzés</label>
               <textarea class="form-control" name="notes" rows="4"><?= h($emp['notes'] ?? '') ?></textarea>
             </div>
+            <?php endif; ?>
           </div>
         </div>
       </div>
+      <?php endif; ?>
 
-      <!-- Profilkép -->
+      <!-- Profilkép – csak admin -->
+      <?php if (!empty($is_admin)): ?>
       <div class="col-12">
         <div class="border rounded p-3">
           <h6 class="text-muted mb-3">Profilkép</h6>
@@ -185,14 +239,19 @@
           </div>
         </div>
       </div>
+      <?php endif; ?>
 
     </div>
 
     
+  <?php
+  $visibleExtraFields = array_filter($fields ?? [], fn($f) => $canSeeExtra((int)$f['id']));
+  ?>
+  <?php if (!empty($visibleExtraFields)): ?>
   <div class="border rounded p-3 mt-3">
     <h5 class="m-0 mb-2">Extra mezők</h5>
     <div class="row g-3">
-      <?php foreach (($fields ?? []) as $f): ?>
+      <?php foreach ($visibleExtraFields as $f): ?>
         <?php
           $fid = (int)$f['id'];
           $type = (string)$f['field_type'];
@@ -248,11 +307,9 @@
         </div>
       <?php endforeach; ?>
 
-      <?php if (empty($fields)): ?>
-        <div class="col-12 text-muted">Nincs aktív extra mező.</div>
-      <?php endif; ?>
     </div>
   </div>
+  <?php endif; ?>
 
 <div class="mt-3 border-top pt-3 d-flex align-items-center justify-content-between gap-2">
       <!-- Bal: törlés + inaktivál -->

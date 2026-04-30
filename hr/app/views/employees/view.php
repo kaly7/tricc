@@ -1,5 +1,17 @@
 <?php
-// expects: $emp, $docs, $fields, $field_values, $csrf
+// expects: $emp, $docs, $fields, $field_values, $csrf, $canSee, $canSeeExtra
+// $canSee(string $key): bool  –  null → admin (minden látható)
+// $canSeeExtra(int $id): bool
+if (!isset($canSee))      $canSee      = fn(string $key): bool => true;
+if (!isset($canSeeExtra)) $canSeeExtra = fn(int $id): bool => true;
+
+// Szekciók láthatóságát előre kiszámítjuk
+$showPersonal  = $canSee('birth_name') || $canSee('mother_name') || $canSee('birth_place') || $canSee('birth_date');
+$showCompany   = $canSee('tax_id') || $canSee('taj') || $canSee('company_emp_no') || $canSee('division_name');
+$showBank      = $canSee('bank_account') || $canSee('bank_name');
+$showEmploy    = $canSee('hired_on') || $canSee('left_on');
+$showAddr      = $canSee('addr_zip') || $canSee('addr_city') || $canSee('addr_line');
+$showContact   = $canSee('email') || $canSee('phone') || $canSee('notes');
 ?>
 <div class="d-flex align-items-center justify-content-between mb-3">
   <h3 class="m-0">Dolgozói karton</h3>
@@ -33,69 +45,115 @@
       <div class="row g-2">
         <div class="col-12">
           <span class="fs-5 fw-semibold"><?= h($emp['full_name'] ?? '') ?></span>
-          <?php if ((int)($emp['is_active'] ?? 1) === 1): ?>
-            <span class="badge bg-success ms-2">aktív</span>
-          <?php else: ?>
-            <span class="badge bg-danger ms-2">inaktív</span>
+          <?php if ($canSee('is_active')): ?>
+            <?php if ((int)($emp['is_active'] ?? 1) === 1): ?>
+              <span class="badge bg-success ms-2">aktív</span>
+            <?php else: ?>
+              <span class="badge bg-danger ms-2">inaktív</span>
+            <?php endif; ?>
           <?php endif; ?>
         </div>
-        <div class="col-md-6"><strong>Születési név:</strong> <?= h($emp['birth_name'] ?? '—') ?></div>
-        <div class="col-md-6"><strong>Anyja neve:</strong> <?= h($emp['mother_name'] ?? '—') ?></div>
-        <div class="col-md-6"><strong>Születési hely:</strong> <?= h($emp['birth_place'] ?? '—') ?></div>
-        <div class="col-md-6"><strong>Születési dátum:</strong> <?= h($emp['birth_date'] ?? '—') ?></div>
+        <?php if ($canSee('birth_name')): ?>
+          <div class="col-md-6"><strong>Születési név:</strong> <?= h($emp['birth_name'] ?? '—') ?></div>
+        <?php endif; ?>
+        <?php if ($canSee('mother_name')): ?>
+          <div class="col-md-6"><strong>Anyja neve:</strong> <?= h($emp['mother_name'] ?? '—') ?></div>
+        <?php endif; ?>
+        <?php if ($canSee('birth_place')): ?>
+          <div class="col-md-6"><strong>Születési hely:</strong> <?= h($emp['birth_place'] ?? '—') ?></div>
+        <?php endif; ?>
+        <?php if ($canSee('birth_date')): ?>
+          <div class="col-md-6"><strong>Születési dátum:</strong> <?= h($emp['birth_date'] ?? '—') ?></div>
+        <?php endif; ?>
       </div>
     </div>
 
     <!-- Céges / azonosító -->
+    <?php if ($showCompany): ?>
     <div class="border rounded p-3 mt-3">
       <h6 class="text-muted mb-3">Céges / azonosító</h6>
       <div class="row g-2">
-        <div class="col-md-4"><strong>Adóazonosító:</strong> <?= h($emp['tax_id'] ?? '—') ?></div>
-        <div class="col-md-4"><strong>TAJ szám:</strong> <?= h($emp['taj'] ?? '—') ?></div>
-        <div class="col-md-4"><strong>Céges törzsszám:</strong> <?= h($emp['company_emp_no'] ?? '—') ?></div>
-        <div class="col-md-6"><strong>Divízió:</strong> <?= h($emp['division_name'] ?? '—') ?></div>
+        <?php if ($canSee('tax_id')): ?>
+          <div class="col-md-4"><strong>Adóazonosító:</strong> <?= h($emp['tax_id'] ?? '—') ?></div>
+        <?php endif; ?>
+        <?php if ($canSee('taj')): ?>
+          <div class="col-md-4"><strong>TAJ szám:</strong> <?= h($emp['taj'] ?? '—') ?></div>
+        <?php endif; ?>
+        <?php if ($canSee('company_emp_no')): ?>
+          <div class="col-md-4"><strong>Céges törzsszám:</strong> <?= h($emp['company_emp_no'] ?? '—') ?></div>
+        <?php endif; ?>
+        <?php if ($canSee('division_name')): ?>
+          <div class="col-md-6"><strong>Divízió:</strong> <?= h($emp['division_name'] ?? '—') ?></div>
+        <?php endif; ?>
       </div>
     </div>
+    <?php endif; ?>
 
     <!-- Bankszámla -->
+    <?php if ($showBank): ?>
     <div class="border rounded p-3 mt-3">
       <h6 class="text-muted mb-3">Bankszámla</h6>
       <div class="row g-2">
-        <div class="col-md-6"><strong>Bankszámlaszám:</strong> <?= h($emp['bank_account'] ?? '—') ?></div>
-        <div class="col-md-6"><strong>Bank neve:</strong> <?= h($emp['bank_name'] ?? '—') ?></div>
+        <?php if ($canSee('bank_account')): ?>
+          <div class="col-md-6"><strong>Bankszámlaszám:</strong> <?= h($emp['bank_account'] ?? '—') ?></div>
+        <?php endif; ?>
+        <?php if ($canSee('bank_name')): ?>
+          <div class="col-md-6"><strong>Bank neve:</strong> <?= h($emp['bank_name'] ?? '—') ?></div>
+        <?php endif; ?>
       </div>
     </div>
+    <?php endif; ?>
 
     <!-- Munkaviszony -->
+    <?php if ($showEmploy): ?>
     <div class="border rounded p-3 mt-3">
       <h6 class="text-muted mb-3">Munkaviszony</h6>
       <div class="row g-2">
-        <div class="col-md-4"><strong>Belépés dátuma:</strong> <?= h($emp['hired_on'] ?? '—') ?></div>
-        <div class="col-md-4"><strong>Kilépés dátuma:</strong> <?= h($emp['left_on'] ?? '—') ?></div>
+        <?php if ($canSee('hired_on')): ?>
+          <div class="col-md-4"><strong>Belépés dátuma:</strong> <?= h($emp['hired_on'] ?? '—') ?></div>
+        <?php endif; ?>
+        <?php if ($canSee('left_on')): ?>
+          <div class="col-md-4"><strong>Kilépés dátuma:</strong> <?= h($emp['left_on'] ?? '—') ?></div>
+        <?php endif; ?>
       </div>
     </div>
+    <?php endif; ?>
 
     <!-- Lakcím -->
+    <?php if ($showAddr): ?>
     <div class="border rounded p-3 mt-3">
       <h6 class="text-muted mb-3">Lakcím</h6>
       <div class="row g-2">
-        <div class="col-md-3"><strong>Irányítószám:</strong> <?= h($emp['addr_zip'] ?? '—') ?></div>
-        <div class="col-md-3"><strong>Település:</strong> <?= h($emp['addr_city'] ?? '—') ?></div>
-        <div class="col-md-6"><strong>Cím:</strong> <?= h($emp['addr_line'] ?? '—') ?></div>
+        <?php if ($canSee('addr_zip')): ?>
+          <div class="col-md-3"><strong>Irányítószám:</strong> <?= h($emp['addr_zip'] ?? '—') ?></div>
+        <?php endif; ?>
+        <?php if ($canSee('addr_city')): ?>
+          <div class="col-md-3"><strong>Település:</strong> <?= h($emp['addr_city'] ?? '—') ?></div>
+        <?php endif; ?>
+        <?php if ($canSee('addr_line')): ?>
+          <div class="col-md-6"><strong>Cím:</strong> <?= h($emp['addr_line'] ?? '—') ?></div>
+        <?php endif; ?>
       </div>
     </div>
+    <?php endif; ?>
 
     <!-- Kapcsolat -->
+    <?php if ($showContact): ?>
     <div class="border rounded p-3 mt-3">
       <h6 class="text-muted mb-3">Kapcsolat</h6>
       <div class="row g-2">
-        <div class="col-md-6"><strong>Email:</strong> <?= h($emp['email'] ?? '—') ?></div>
-        <div class="col-md-6"><strong>Telefon:</strong> <?= h($emp['phone'] ?? '—') ?></div>
-        <?php if (!empty($emp['notes'])): ?>
+        <?php if ($canSee('email')): ?>
+          <div class="col-md-6"><strong>Email:</strong> <?= h($emp['email'] ?? '—') ?></div>
+        <?php endif; ?>
+        <?php if ($canSee('phone')): ?>
+          <div class="col-md-6"><strong>Telefon:</strong> <?= h($emp['phone'] ?? '—') ?></div>
+        <?php endif; ?>
+        <?php if ($canSee('notes') && !empty($emp['notes'])): ?>
           <div class="col-12 mt-1"><strong>Megjegyzés:</strong><br><span class="text-muted"><?= nl2br(h($emp['notes'])) ?></span></div>
         <?php endif; ?>
       </div>
     </div>
+    <?php endif; ?>
 
     <!-- Extra mezők -->
     <?php
@@ -103,6 +161,7 @@
       if (!empty($fields) && !empty($field_values)) {
         foreach ($fields as $f) {
           $fid = (int)$f['id'];
+          if (!$canSeeExtra($fid)) continue;
           $val = $field_values[$fid]['value'] ?? '';
           $show = (int)($field_values[$fid]['show'] ?? 1);
           if ($show === 1 && trim((string)$val) !== '') { $hasExtra = true; break; }
@@ -116,6 +175,7 @@
           <?php foreach (($fields ?? []) as $f): ?>
             <?php
               $fid  = (int)$f['id'];
+              if (!$canSeeExtra($fid)) continue;
               $val  = $field_values[$fid]['value'] ?? '';
               $show = (int)($field_values[$fid]['show'] ?? 1);
               if ($show !== 1 || trim((string)$val) === '') continue;

@@ -93,6 +93,23 @@ class EmployeesController
     return '/uploads/profile/' . $name;
   }
 
+  /** Jogosultság betöltése, nincs-hozzáférés kezelés */
+  private function loadPerm(array $user): ?array
+  {
+    $isAdmin = ($user['role'] ?? '') === 'admin';
+    if ($isAdmin) return null; // null = admin, minden megengedett
+
+    $perm = HrPermission::load($this->db, (int)$user['id']);
+    if ($perm === null) {
+      http_response_code(403);
+      $this->view->render('layout/header', ['title' => 'Nincs hozzáférés', 'user' => $user]);
+      echo '<div class="alert alert-danger">Nincs HR-hozzáférésed. Kérd meg az adminisztrátort, hogy állítsa be a jogosultságodat.</div>';
+      $this->view->render('layout/footer');
+      exit;
+    }
+    return $perm;
+  }
+
   public function index(): void
   {
     $user = $this->requireLogin();
@@ -101,6 +118,9 @@ class EmployeesController
     $showInactive = (int)($_GET['show_inactive'] ?? 0) === 1;
 
     // Sorting (whitelist) - toggle via table header links
+    $isAdmin = ($user['role'] ?? '') === 'admin';
+    $perm    = $this->loadPerm($user);
+
     $sort = (string)($_GET['sort'] ?? '');
     $dir  = strtolower((string)($_GET['dir'] ?? 'asc'));
     if (!in_array($dir, ['asc','desc'], true)) $dir = 'asc';
@@ -118,6 +138,17 @@ class EmployeesController
 
     if (!$showInactive) {
       $whereParts[] = "e.is_active = 1";
+    }
+
+    // Nem-admin: csak az engedélyezett divíziók látszanak
+    if ($perm !== null) {
+      if (empty($perm['divisions'])) {
+        $whereParts[] = "1=0"; // nincs divízió beállítva → üres lista
+      } else {
+        $ph = implode(',', array_fill(0, count($perm['divisions']), '?'));
+        $whereParts[] = "COALESCE(e.division_id, 0) IN ($ph)";
+        foreach ($perm['divisions'] as $did) $params[] = $did;
+      }
     }
 
     if ($q !== '') {
@@ -172,6 +203,7 @@ class EmployeesController
   public function showCreate(): void
   {
     $user = $this->requireLogin();
+    $this->auth->requireRole('admin');
     $sortKey = (string)($_GET['sort'] ?? 'name');
     $dir = strtolower((string)($_GET['dir'] ?? 'desc'));
     if (!in_array($dir, ['asc','desc'], true)) $dir = 'desc';
@@ -199,6 +231,7 @@ class EmployeesController
   public function create(): void
   {
     $this->requireLogin();
+    $this->auth->requireRole('admin');
 
     if (!$this->csrf->verify($_POST['_csrf'] ?? null)) {
       $this->flash->set('error', 'Érvénytelen kérés (CSRF).');
@@ -296,7 +329,10 @@ class EmployeesController
 
   public function showView(): void
   {
-    $user = $this->requireLogin();
+    $user    = $this->requireLogin();
+    $isAdmin = ($user['role'] ?? '') === 'admin';
+    $perm    = $this->loadPerm($user);
+
     $sortKey = (string)($_GET['sort'] ?? 'name');
     $dir = strtolower((string)($_GET['dir'] ?? 'desc'));
     if (!in_array($dir, ['asc','desc'], true)) $dir = 'desc';
@@ -325,6 +361,14 @@ class EmployeesController
       exit;
     }
 
+    // Nem-admin: divízió ellenőrzés
+    if ($perm !== null && !in_array((int)($emp['division_id'] ?? 0), $perm['divisions'], true)) {
+      http_response_code(403);
+      $this->flash->set('error', 'Nincs jogosultságod ehhez a dolgozóhoz.');
+      header('Location: /employees');
+      exit;
+    }
+
     // Documents for employee card
     $stmt = $this->db->pdo()->prepare(
       "SELECT d.*, t.name AS type_name
@@ -337,24 +381,35 @@ class EmployeesController
     $stmt->execute(['id' => $id]);
     $docs = $stmt->fetchAll();
 
+    // Audit
+    HrPermission::audit($this->db, (int)$user['id'], $user['name'], 'employee_view', $id);
+
+    $canSee      = HrPermission::fieldChecker($perm);
+    $canSeeExtra = HrPermission::extraFieldChecker($perm);
+
     $this->view->render('layout/header', ['title' => 'Dolgozó', 'user' => $user]);
     $this->view->render('employees/view', [
-      'emp' => $emp,
-      'fields' => $this->getActiveExtraFields(),
+      'emp'          => $emp,
+      'fields'       => $this->getActiveExtraFields(),
       'field_values' => $this->getEmployeeExtraValues((int)$emp['id']),
-      'docs' => $docs ?? [],
-      'csrf' => $this->csrf->token(),
-      'sort' => $sortKey ?? 'name',
-      'dir' => $dir ?? 'desc',
-      'show_inactive' => $showInactive,
-      'is_admin' => (($user['role'] ?? '') === 'admin'),
+      'docs'         => $docs ?? [],
+      'csrf'         => $this->csrf->token(),
+      'sort'         => $sortKey ?? 'name',
+      'dir'          => $dir ?? 'desc',
+      'show_inactive'=> $showInactive,
+      'is_admin'     => $isAdmin,
+      'canSee'       => $canSee,
+      'canSeeExtra'  => $canSeeExtra,
     ]);
     $this->view->render('layout/footer');
   }
 
   public function showEdit(): void
   {
-    $user = $this->requireLogin();
+    $user    = $this->requireLogin();
+    $isAdmin = ($user['role'] ?? '') === 'admin';
+    $perm    = $this->loadPerm($user);
+
     $sortKey = (string)($_GET['sort'] ?? 'name');
     $dir = strtolower((string)($_GET['dir'] ?? 'desc'));
     if (!in_array($dir, ['asc','desc'], true)) $dir = 'desc';
@@ -377,6 +432,14 @@ class EmployeesController
       exit;
     }
 
+    // Nem-admin: divízió ellenőrzés
+    if ($perm !== null && !in_array((int)($emp['division_id'] ?? 0), $perm['divisions'], true)) {
+      http_response_code(403);
+      $this->flash->set('error', 'Nincs jogosultságod ehhez a dolgozóhoz.');
+      header('Location: /employees');
+      exit;
+    }
+
     // Documents for employee edit page
     $stmt = $this->db->pdo()->prepare(
       "SELECT d.*, t.name AS type_name
@@ -391,28 +454,35 @@ class EmployeesController
 
     $docTypes = $this->getDocTypes();
 
+    $canSee      = HrPermission::fieldChecker($perm);
+    $canSeeExtra = HrPermission::extraFieldChecker($perm);
+
     $this->view->render('layout/header', ['title' => 'Dolgozó szerkesztése', 'user' => $user]);
     $this->view->render('employees/edit', [
-      'emp' => $emp,
-      'fields' => $this->getActiveExtraFields(),
+      'emp'          => $emp,
+      'fields'       => $this->getActiveExtraFields(),
       'field_values' => $this->getEmployeeExtraValues((int)$emp['id']),
-      'divisions' => $this->getDivisions(),
-      'docTypes' => $docTypes ?? [],
-      'docs' => $docs ?? [],
-      'success' => $this->flash->get('success'),
-      'error' => $this->flash->get('error'),
-      'csrf' => $this->csrf->token(),
-      'sort' => $sortKey ?? 'name',
-      'dir' => $dir ?? 'desc',
-      'show_inactive' => $showInactive,
-      'is_admin' => (($user['role'] ?? '') === 'admin'),
+      'divisions'    => $this->getDivisions(),
+      'docTypes'     => $docTypes ?? [],
+      'docs'         => $docs ?? [],
+      'success'      => $this->flash->get('success'),
+      'error'        => $this->flash->get('error'),
+      'csrf'         => $this->csrf->token(),
+      'sort'         => $sortKey ?? 'name',
+      'dir'          => $dir ?? 'desc',
+      'show_inactive'=> $showInactive,
+      'is_admin'     => $isAdmin,
+      'canSee'       => $canSee,
+      'canSeeExtra'  => $canSeeExtra,
     ]);
     $this->view->render('layout/footer');
   }
 
   public function update(): void
   {
-    $this->requireLogin();
+    $user    = $this->requireLogin();
+    $isAdmin = ($user['role'] ?? '') === 'admin';
+    $perm    = $this->loadPerm($user);
 
     if (!$this->csrf->verify($_POST['_csrf'] ?? null)) {
       $this->flash->set('error', 'Érvénytelen kérés (CSRF).');
@@ -427,39 +497,61 @@ class EmployeesController
       exit;
     }
 
-    $stmt = $this->db->pdo()->prepare("SELECT profile_image_path FROM employees WHERE id=:id LIMIT 1");
+    // Aktuális adatok betöltése (nem-admin esetén a nem-látható mezők innen jönnek)
+    $stmt = $this->db->pdo()->prepare("SELECT * FROM employees WHERE id=:id LIMIT 1");
     $stmt->execute(['id' => $id]);
     $current = $stmt->fetch();
 
+    if (!$current) {
+      $this->flash->set('error', 'A dolgozó nem található.');
+      header('Location: /employees');
+      exit;
+    }
+
+    // Nem-admin: divízió ellenőrzés
+    if ($perm !== null && !in_array((int)($current['division_id'] ?? 0), $perm['divisions'], true)) {
+      http_response_code(403);
+      $this->flash->set('error', 'Nincs jogosultságod ehhez a dolgozóhoz.');
+      header('Location: /employees');
+      exit;
+    }
+
+    $canSee = HrPermission::fieldChecker($perm);
+
+    // POST értékek, de csak az engedélyezett mezőkre
+    $postField = fn(string $key, mixed $default = null): mixed =>
+      $canSee($key) ? (trim((string)($_POST[$key] ?? '')) ?: null) : ($current[$key] ?? $default);
+
     $data = [
-      'id' => $id,
-      'full_name' => trim((string)($_POST['full_name'] ?? '')),
-      'birth_name' => trim((string)($_POST['birth_name'] ?? '')) ?: null,
-      'mother_name' => trim((string)($_POST['mother_name'] ?? '')) ?: null,
-      'birth_place' => trim((string)($_POST['birth_place'] ?? '')) ?: null,
-      'birth_date' => trim((string)($_POST['birth_date'] ?? '')) ?: null,
-
-      'tax_id' => trim((string)($_POST['tax_id'] ?? '')) ?: null,
-      'taj' => trim((string)($_POST['taj'] ?? '')) ?: null,
-      'company_emp_no' => trim((string)($_POST['company_emp_no'] ?? '')) ?: null,
-      'bank_account' => trim((string)($_POST['bank_account'] ?? '')) ?: null,
-      'bank_name' => trim((string)($_POST['bank_name'] ?? '')) ?: null,
-
-      'division_id' => (int)($_POST['division_id'] ?? 0),
-      'addr_zip' => trim((string)($_POST['addr_zip'] ?? '')) ?: null,
-      'addr_city' => trim((string)($_POST['addr_city'] ?? '')) ?: null,
-      'addr_line' => trim((string)($_POST['addr_line'] ?? '')) ?: null,
-
-      'email' => trim((string)($_POST['email'] ?? '')) ?: null,
-      'phone' => trim((string)($_POST['phone'] ?? '')) ?: null,
-      'notes' => trim((string)($_POST['notes'] ?? '')) ?: null,
-
-      'is_active' => (int)($_POST['is_active'] ?? 1) === 1 ? 1 : 0,
-      'hired_on' => trim((string)($_POST['hired_on'] ?? '')) ?: null,
-      'left_on'  => trim((string)($_POST['left_on']  ?? '')) ?: null,
+      'id'             => $id,
+      'full_name'      => $canSee('full_name') ? (trim((string)($_POST['full_name'] ?? '')) ?: ($current['full_name'] ?? '')) : ($current['full_name'] ?? ''),
+      'birth_name'     => $postField('birth_name'),
+      'mother_name'    => $postField('mother_name'),
+      'birth_place'    => $postField('birth_place'),
+      'birth_date'     => $postField('birth_date'),
+      'tax_id'         => $postField('tax_id'),
+      'taj'            => $postField('taj'),
+      'company_emp_no' => $postField('company_emp_no'),
+      'bank_account'   => $postField('bank_account'),
+      'bank_name'      => $postField('bank_name'),
+      'addr_zip'       => $postField('addr_zip'),
+      'addr_city'      => $postField('addr_city'),
+      'addr_line'      => $postField('addr_line'),
+      'email'          => $postField('email'),
+      'phone'          => $postField('phone'),
+      'notes'          => $postField('notes'),
+      'hired_on'       => $postField('hired_on'),
+      'left_on'        => $postField('left_on'),
+      // Csak admin változtathatja ezeket:
+      'division_id' => $isAdmin
+        ? (((int)($_POST['division_id'] ?? 0)) ?: null)
+        : ($current['division_id'] ?? null),
+      'is_active' => $isAdmin
+        ? ((int)($_POST['is_active'] ?? 1) === 1 ? 1 : 0)
+        : (int)($current['is_active'] ?? 1),
     ];
 
-    if ($data['full_name'] === '') {
+    if (($data['full_name'] ?? '') === '') {
       $this->flash->set('error', 'A név kötelező.');
       header('Location: /employees_edit?id=' . $id);
       exit;
@@ -471,10 +563,10 @@ class EmployeesController
       exit;
     }
 
-    if ($data['division_id'] <= 0) $data['division_id'] = null;
-
     try {
-      $profilePath = $this->handleProfileUpload($_FILES['profile_image'] ?? null, $current['profile_image_path'] ?? null);
+      $profilePath = $isAdmin
+        ? $this->handleProfileUpload($_FILES['profile_image'] ?? null, $current['profile_image_path'] ?? null)
+        : ($current['profile_image_path'] ?? null);
 
       $stmt = $this->db->pdo()->prepare("
         UPDATE employees SET
@@ -503,8 +595,37 @@ class EmployeesController
       ");
       $stmt->execute(array_merge($data, ['profile_image_path' => $profilePath]));
 
-      // Save dynamic extra fields (debug)
-      $this->saveEmployeeExtraValues((int)$id, (array)($_POST['field'] ?? []), (array)($_POST['show'] ?? []));
+      // Audit: módosított mezők naplózása
+      $auditFields = [
+        'full_name','birth_name','mother_name','birth_place','birth_date',
+        'tax_id','taj','company_emp_no','bank_account','bank_name',
+        'division_id','addr_zip','addr_city','addr_line',
+        'email','phone','notes','hired_on','left_on','is_active',
+      ];
+      $changed = false;
+      foreach ($auditFields as $fk) {
+        $oldVal = (string)($current[$fk] ?? '');
+        $newVal = (string)($data[$fk] ?? '');
+        if ($oldVal !== $newVal) {
+          HrPermission::audit($this->db, (int)$user['id'], $user['name'], 'field_update', $id, $fk, $oldVal, $newVal);
+          $changed = true;
+        }
+      }
+      if ($changed) {
+        HrPermission::audit($this->db, (int)$user['id'], $user['name'], 'employee_edit', $id);
+      }
+
+      // Extra mezők mentése
+      $postedExtra = (array)($_POST['field'] ?? []);
+      // Nem-admin: csak az engedélyezett extra mezők
+      if ($perm !== null) {
+        $postedExtra = array_filter(
+          $postedExtra,
+          fn($fid) => in_array((int)$fid, $perm['extra_fields'], true),
+          ARRAY_FILTER_USE_KEY
+        );
+      }
+      $this->saveEmployeeExtraValues((int)$id, $postedExtra, (array)($_POST['show'] ?? []));
       if (self::EXTRA_FIELDS_DEBUG) error_log('[HR] extra fields saved for employeeId=' . (int)$id);
 
       $this->flash->set('success', 'Mentve.');
@@ -778,5 +899,382 @@ private function getEmployeeDocuments(int $employeeId): array
   } catch (PDOException $e) {
     return [];
   }
+}
+
+// ─── Export ──────────────────────────────────────────────────────────────────
+
+private const EXPORT_FIELD_DEFS = [
+  'Személyes adatok' => [
+    'full_name'   => 'Teljes név',
+    'birth_name'  => 'Születési név',
+    'mother_name' => 'Anyja neve',
+    'birth_place' => 'Születési hely',
+    'birth_date'  => 'Születési dátum',
+  ],
+  'Céges / azonosító' => [
+    'division_name'  => 'Divízió',
+    'company_emp_no' => 'Céges törzsszám',
+    'tax_id'         => 'Adóazonosító',
+    'taj'            => 'TAJ szám',
+  ],
+  'Bankszámla' => [
+    'bank_account' => 'Bankszámlaszám',
+    'bank_name'    => 'Bank neve',
+  ],
+  'Munkaviszony' => [
+    'hired_on'  => 'Belépés dátuma',
+    'left_on'   => 'Kilépés dátuma',
+    'is_active' => 'Állapot',
+  ],
+  'Lakcím' => [
+    'addr_zip'  => 'Irányítószám',
+    'addr_city' => 'Település',
+    'addr_line' => 'Cím',
+  ],
+  'Kapcsolat' => [
+    'email' => 'Email',
+    'phone' => 'Telefon',
+    'notes' => 'Megjegyzés',
+  ],
+  'Dokumentumok' => [
+    '_doc_type'    => 'Dokumentum típusa',
+    '_doc_expires' => 'Lejárat dátuma',
+  ],
+];
+
+public function showExport(): void
+{
+  $user = $this->requireLogin();
+  $this->auth->requireRole('admin');
+
+  $stmt = $this->db->pdo()->query("
+    SELECT e.id, e.full_name, e.is_active,
+           COALESCE(d.id, 0) AS div_id,
+           COALESCE(d.name, '(Nincs divízió)') AS div_name
+    FROM employees e
+    LEFT JOIN divisions d ON d.id = e.division_id
+    ORDER BY div_name ASC, e.full_name ASC
+  ");
+  $employees = $stmt->fetchAll();
+
+  $byDivision = [];
+  foreach ($employees as $emp) {
+    $key = (int)$emp['div_id'];
+    if (!isset($byDivision[$key])) {
+      $byDivision[$key] = ['name' => $emp['div_name'], 'employees' => []];
+    }
+    $byDivision[$key]['employees'][] = $emp;
+  }
+
+  $this->view->render('layout/header', ['title' => 'Adatexport', 'user' => $user]);
+  $this->view->render('employees/export', [
+    'byDivision'  => $byDivision,
+    'fieldDefs'   => self::EXPORT_FIELD_DEFS,
+    'extraFields' => $this->getActiveExtraFields(),
+    'csrf'        => $this->csrf->token(),
+    'is_admin'    => (($user['role'] ?? '') === 'admin'),
+    'error'       => $_GET['error'] ?? null,
+  ]);
+  $this->view->render('layout/footer');
+}
+
+public function export(): void
+{
+  $this->requireLogin();
+  $this->auth->requireRole('admin');
+
+  if (!$this->csrf->verify($_POST['_csrf'] ?? null)) {
+    http_response_code(400); echo 'Érvénytelen kérés (CSRF).'; exit;
+  }
+
+  $ids    = array_filter(array_map('intval', (array)($_POST['emp_ids'] ?? [])));
+  $selFields = (array)($_POST['fields'] ?? []);
+  $format = (string)($_POST['format'] ?? 'csv');
+  if (!in_array($format, ['csv', 'xlsx', 'pdf'], true)) $format = 'csv';
+
+  if (empty($ids)) {
+    header('Location: /employees_export?error=no_selection'); exit;
+  }
+
+  // Flat map of all static fields
+  $allStaticDefs = array_merge(...array_values(self::EXPORT_FIELD_DEFS));
+
+  // Extra fields
+  $extraFieldRows = $this->getActiveExtraFields();
+  $extraFieldMap  = [];
+  foreach ($extraFieldRows as $ef) {
+    $extraFieldMap['extra_' . $ef['id']] = $ef;
+  }
+
+  // Separate selected fields
+  $selStatic  = [];
+  $selExtra   = [];
+  $selDocType = false;
+  $selDocExp  = false;
+  foreach ($selFields as $f) {
+    $f = (string)$f;
+    if ($f === '_doc_type')   { $selDocType = true; }
+    elseif ($f === '_doc_expires') { $selDocExp  = true; }
+    elseif (str_starts_with($f, 'extra_') && isset($extraFieldMap[$f])) { $selExtra[] = $f; }
+    elseif (isset($allStaticDefs[$f])) { $selStatic[] = $f; }
+  }
+  $needDocs = $selDocType || $selDocExp;
+
+  // Query employees
+  $ph = implode(',', array_fill(0, count($ids), '?'));
+  $stmt = $this->db->pdo()->prepare("
+    SELECT e.*, COALESCE(d.name,'') AS division_name
+    FROM employees e
+    LEFT JOIN divisions d ON d.id = e.division_id
+    WHERE e.id IN ($ph)
+    ORDER BY e.full_name ASC
+  ");
+  $stmt->execute(array_values($ids));
+  $employees = $stmt->fetchAll();
+
+  // Extra field values
+  $extraValues = [];
+  if (!empty($selExtra) || $format === 'pdf') {
+    $empIds = array_column($employees, 'id');
+    if ($empIds) {
+      $ph2 = implode(',', array_fill(0, count($empIds), '?'));
+      $sv  = $this->db->pdo()->prepare(
+        "SELECT employee_id, field_id, value FROM employee_field_values WHERE employee_id IN ($ph2)"
+      );
+      $sv->execute($empIds);
+      foreach ($sv->fetchAll() as $row) {
+        $extraValues[(int)$row['employee_id']][(int)$row['field_id']] = (string)$row['value'];
+      }
+    }
+  }
+
+  if ($format === 'pdf') {
+    $scheme  = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+    $baseUrl = $scheme . '://' . ($_SERVER['HTTP_HOST'] ?? '');
+
+    // Lejáratos dokumentumok PDF-hez is kellenek
+    $pdfEmpDocs = [];
+    $empIds = array_column($employees, 'id');
+    if ($empIds) {
+      $ph3 = implode(',', array_fill(0, count($empIds), '?'));
+      $sd  = $this->db->pdo()->prepare("
+        SELECT d.employee_id, t.name AS type_name, d.expires_at
+        FROM employee_documents d
+        JOIN document_types t ON t.id = d.document_type_id
+        WHERE d.employee_id IN ($ph3) AND d.expires_at IS NOT NULL
+        ORDER BY d.expires_at ASC
+      ");
+      $sd->execute($empIds);
+      foreach ($sd->fetchAll() as $dr) {
+        $pdfEmpDocs[(int)$dr['employee_id']][] = $dr;
+      }
+    }
+
+    $this->view->render('employees/export_pdf', [
+      'employees'   => $employees,
+      'extraFields' => $extraFieldRows,
+      'extraValues' => $extraValues,
+      'empDocs'     => $pdfEmpDocs,
+      'baseUrl'     => $baseUrl,
+    ]);
+    exit;
+  }
+
+  // CSV / XLSX: build headers + rows
+  if (empty($selStatic) && empty($selExtra) && !$needDocs) {
+    header('Location: /employees_export?error=no_fields'); exit;
+  }
+
+  // Lejáratos dokumentumok lekérése (ha kell)
+  $empDocs = [];  // [emp_id => [{type_name, expires_at}]]
+  if ($needDocs) {
+    $empIds = array_column($employees, 'id');
+    if ($empIds) {
+      $ph3 = implode(',', array_fill(0, count($empIds), '?'));
+      $sd  = $this->db->pdo()->prepare("
+        SELECT d.employee_id, t.name AS type_name, d.expires_at
+        FROM employee_documents d
+        JOIN document_types t ON t.id = d.document_type_id
+        WHERE d.employee_id IN ($ph3) AND d.expires_at IS NOT NULL
+        ORDER BY d.expires_at ASC
+      ");
+      $sd->execute($empIds);
+      foreach ($sd->fetchAll() as $dr) {
+        $empDocs[(int)$dr['employee_id']][] = $dr;
+      }
+    }
+  }
+
+  $headers = [];
+  foreach ($selStatic as $f) $headers[] = $allStaticDefs[$f];
+  foreach ($selExtra  as $f) $headers[] = $extraFieldMap[$f]['name'];
+  if ($selDocType) $headers[] = 'Dokumentum típusa';
+  if ($selDocExp)  $headers[] = 'Lejárat dátuma';
+
+  // Alap sor (dolgozó adatai doc nélkül)
+  $makeBaseRow = function(array $emp) use ($selStatic, $allStaticDefs, $selExtra, $extraFieldMap, $extraValues): array {
+    $row = [];
+    foreach ($selStatic as $f) {
+      if ($f === 'is_active') { $row[] = (int)$emp['is_active'] === 1 ? 'Aktív' : 'Inaktív'; }
+      else { $row[] = (string)($emp[$f] ?? ''); }
+    }
+    foreach ($selExtra as $f) {
+      $efId   = (int)$extraFieldMap[$f]['id'];
+      $efType = (string)($extraFieldMap[$f]['field_type'] ?? 'text');
+      $val    = $extraValues[(int)$emp['id']][$efId] ?? '';
+      if ($efType === 'multiselect' && $val !== '') {
+        $arr = json_decode($val, true);
+        if (is_array($arr)) $val = implode(', ', $arr);
+      }
+      $row[] = $val;
+    }
+    return $row;
+  };
+
+  $rows = [];
+  foreach ($employees as $emp) {
+    $base = $makeBaseRow($emp);
+    if (!$needDocs) {
+      $rows[] = $base;
+    } else {
+      $docs = $empDocs[(int)$emp['id']] ?? [];
+      if (empty($docs)) {
+        // Nincs lejáratos dok – egy sor, üres dok mezőkkel
+        $row = $base;
+        if ($selDocType) $row[] = '';
+        if ($selDocExp)  $row[] = '';
+        $rows[] = $row;
+      } else {
+        // Egy sor per lejáratos dokumentum
+        foreach ($docs as $doc) {
+          $row = $base;
+          if ($selDocType) $row[] = (string)($doc['type_name'] ?? '');
+          if ($selDocExp)  $row[] = (string)($doc['expires_at'] ?? '');
+          $rows[] = $row;
+        }
+      }
+    }
+  }
+
+  $filename = 'hr_export_' . date('Y-m-d');
+
+  if ($format === 'csv') {
+    header('Content-Type: text/csv; charset=UTF-8');
+    header('Content-Disposition: attachment; filename="' . $filename . '.csv"');
+    echo "\xEF\xBB\xBF";
+    $fh = fopen('php://output', 'w');
+    fputcsv($fh, $headers, ';');
+    foreach ($rows as $row) fputcsv($fh, $row, ';');
+    fclose($fh);
+    exit;
+  }
+
+  // XLSX
+  $this->outputXlsx($headers, $rows, $filename);
+}
+
+private function outputXlsx(array $headers, array $rows, string $filename): void
+{
+  $ss = []; $ss_i = [];
+  $ss_add = function(string $v) use (&$ss, &$ss_i): int {
+    if (!isset($ss_i[$v])) { $ss_i[$v] = count($ss); $ss[] = $v; }
+    return $ss_i[$v];
+  };
+  foreach ($headers as $h) $ss_add($h);
+  foreach ($rows as $row) foreach ($row as $cell) $ss_add((string)$cell);
+
+  $styles_xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+  <fonts count="2">
+    <font><sz val="9"/><name val="Calibri"/></font>
+    <font><b/><sz val="9"/><color rgb="FFFFFFFF"/><name val="Calibri"/></font>
+  </fonts>
+  <fills count="3">
+    <fill><patternFill patternType="none"/></fill>
+    <fill><patternFill patternType="gray125"/></fill>
+    <fill><patternFill patternType="solid"><fgColor rgb="FF1F2937"/></patternFill></fill>
+  </fills>
+  <borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders>
+  <cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>
+  <cellXfs count="2">
+    <xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>
+    <xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1"/>
+  </cellXfs>
+</styleSheet>';
+
+  $abc = array_merge(range('A','Z'), array_map(fn($l)=>'A'.$l, range('A','Z')));
+  $sheet_rows_xml = '<row r="1">';
+  foreach ($headers as $ci => $h) {
+    $ref = ($abc[$ci] ?? 'A') . '1';
+    $sheet_rows_xml .= '<c r="' . $ref . '" t="s" s="1"><v>' . ($ss_i[$h] ?? 0) . '</v></c>';
+  }
+  $sheet_rows_xml .= '</row>';
+  foreach ($rows as $ri => $row) {
+    $rn = $ri + 2;
+    $sheet_rows_xml .= '<row r="' . $rn . '">';
+    foreach ($row as $ci => $cell) {
+      $ref = ($abc[$ci] ?? 'A') . $rn;
+      $sheet_rows_xml .= '<c r="' . $ref . '" t="s"><v>' . ($ss_i[(string)$cell] ?? 0) . '</v></c>';
+    }
+    $sheet_rows_xml .= '</row>';
+  }
+
+  $cols_xml = '<cols>';
+  foreach ($headers as $ci => $h) {
+    $w = max(10, min(50, mb_strlen($h) * 1.4 + 4));
+    $cn = $ci + 1;
+    $cols_xml .= '<col min="' . $cn . '" max="' . $cn . '" width="' . $w . '" customWidth="1"/>';
+  }
+  $cols_xml .= '</cols>';
+
+  $ss_xml  = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
+  $ss_xml .= '<sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count="' . count($ss) . '" uniqueCount="' . count($ss) . '">';
+  foreach ($ss as $sv) $ss_xml .= '<si><t xml:space="preserve">' . htmlspecialchars($sv, ENT_XML1, 'UTF-8') . '</t></si>';
+  $ss_xml .= '</sst>';
+
+  $sheet_xml  = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
+  $sheet_xml .= '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">';
+  $sheet_xml .= $cols_xml . '<sheetData>' . $sheet_rows_xml . '</sheetData></worksheet>';
+
+  $wb = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <sheets><sheet name="Export" sheetId="1" r:id="rId1"/></sheets>
+</workbook>';
+  $wb_rels = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet"    Target="worksheets/sheet1.xml"/>
+  <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/sharedStrings" Target="sharedStrings.xml"/>
+  <Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles"        Target="styles.xml"/>
+</Relationships>';
+  $pkg_rels = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>
+</Relationships>';
+  $ct = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml"  ContentType="application/xml"/>
+  <Override PartName="/xl/workbook.xml"           ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>
+  <Override PartName="/xl/worksheets/sheet1.xml"  ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>
+  <Override PartName="/xl/sharedStrings.xml"      ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml"/>
+  <Override PartName="/xl/styles.xml"             ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>
+</Types>';
+
+  $tmp = tempnam(sys_get_temp_dir(), 'hr_xlsx_');
+  $zip = new ZipArchive();
+  $zip->open($tmp, ZipArchive::OVERWRITE);
+  $zip->addFromString('[Content_Types].xml',        $ct);
+  $zip->addFromString('_rels/.rels',                $pkg_rels);
+  $zip->addFromString('xl/workbook.xml',            $wb);
+  $zip->addFromString('xl/_rels/workbook.xml.rels', $wb_rels);
+  $zip->addFromString('xl/worksheets/sheet1.xml',   $sheet_xml);
+  $zip->addFromString('xl/sharedStrings.xml',       $ss_xml);
+  $zip->addFromString('xl/styles.xml',              $styles_xml);
+  $zip->close();
+
+  header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  header('Content-Disposition: attachment; filename="' . $filename . '.xlsx"');
+  header('Content-Length: ' . filesize($tmp));
+  readfile($tmp); unlink($tmp);
 }
 }

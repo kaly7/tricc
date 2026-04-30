@@ -34,12 +34,14 @@ $isAdmin = ($u['role'] ?? '') === 'admin';
         <?php if ($loggedIn): ?>
           <li class="nav-item"><a class="nav-link" href="/employees">Dolgozók</a></li>
           <li class="nav-item"><a class="nav-link" href="/documents">Dokumentumok</a></li>
+          <li class="nav-item"><a class="nav-link" href="/employees_export">Export</a></li>
 
           <?php if ($isAdmin): ?>
             <!-- li class="nav-item"><a class="nav-link" href="/users">Felhasználók</a></li -->
             <li class="nav-item"><a class="nav-link" href="/fields">Mezők</a></li>
             <li class="nav-item"><a class="nav-link" href="/divisions">Divíziók</a></li>
             <li class="nav-item"><a class="nav-link" href="/doctypes">Dokumentumtípusok</a></li>
+            <li class="nav-item"><a class="nav-link" href="/hr_permissions">Jogosultságok</a></li>
           <?php endif; ?>
         <?php endif; ?>
       </ul>
