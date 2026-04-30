@@ -1,0 +1,309 @@
+<?php
+$servername = "localhost";
+$username = "robot";
+$password = "abrakadabra";
+$dbname = "Robot";
+
+session_start();
+    if ( isset($_POST["login_name"]) ) {
+	$login_name=$_POST["login_name"];
+	$login_passwd = $_POST["login_passwd"];
+	
+	$sql="select * from Felhasznalok where nev=\"".$login_name."\" and jelszo=\"".$login_passwd."\"";
+	
+	$conn =  new mysqli($servername, $username, $password, $dbname);
+	// Check connection
+	if ($conn->connect_error) {
+	      die("Connection failed: " . $conn->connect_error);
+	}
+
+	$result = $conn->query($sql);
+	$number = 0;
+	if ($result->num_rows > 0) {
+	      while($row = $result->fetch_assoc()) {
+		    $ip[$number] = $row["ip"];
+		    $admin[$number] = $row["admin"];
+		    $funkcio[$number] = $row["funkcio"];
+		    $goal_name[$number] = $row["goal_name"];
+		    $jelszo[$number] = $row["jelszo"];
+		    $nev[$number] = $row["nev"];
+		    $Index[$number] = $row["Index_"];
+#		    print $ip[$number]."-".$admin[$number]."-".$funkcio[$number]."-".$nev[$number]."-".$jleszo[$number]."-".$Index[0]."<hr>";
+		    $number++;
+	    }
+	    // Van ilyen felhasznalo
+	    $_SESSION["loggedin"] = true;
+	    $_SESSION["username"] = $nev[0];
+	    $_SESSION["admin"] = $admin[0];
+	    $_SESSION["logintime"] = time();
+	    $_SESSION["user_id"] = $Index[0];
+	    
+	} else {
+	     header("location: login.php?x=1");
+	}
+
+} else {
+    if(!isset($_SESSION["loggedin"]) || $_SESSION["loggedin"] !== true){
+	header("location: login.php");
+	exit;
+    }
+
+}
+
+
+?>
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<body>
+<style>
+body, html {
+  height: 100%;
+  margin: 0;
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+.bg-image {
+  /* The image used */
+  background-image: url("fogaskerek.jpeg");
+  
+  /* Add the blur effect */
+  filter: blur(8px);
+  -webkit-filter: blur(8px);
+  
+  /* Full height */
+  height: 100%; 
+  
+  /* Center and scale the image nicely */
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: cover;
+}
+
+/* Position text in the middle of the page/image */
+.bg-text {
+  background-color: rgb(0,0,0); /* Fallback color */
+  background-color: rgba(0,0,0, 0.4); /* Black w/opacity/see-through */
+  color: white;
+  font-weight: bold;
+  border: 3px solid #f1f1f1;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 2;
+  width: 90%;
+  padding: 10px;
+  text-align: left;
+}
+
+
+
+.button {
+   border-top: 1px solid #96d1f8;
+   background: #bcd665;
+   background: -webkit-gradient(linear, left top, left bottom, from(#409c3e), to(#bcd665));
+   background: -webkit-linear-gradient(top, #409c3e, #bcd665);
+   background: -moz-linear-gradient(top, #409c3e, #bcd665);
+   background: -ms-linear-gradient(top, #409c3e, #bcd665);
+   background: -o-linear-gradient(top, #409c3e, #bcd665);
+   padding: 18px 36px;
+   -webkit-border-radius: 8px;
+   -moz-border-radius: 8px;
+   border-radius: 8px;
+   -webkit-box-shadow: rgba(0,0,0,1) 0 1px 0;
+   -moz-box-shadow: rgba(0,0,0,1) 0 1px 0;
+   box-shadow: rgba(0,0,0,1) 0 1px 0;
+   text-shadow: rgba(0,0,0,.4) 0 1px 0;
+   color: #000000;
+   font-size: 14px;
+   font-family: Helvetica, Arial, Sans-Serif;
+   text-decoration: none;
+   vertical-align: middle;
+   }
+.button:hover {
+   border-top-color: #c94818;
+   background: #c94818;
+   color: #ccc;
+   }
+.button:active {
+   border-top-color: #1b435e;
+   background: #1b435e;
+   }
+
+
+table.blueTable {
+  border: 1px solid #1C6EA4;
+  background-color: #EEEEEE;
+  width: 80%;
+  text-align: left;
+  border-collapse: collapse;
+}
+table.blueTable td, table.blueTable th {
+  border: 1px solid #AAAAAA;
+  padding: 3px 2px;
+}
+table.blueTable tbody td {
+  font-size: 13px;
+}
+table.blueTable tr:nth-child(even) {
+  background: #D0E4F5;
+}
+table.blueTable thead {
+  background: #1C6EA4;
+  background: -moz-linear-gradient(top, #5592bb 0%, #327cad 66%, #1C6EA4 100%);
+  background: -webkit-linear-gradient(top, #5592bb 0%, #327cad 66%, #1C6EA4 100%);
+  background: linear-gradient(to bottom, #5592bb 0%, #327cad 66%, #1C6EA4 100%);
+  border-bottom: 2px solid #444444;
+}
+table.blueTable thead th {
+  font-size: 15px;
+  font-weight: bold;
+  color: #FFFFFF;
+  border-left: 2px solid #D0E4F5;
+}
+table.blueTable thead th:first-child {
+  border-left: none;
+}
+
+table.blueTable tfoot {
+  font-weight: bold;
+}
+
+
+.myButton_vh {
+    box-shadow: 0px 1px 0px 0px #f0f7fa;
+    background:linear-gradient(to bottom, #33bdef 5%, #019ad2 100%);
+    background-color:#33bdef;
+    border-radius:6px;
+    border:1px solid #057fd0;
+    display:inline-block;
+    cursor:pointer;
+    color:#ffffff;
+    font-family:Arial;
+    font-size:15px;
+    font-weight:bold;
+    padding:6px 24px;
+    text-decoration:none;
+    text-shadow:0px -1px 0px #5b6178;
+}
+.myButton_vh:hover {
+    background:linear-gradient(to bottom, #019ad2 5%, #33bdef 100%);
+    background-color:#019ad2;
+}
+.myButton_vh:active {
+    position:relative;
+    top:1px;
+}
+
+
+
+</style>
+</head>
+<body>
+
+<div class="bg-image"></div>
+
+<div class="bg-text">
+Felhasználó: <?php print $_SESSION["username"]; ?>
+
+<center><br>
+
+<br><br><br>
+<a href=index.php class=button>Főmenü</a><br><br><hr>
+
+<?php
+
+
+
+
+
+
+$servername = "localhost";
+$username = "robot";
+$password = "abrakadabra";
+$dbname = "Robot";
+
+// Create connection
+$conn = new mysqli($servername, $username, $password, $dbname);
+// Check connection
+if ($conn->connect_error) {
+  die("Connection failed: " . $conn->connect_error);
+}
+
+
+
+
+
+$sql = "SELECT Index_,Goal_name,Active, Megjegyzes FROM Goals";
+$result = $conn->query($sql);
+$goals_number = 0;
+if ($result->num_rows > 0) {
+  // output data of each row
+  while($row = $result->fetch_assoc()) {
+    //echo "id: " . $row["Index_"]. " - Name: " . $row["Goal_name"]. "<br>";
+    $goal_active[$goals_number] = $row["Active"];
+    $goal_megjegyzes[$goals_number] = $row["Megjegyzes"];
+    $goal_Index_[$goals_number] = $row["Index_"];
+    print $goal_name[$goals_name]."\n";
+    $goals_number++;
+  }
+} else {
+  echo "0 results";
+}
+
+
+$conn->close();
+
+$i=0;
+print "<form action=admin_user.php method=POST>";
+print "<input type=hidden name=\"user_save\" value=\"save\">";
+print ("<table class=\"blueTable\">");
+print("<thead><tr>");
+print ("<td>Felhasznaló név </td><td>Jelszó</td><td>Admin</td><td>Útvonal tervezés</td><td>IP</td></tr></thead>");
+
+    print "<tr><td>";
+    print "<input type=text maxlength=30 size=30 name=\"nev_".$i."\" value='".$nev[$i]."'>";
+    print"</td>";
+
+    print "<td>";
+    print "<input type=hidden name=index_".$i." value=\"".$Index_[$i]."\">";
+    print "<input type=text  maxlength=\"20\" size=\"20\" name=\"jelszo_".$i."\" value='".$jelszo[$i]."'>";
+    print "</td>"; 
+    print "<td>";
+    $checked = "";
+    if ($admin[$i] == "Y" ) { $checked = "checked";}
+    print "<input type=checkbox name=\"admin_".$i."\" ".$checked.">";
+    print "</td>\n";
+
+    print "<td>";
+    $checked = "";
+    if ($admin[$i] == "Y" ) { $checked = "checked";}
+    print "<input type=checkbox name=\"jogok_".$i."\" ".$checked.">";
+    print "</td>\n";
+
+
+    print "<td>";
+    print "<input type=text maxlength=16 size=16 name=\"ip_".$i."\">";
+    print"</td>";
+
+
+
+print "</table>";
+print "<input type=hidden name=counter value=\"-1\">";
+print "<input class=mybutton_vh type=submit value=Mentés>";
+print "<form>";
+
+
+
+
+
+?>
+
+
+
+</html>

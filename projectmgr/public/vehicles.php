@@ -104,6 +104,7 @@ function severityIcon(string $sev): string {
       <a class="btn btn-outline-secondary" href="/vehicle_types.php">Fajták</a>
       <a class="btn btn-outline-secondary" href="/vehicle_fuel_import.php">Üzemanyag import</a>
       <a class="btn btn-outline-secondary" href="/vehicle_import.php">Jármű import</a>
+      <a class="btn btn-outline-warning" href="/vehicle_gps_missing.php">GPS hiány</a>
       <a class="btn btn-primary" href="/vehicle_create.php">Új jármű</a>
     <?php endif; ?>
   </div>

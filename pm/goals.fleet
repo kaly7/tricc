@@ -1,0 +1,16 @@
+#!/usr/bin/expect
+set timeout 20
+set host "10.146.126.156"
+set port "7171"
+set pass "admin"
+set cmd "get goals"
+
+spawn telnet $host $port
+expect "Enter "
+send "$pass\r"
+expect "End of"
+send "getGoals\r"
+expect "End"
+
+close
+

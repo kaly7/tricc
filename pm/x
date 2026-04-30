@@ -1,0 +1,16 @@
+spawn telnet 192.168.0.104 9091
+Trying 192.168.0.104...
+Connected to 192.168.0.104.
+Escape character is '^]'.
+help
+HTTP/1.1 400 Bad Request
+Content-Type: text/html
+Connection: close
+Date: Tue, 15 Jun 2021 17:21:11 GMT
+Content-Length: 94
+
+<HTML><HEAD>
+<TITLE>400 Bad Request</TITLE>
+</HEAD><BODY>
+<H1>Bad Request</H1>
+</BODY></HTML>

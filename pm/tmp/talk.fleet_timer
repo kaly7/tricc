@@ -1,0 +1,12 @@
+#!/usr/bin/expect 
+set timeout 2
+set host "10.146.126.156" 
+set port "7171" 
+set pass "admin" 
+spawn telnet $host $port 
+expect "Enter " 
+send "$pass\r" 
+expect "End of" 
+send "queuemulti 3 2  Park 1 pickup 10  ACT_KANBAN_GYURI pickup 10  Park 2 pickup 10 2026_04_27_14_25_03_PP \r" 
+expect "End" 
+close 

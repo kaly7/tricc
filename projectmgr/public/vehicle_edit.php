@@ -47,6 +47,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
   $srvKm = ($_POST['service_interval_km'] ?? '')==='' ? null : max(0,(int)$_POST['service_interval_km']);
   $srvMo = ($_POST['service_interval_months'] ?? '')==='' ? null : max(0,(int)$_POST['service_interval_months']);
   $archived = isset($_POST['archived']) ? 1 : 0;
+  $multialarm = isset($_POST['multialarm_enabled']) ? 1 : 0;
 
   $wheelCounts = $_POST['wheels_count'] ?? [];
   if (!is_array($wheelCounts)) $wheelCounts = [];
@@ -58,8 +59,8 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
   if (!$err) {
     try {
       $pdo->beginTransaction();
-      $up = $pdo->prepare("UPDATE vehicles SET license_plate=?, make=?, model=?, fuel_type=?, vehicle_type_id=?, division_id=?, odometer_km=?, oil_interval_km=?, service_interval_km=?, service_interval_months=?, archived=? WHERE id=?");
-      $up->execute([$plate,$make,$model,$fuel,$typeId,$divisionId,$odo,$oilInt,$srvKm,$srvMo,$archived,$id]);
+      $up = $pdo->prepare("UPDATE vehicles SET license_plate=?, make=?, model=?, fuel_type=?, vehicle_type_id=?, division_id=?, odometer_km=?, oil_interval_km=?, service_interval_km=?, service_interval_months=?, archived=?, multialarm_enabled=? WHERE id=?");
+      $up->execute([$plate,$make,$model,$fuel,$typeId,$divisionId,$odo,$oilInt,$srvKm,$srvMo,$archived,$multialarm,$id]);
 
       $axUp = $pdo->prepare("UPDATE vehicle_axles SET wheels_count=? WHERE vehicle_id=? AND axle_no=?");
       foreach ($axRows as $a) {
@@ -131,10 +132,16 @@ function h($s){ return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
 
     <div class="col-md-4"><label class="form-label">Szerviz periódus (km)</label><input class="form-control" type="number" min="0" name="service_interval_km" value="<?= h($_POST['service_interval_km'] ?? $v['service_interval_km']) ?>"></div>
     <div class="col-md-4"><label class="form-label">Szerviz periódus (hónap)</label><input class="form-control" type="number" min="0" name="service_interval_months" value="<?= h($_POST['service_interval_months'] ?? $v['service_interval_months']) ?>"></div>
-    <div class="col-md-4 d-flex align-items-end">
+    <div class="col-md-2 d-flex align-items-end">
       <div class="form-check form-switch">
         <input class="form-check-input" type="checkbox" name="archived" value="1" id="arch" <?= ((int)($_POST['archived'] ?? $v['archived'])===1)?'checked':'' ?>>
         <label class="form-check-label" for="arch">Archivált</label>
+      </div>
+    </div>
+    <div class="col-md-2 d-flex align-items-end">
+      <div class="form-check form-switch">
+        <input class="form-check-input" type="checkbox" name="multialarm_enabled" value="1" id="multialarm_enabled" <?= ((int)(($_POST['multialarm_enabled'] ?? null) !== null ? $_POST['multialarm_enabled'] : ($v['multialarm_enabled'] ?? 0))===1)?'checked':'' ?>>
+        <label class="form-check-label" for="multialarm_enabled">Multi Alarm GPS</label>
       </div>
     </div>
 

@@ -22,7 +22,7 @@ if (!$id) { http_response_code(400); exit('Hibás ID'); }
 
 // Aktív fül megőrzése (szűrés / újratöltés után is)
 $tab = $_GET['tab'] ?? 'issues';
-$allowedTabs = ['issues','service','tires','costs','fuel','log'];
+$allowedTabs = ['issues','service','tires','costs','fuel','log','km'];
 if (!in_array($tab, $allowedTabs, true)) { $tab = 'issues'; }
 
 // Lapozás (fülenként külön paraméter)
@@ -96,6 +96,7 @@ if ($doExport) {
     'costs'   => 'costs_page',
     'fuel'    => 'fuel_page',
     'log'     => 'log_page',
+    'km'      => 'km_page',
   ];
   $pageParam = $pageMap[$tab] ?? null;
   $page = 1;
@@ -207,6 +208,17 @@ if ($doExport) {
         $actor = (string)($r['actor_name'] ?? '');
         if ($actor === '') $actor = (string)($r['actor_email'] ?? '');
         fputcsv($out, [$r['created_at'],$actor,$r['entity_type'],$r['action'],$r['verb'],$r['changed_fields']], $delim);
+      }
+    } elseif ($tab === 'km') {
+      fputcsv($out, ['Dátum','Összes km','Szakaszok száma','Rögzítve'], $delim);
+      $q = "SELECT km_date, total_km, trip_count, fetched_at
+            FROM vehicle_daily_km
+            WHERE vehicle_id=?
+            ORDER BY km_date DESC".$limitSql;
+      $st = $pdo->prepare($q);
+      $st->execute([$id]);
+      while ($r = $st->fetch(PDO::FETCH_ASSOC)) {
+        fputcsv($out, [$r['km_date'], $r['total_km'], $r['trip_count'], $r['fetched_at']], $delim);
       }
     } else {
       fputcsv($out, ['Nincs exportálható tartalom ehhez a fülhöz.'], $delim);
@@ -583,6 +595,36 @@ $logs_pages = max(1, (int)ceil($logs_total / $PER_PAGE));
 $logs_page = clamp_int($_GET['log_page'] ?? 1, 1, $logs_pages);
 $logs_page_rows = array_slice($logs, ($logs_page-1)*$PER_PAGE, $PER_PAGE);
 
+// ===== KM FUTÁS (Multi Alarm GPS) =====
+$km_rows = []; $km_total_count = 0; $km_pages = 1; $km_page = 1;
+$km_filter_from = trim((string)($_GET['km_from'] ?? ''));
+$km_filter_to   = trim((string)($_GET['km_to'] ?? ''));
+$km_period_label = '';
+$km_period_total = 0.0;
+$km_period_days  = 0;
+try {
+  $km_where = ['vehicle_id=?'];
+  $km_params = [$id];
+  if ($km_filter_from !== '') { $km_where[] = 'km_date >= ?'; $km_params[] = $km_filter_from; }
+  if ($km_filter_to !== '')   { $km_where[] = 'km_date <= ?'; $km_params[] = $km_filter_to; }
+  $km_where_sql = implode(' AND ', $km_where);
+
+  $km_count_st = $pdo->prepare("SELECT COUNT(*), SUM(total_km) FROM vehicle_daily_km WHERE $km_where_sql");
+  $km_count_st->execute($km_params);
+  [$km_total_count, $km_period_total] = $km_count_st->fetch(PDO::FETCH_NUM);
+  $km_total_count  = (int)$km_total_count;
+  $km_period_total = (float)$km_period_total;
+  $km_period_days  = $km_total_count;
+
+  $km_pages = max(1, (int)ceil($km_total_count / $PER_PAGE));
+  $km_page  = clamp_int($_GET['km_page'] ?? 1, 1, $km_pages);
+  $km_offset = ($km_page - 1) * $PER_PAGE;
+
+  $km_st = $pdo->prepare("SELECT km_date, total_km, trip_count, fetched_at FROM vehicle_daily_km WHERE $km_where_sql ORDER BY km_date DESC LIMIT $PER_PAGE OFFSET $km_offset");
+  $km_st->execute($km_params);
+  $km_rows = $km_st->fetchAll();
+} catch (Throwable $e) { $km_rows = []; }
+
 function statusClassKm($remaining){
   if ($remaining===null) return 'secondary';
   if ($remaining < 0) return 'danger';
@@ -818,11 +860,18 @@ require dirname(__DIR__).'/views/_flash.php';
         <label class="form-label">Matrica érvényessége</label>
         <input type="date" class="form-control" name="vignette_valid_until" value="<?= h($v['vignette_valid_until'] ?? '') ?>">
       </div>
-      <div class="col-md-4">
+      <div class="col-md-2">
         <label class="form-label">HUGO rendszer</label>
         <select class="form-select" name="hugo_enabled">
           <option value="0" <?= ((int)($v['hugo_enabled'] ?? 0)===0)?'selected':''; ?>>nem</option>
           <option value="1" <?= ((int)($v['hugo_enabled'] ?? 0)===1)?'selected':''; ?>>igen</option>
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Multi Alarm GPS</label>
+        <select class="form-select" name="multialarm_enabled">
+          <option value="0" <?= ((int)($v['multialarm_enabled'] ?? 0)===0)?'selected':''; ?>>nem</option>
+          <option value="1" <?= ((int)($v['multialarm_enabled'] ?? 0)===1)?'selected':''; ?>>igen</option>
         </select>
       </div>
 
@@ -849,6 +898,7 @@ require dirname(__DIR__).'/views/_flash.php';
     <li class="nav-item" role="presentation"><button class="nav-link <?= ($tab==='costs'?'active':'') ?>" data-bs-toggle="tab" data-bs-target="#tab_costs" type="button" role="tab">Költségek</button></li>
     <li class="nav-item" role="presentation"><button class="nav-link <?= ($tab==='fuel'?'active':'') ?>" data-bs-toggle="tab" data-bs-target="#tab_fuel" type="button" role="tab">Üzemanyag</button></li>
     <li class="nav-item" role="presentation"><button class="nav-link <?= ($tab==='log'?'active':'') ?>" data-bs-toggle="tab" data-bs-target="#tab_log" type="button" role="tab">Napló</button></li>
+    <li class="nav-item" role="presentation"><button class="nav-link <?= ($tab==='km'?'active':'') ?>" data-bs-toggle="tab" data-bs-target="#tab_km" type="button" role="tab">Km futás</button></li>
   </ul>
 
   <div class="tab-content p-3">
@@ -1417,6 +1467,99 @@ require dirname(__DIR__).'/views/_flash.php';
           </table>
 <?php render_pager_bar($logs_page,$logs_pages,'log_page','log',$logs_total,$PER_PAGE); ?>
         </div>
+      <?php endif; ?>
+    </div>
+
+    <!-- KM FUTÁS -->
+    <div class="tab-pane fade <?= ($tab==='km'?'show active':'') ?>" id="tab_km" role="tabpanel">
+
+      <?php if (!(int)($v['multialarm_enabled'] ?? 0)): ?>
+        <div class="alert alert-secondary">
+          A Multi Alarm GPS összeköttetés ennél a járműnél nincs engedélyezve.<br>
+          <?php if ($isAdmin): ?>Admin: kapcsold be a <a href="/vehicle_extra_update.php?id=<?= (int)$id ?>">jármű adatainál</a> a Multi Alarm opciót.<?php endif; ?>
+        </div>
+      <?php else: ?>
+
+      <!-- Szűrő -->
+      <form method="get" class="row g-2 align-items-end mb-3">
+        <input type="hidden" name="id" value="<?= (int)$id ?>">
+        <input type="hidden" name="tab" value="km">
+        <div class="col-md-3">
+          <label class="form-label">Időszak (-tól)</label>
+          <input type="date" name="km_from" class="form-control" value="<?= h($km_filter_from) ?>">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Időszak (-ig)</label>
+          <input type="date" name="km_to" class="form-control" value="<?= h($km_filter_to) ?>">
+        </div>
+        <div class="col-md-3 d-flex gap-2 align-items-end">
+          <button class="btn btn-primary">Szűrés</button>
+          <a class="btn btn-outline-secondary" href="/vehicle.php?id=<?= (int)$id ?>&tab=km">Törlés</a>
+        </div>
+        <div class="col-md-3 text-end">
+          <a class="btn btn-sm btn-outline-secondary" href="<?= pager_url(['tab'=>'km','export'=>'csv','export_scope'=>'all','km_page'=>1]) ?>">CSV (összes)</a>
+        </div>
+      </form>
+
+      <!-- Összesítő kártyák -->
+      <?php if ($km_period_days > 0): ?>
+      <div class="row g-3 mb-3">
+        <div class="col-auto">
+          <div class="card text-center px-3 py-2">
+            <div class="small text-muted">Napok száma</div>
+            <div class="fw-bold"><?= $km_period_days ?> nap</div>
+          </div>
+        </div>
+        <div class="col-auto">
+          <div class="card text-center px-3 py-2 border-primary">
+            <div class="small text-muted">Összes km (szűrt)</div>
+            <div class="fw-bold text-primary"><?= number_format($km_period_total, 1, ',', ' ') ?> km</div>
+          </div>
+        </div>
+        <div class="col-auto">
+          <div class="card text-center px-3 py-2">
+            <div class="small text-muted">Átlag / nap</div>
+            <div class="fw-bold"><?= $km_period_days > 0 ? number_format($km_period_total / $km_period_days, 1, ',', ' ') : '0' ?> km</div>
+          </div>
+        </div>
+      </div>
+      <?php endif; ?>
+
+      <!-- Táblázat -->
+      <div class="card p-0">
+        <?php render_pager_bar($km_page, $km_pages, 'km_page', 'km', $km_total_count, $PER_PAGE); ?>
+        <table class="table table-striped m-0 align-middle">
+          <thead>
+            <tr>
+              <th>Dátum</th>
+              <th class="text-end">Megtett km</th>
+              <th class="text-center">Szakaszok</th>
+              <th class="text-muted small">Rögzítve</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            <?php if (!$km_rows): ?>
+              <tr><td colspan="5" class="text-muted">Nincs km adat ebben az időszakban.</td></tr>
+            <?php else: foreach ($km_rows as $r): ?>
+              <tr>
+                <td class="text-nowrap fw-semibold"><?= h($r['km_date']) ?></td>
+                <td class="text-end"><?= number_format((float)$r['total_km'], 1, ',', ' ') ?> km</td>
+                <td class="text-center text-muted"><?= (int)$r['trip_count'] ?></td>
+                <td class="text-muted small text-nowrap"><?= h(substr((string)$r['fetched_at'], 0, 16)) ?></td>
+                <td class="text-nowrap">
+                  <?php if ((int)$r['trip_count'] > 0): ?>
+                    <a href="/vehicle_km_map.php?id=<?= (int)$id ?>&date=<?= h($r['km_date']) ?>"
+                       target="_blank" class="btn btn-sm btn-outline-primary py-0">🗺 Térkép</a>
+                  <?php endif; ?>
+                </td>
+              </tr>
+            <?php endforeach; endif; ?>
+          </tbody>
+        </table>
+        <?php render_pager_bar($km_page, $km_pages, 'km_page', 'km', $km_total_count, $PER_PAGE); ?>
+      </div>
+
       <?php endif; ?>
     </div>
 

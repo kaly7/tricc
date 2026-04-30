@@ -32,7 +32,8 @@ $sql = "UPDATE vehicles SET
   manufacture_year=?,
   vignette_type_id=?,
   vignette_valid_until=?,
-  hugo_enabled=?
+  hugo_enabled=?,
+  multialarm_enabled=?
 WHERE id=?";
 $vals = [
   (trim((string)($_POST['registration_doc_no'] ?? '')) !== '') ? trim((string)($_POST['registration_doc_no'] ?? '')) : null,
@@ -48,6 +49,7 @@ $vals = [
   (($_POST['vignette_type_id'] ?? '') !== '') ? (int)$_POST['vignette_type_id'] : null,
   (($_POST['vignette_valid_until'] ?? '') !== '') ? $_POST['vignette_valid_until'] : null,
   (int)($_POST['hugo_enabled'] ?? 0),
+  (int)($_POST['multialarm_enabled'] ?? 0),
   $id
 ];
 
@@ -70,7 +72,8 @@ try {
     'manufacture_year'=>$vals[9],
     'vignette_type_id'=>$vals[10],
     'vignette_valid_until'=>$vals[11],
-    'hugo_enabled'=>$vals[12]
+    'hugo_enabled'=>$vals[12],
+    'multialarm_enabled'=>$vals[13]
   ];
   $pdo->prepare("INSERT INTO audit_log (user_id, entity_type, entity_id, action, changed_fields) VALUES (?,?,?,?,?)")
       ->execute([(int)$u['id'], 'vehicle', $id, 'update', json_encode($changed, JSON_UNESCAPED_UNICODE)]);
