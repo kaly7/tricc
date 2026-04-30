@@ -30,7 +30,31 @@ const RESOLUTIONS = [
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   verify_csrf();
+  $action = (string)($_POST['action'] ?? 'settings');
 
+  if ($action === 'add_ip') {
+    $ip  = trim((string)($_POST['new_ip'] ?? ''));
+    if (filter_var($ip, FILTER_VALIDATE_IP)) {
+      $ips   = json_decode(kiosk_cfg_get('kiosk_allowed_ips', '[]'), true) ?? [];
+      if (!in_array($ip, $ips, true)) $ips[] = $ip;
+      kiosk_cfg_set('kiosk_allowed_ips', json_encode(array_values($ips)));
+      flash_set('ok', "IP hozzáadva: $ip");
+    } else {
+      flash_set('err', 'Érvénytelen IP cím.');
+    }
+    redirect('admin_kiosk.php');
+  }
+
+  if ($action === 'del_ip') {
+    $ip  = trim((string)($_POST['del_ip'] ?? ''));
+    $ips = json_decode(kiosk_cfg_get('kiosk_allowed_ips', '[]'), true) ?? [];
+    $ips = array_values(array_filter($ips, fn($x) => $x !== $ip));
+    kiosk_cfg_set('kiosk_allowed_ips', json_encode($ips));
+    flash_set('ok', "IP eltávolítva: $ip");
+    redirect('admin_kiosk.php');
+  }
+
+  // Alapbeállítások mentése
   $days    = (int)($_POST['kiosk_days']       ?? 5);
   $zoom    = (float)str_replace(',', '.', (string)($_POST['kiosk_zoom'] ?? '1.0'));
   $refresh = (int)($_POST['kiosk_refresh']    ?? 30);
@@ -58,6 +82,8 @@ $zoom    = kiosk_cfg_get('kiosk_zoom',       '1.00');
 $refresh = kiosk_cfg_get('kiosk_refresh',    '30');
 $reload  = kiosk_cfg_get('kiosk_reload',     '1800');
 $res     = kiosk_cfg_get('kiosk_resolution', '');
+$allowedIps = json_decode(kiosk_cfg_get('kiosk_allowed_ips', '[]'), true) ?? [];
+$clientIp   = $_SERVER['REMOTE_ADDR'] ?? '';
 
 require __DIR__ . '/_header.php';
 ?>
@@ -153,6 +179,61 @@ require __DIR__ . '/_header.php';
         <a href="kiosk.php" target="_blank" class="btn btn-outline-secondary">🖥 Kiosk előnézet</a>
       </div>
     </form>
+  </div>
+</div>
+
+<div class="card mt-4" style="max-width:600px">
+  <div class="card-header fw-semibold">Engedélyezett IP címek (belépés nélküli hozzáférés)</div>
+  <div class="card-body">
+    <p class="text-muted small mb-3">
+      Az itt felsorolt IP-kről a kiosk oldal bejelentkezés nélkül is elérhető —
+      pl. a kijelzőként használt tablet vagy TV fix IP-je.
+      Más IP-ről az auth_centeren keresztül kell belépni.
+    </p>
+
+    <?php if ($allowedIps): ?>
+    <table class="table table-sm mb-3">
+      <thead class="table-light"><tr><th>IP cím</th><th></th></tr></thead>
+      <tbody>
+        <?php foreach ($allowedIps as $ip): ?>
+        <tr>
+          <td class="align-middle">
+            <?= e($ip) ?>
+            <?php if ($ip === $clientIp): ?>
+              <span class="badge bg-success ms-1">ez az ön gépe</span>
+            <?php endif; ?>
+          </td>
+          <td class="text-end">
+            <form method="post" style="display:inline">
+              <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+              <input type="hidden" name="action" value="del_ip">
+              <input type="hidden" name="del_ip" value="<?= e($ip) ?>">
+              <button class="btn btn-sm btn-outline-danger"
+                onclick="return confirm('Biztosan törlöd?')">Törlés</button>
+            </form>
+          </td>
+        </tr>
+        <?php endforeach; ?>
+      </tbody>
+    </table>
+    <?php else: ?>
+    <p class="text-muted small">Még nincs engedélyezett IP. A kiosk oldal jelenleg csak bejelentkezés után érhető el.</p>
+    <?php endif; ?>
+
+    <form method="post" class="d-flex gap-2 align-items-end">
+      <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+      <input type="hidden" name="action" value="add_ip">
+      <div class="flex-grow-1">
+        <label class="form-label small mb-1">Új IP cím hozzáadása</label>
+        <div class="input-group">
+          <input type="text" name="new_ip" class="form-control form-control-sm"
+            placeholder="pl. 192.168.1.100"
+            value="<?= e($clientIp) ?>">
+          <button class="btn btn-sm btn-outline-primary">Hozzáadás</button>
+        </div>
+      </div>
+    </form>
+    <div class="form-text mt-1">Az Ön jelenlegi IP-je: <strong><?= e($clientIp) ?></strong></div>
   </div>
 </div>
 

@@ -12,6 +12,20 @@ function kiosk_cfg(string $key, string $default): string {
   } catch (Throwable) { return $default; }
 }
 
+// IP alapú hozzáférés ellenőrzése
+function kiosk_ip_allowed(): bool {
+  $raw     = kiosk_cfg('kiosk_allowed_ips', '[]');
+  $allowed = json_decode($raw, true);
+  if (!is_array($allowed) || empty($allowed)) return false;
+  $client  = $_SERVER['REMOTE_ADDR'] ?? '';
+  return in_array($client, $allowed, true);
+}
+
+if (!kiosk_ip_allowed()) {
+  require_once __DIR__ . '/../app/auth.php';
+  require_login();
+}
+
 $kioskDays    = max(1, (int)kiosk_cfg('kiosk_days', '5'));
 $kioskZoom    = max(0.5, min(2.0, (float)kiosk_cfg('kiosk_zoom', '1.00')));
 $kioskRefresh = max(10, (int)kiosk_cfg('kiosk_refresh', '30'));
