@@ -207,16 +207,15 @@ function task_time_to_min(string $t): int {
 // Visszaadja azon task ID-k halmazát, amelyek legalább egy másikkal átfednek.
 function overlapping_task_ids(array $tasks): array {
   $result = [];
-  $timed  = array_values(array_filter($tasks, fn($t) => !empty($t['time_from'])));
-  $n      = count($timed);
+  $n      = count($tasks);
   for ($i = 0; $i < $n; $i++) {
     for ($j = $i + 1; $j < $n; $j++) {
-      $a     = $timed[$i];
-      $b     = $timed[$j];
-      $aFrom = task_time_to_min($a['time_from']);
-      $aTo   = !empty($a['time_to']) ? task_time_to_min($a['time_to']) : 1440;
-      $bFrom = task_time_to_min($b['time_from']);
-      $bTo   = !empty($b['time_to']) ? task_time_to_min($b['time_to']) : 1440;
+      $a     = $tasks[$i];
+      $b     = $tasks[$j];
+      $aFrom = !empty($a['time_from']) ? task_time_to_min($a['time_from']) : 0;
+      $aTo   = !empty($a['time_to'])   ? task_time_to_min($a['time_to'])   : 1440;
+      $bFrom = !empty($b['time_from']) ? task_time_to_min($b['time_from']) : 0;
+      $bTo   = !empty($b['time_to'])   ? task_time_to_min($b['time_to'])   : 1440;
       if ($aFrom < $bTo && $bFrom < $aTo) {
         $result[$a['id']] = true;
         $result[$b['id']] = true;
