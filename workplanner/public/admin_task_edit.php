@@ -55,7 +55,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         AND (t.time_to IS NULL OR t.time_to > ?)
       GROUP BY t.id ORDER BY t.time_from
     ");
-    $st->execute([$task_date, ...$emp_ids, $id ?? 0, $time_to, $time_from]);
+    $st->execute([...$emp_ids, $task_date, $id ?? 0, $time_to, $time_from]);
     $overlapWarning = $st->fetchAll();
   }
 
