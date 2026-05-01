@@ -115,9 +115,9 @@ $hunMonths = ['','január','február','március','április','május','június','
           transparent 0px, transparent 5px,
           rgba(0,0,0,.18) 5px, rgba(0,0,0,.18) 7px);
         pointer-events: none; }
-    .k-task-time  { font-weight: 700; font-size: var(--k-time-fs); flex-shrink: 0; opacity: .9; }
+    .k-task-time  { font-weight: 700; font-size: .84em; flex-shrink: 0; opacity: .9; }
     .k-task-title { overflow: hidden; text-overflow: ellipsis; font-weight: 600; }
-    .k-task-loc   { font-size: var(--k-loc-fs); opacity: .8; flex-shrink: 0; }
+    .k-task-loc   { font-size: .76em; opacity: .8; flex-shrink: 0; }
 
     /* Frissítés sáv */
     .k-rbar { position: fixed; bottom: 0; left: 0; right: 0; height: 3px;
@@ -217,18 +217,34 @@ tick(); setInterval(tick, 1000);
 function fitFonts() {
   const R = document.documentElement;
 
-  // 1. Feladat sávok: legkisebb sáv magassága (legtöbb feladat = legszűkebb)
-  const tasks = document.querySelectorAll('.k-task');
-  if (tasks.length) {
-    let minH = Infinity;
-    tasks.forEach(t => { const h = t.getBoundingClientRect().height; if (h > 4) minH = Math.min(minH, h); });
-    if (isFinite(minH)) {
-      const taskFs = Math.max(10, Math.min(minH * 0.62, 42));
-      R.style.setProperty('--k-task-fs',    taskFs.toFixed(1) + 'px');
-      R.style.setProperty('--k-time-fs',    Math.max(9,  taskFs * 0.84).toFixed(1) + 'px');
-      R.style.setProperty('--k-loc-fs',     Math.max(8,  taskFs * 0.76).toFixed(1) + 'px');
+  // 1. Feladat sávok: minden téglalaphoz egyedi optimális betűméret
+  const cvs = document.createElement('canvas').getContext('2d');
+  document.querySelectorAll('.k-task').forEach(el => {
+    const r = el.getBoundingClientRect();
+    if (r.height < 6 || r.width < 30) return;
+
+    const availH = r.height;
+    const availW = r.width - 28; // padding (12px × 2) + gap tartalék
+
+    // Teljes szöveg összefűzve (így mérjük a szélességet)
+    const timeEl  = el.querySelector('.k-task-time');
+    const titleEl = el.querySelector('.k-task-title');
+    const locEl   = el.querySelector('.k-task-loc');
+    const text = [
+      timeEl  ? timeEl.textContent.trim()  : '',
+      titleEl ? titleEl.textContent.trim() : '',
+      locEl   ? '· ' + locEl.textContent.trim() : '',
+    ].filter(Boolean).join('  ');
+
+    // Bináris keresés: max fs ahol magasság és szélesség is megfelel
+    let lo = 9, hi = Math.min(availH * 0.68, 48);
+    while (hi - lo > 0.4) {
+      const mid = (lo + hi) / 2;
+      cvs.font = `600 ${mid}px system-ui,sans-serif`;
+      if (cvs.measureText(text).width <= availW) lo = mid; else hi = mid;
     }
-  }
+    el.style.fontSize = Math.max(9, lo).toFixed(1) + 'px';
+  });
 
   // 2. Dolgozó névsáv: canvas-alapú bináris keresés – DOM reflow nélkül
   const empCells = document.querySelectorAll('td.k-emp');
