@@ -38,11 +38,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   if ($title === '') $err = 'A megnevezés kötelező.';
   elseif (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $task_date)) $err = 'Érvényes dátum szükséges.';
 
-  // Átfedés ellenőrzés (ha van időpont és nem kényszerített mentés)
+  // Átfedés ellenőrzés (egész napos = 00:00–23:59 kezelt)
   $overlapWarning = [];
-  if (!$err && $time_from && $time_to && $emp_ids && empty($_POST['force'])) {
+  if (!$err && $emp_ids && empty($_POST['force'])) {
+    $newFrom = $time_from ?? '00:00';
+    $newTo   = $time_to   ?? '23:59';
     $ph = implode(',', array_fill(0, count($emp_ids), '?'));
-    // JOIN szűri: csak a kijelölt dolgozók, az emp_names is csak őket tartalmazza
     $st = db()->prepare("
       SELECT t.id, t.title, t.time_from, t.time_to,
              GROUP_CONCAT(DISTINCT e.full_name ORDER BY e.full_name SEPARATOR ', ') AS emp_names
@@ -50,12 +51,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       JOIN task_assignments ta ON ta.task_id = t.id AND ta.employee_id IN ($ph)
       JOIN hr.employees e ON e.id = ta.employee_id
       WHERE t.task_date = ? AND t.id != ?
-        AND t.time_from IS NOT NULL
-        AND t.time_from < ?
-        AND (t.time_to IS NULL OR t.time_to > ?)
+        AND COALESCE(t.time_from, '00:00') < ?
+        AND COALESCE(t.time_to,   '23:59') > ?
       GROUP BY t.id ORDER BY t.time_from
     ");
-    $st->execute([...$emp_ids, $task_date, $id ?? 0, $time_to, $time_from]);
+    $st->execute([...$emp_ids, $task_date, $id ?? 0, $newTo, $newFrom]);
     $overlapWarning = $st->fetchAll();
   }
 
@@ -146,7 +146,11 @@ require __DIR__ . '/_header.php';
     <?php foreach ($overlapWarning as $ow): ?>
     <li>
       <strong><?= e($ow['title']) ?></strong>
-      (<?= e(fmt_time($ow['time_from'])) ?>–<?= e(fmt_time($ow['time_to'] ?? '')) ?>)
+      <?php if ($ow['time_from']): ?>
+        (<?= e(fmt_time($ow['time_from'])) ?>–<?= e($ow['time_to'] ? fmt_time($ow['time_to']) : '…') ?>)
+      <?php else: ?>
+        <em>(egész napos)</em>
+      <?php endif; ?>
       — <?= e($ow['emp_names']) ?>
     </li>
     <?php endforeach; ?>
