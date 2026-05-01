@@ -106,7 +106,7 @@ $hunMonths = ['','január','február','március','április','május','június','
     .k-table thead th { font-size: var(--k-hdr-fs) !important; }
 
     /* Feladat sávok – flex elosztás */
-    .k-cell-flex { display: flex; flex-direction: column; height: 100%; gap: 3px; }
+    .k-cell-flex { display: flex; flex-direction: column; height: 95%; gap: 3px; }
     .k-task { flex: 1; min-height: 0; border-radius: 6px; padding: 4px 12px;
         display: flex; align-items: center; gap: 10px; overflow: hidden; white-space: nowrap;
         font-size: var(--k-task-fs); box-shadow: 0 1px 4px rgba(0,0,0,.15); cursor: default; position: relative; }
@@ -223,10 +223,10 @@ function fitFonts() {
     let minH = Infinity;
     tasks.forEach(t => { const h = t.getBoundingClientRect().height; if (h > 4) minH = Math.min(minH, h); });
     if (isFinite(minH)) {
-      const taskFs = Math.max(9,  Math.min(minH * 0.52, 32));
+      const taskFs = Math.max(10, Math.min(minH * 0.62, 42));
       R.style.setProperty('--k-task-fs',    taskFs.toFixed(1) + 'px');
-      R.style.setProperty('--k-time-fs',    Math.max(8,  taskFs * 0.84).toFixed(1) + 'px');
-      R.style.setProperty('--k-loc-fs',     Math.max(7,  taskFs * 0.76).toFixed(1) + 'px');
+      R.style.setProperty('--k-time-fs',    Math.max(9,  taskFs * 0.84).toFixed(1) + 'px');
+      R.style.setProperty('--k-loc-fs',     Math.max(8,  taskFs * 0.76).toFixed(1) + 'px');
     }
   }
 
