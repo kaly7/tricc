@@ -143,7 +143,7 @@ function renderJobs(jobs){
     var h='';
     jobs.forEach(function(j){
         h+='<div class="job-row">'
-          +'<button class="button_delete" style="font-size:12px;padding:4px 10px;" onclick="location.href=\'job_del.php?id='+esc(j.id)+'\'">'+esc(j.id)+' &ndash; Törlés</button>';
+          +'<span style="font-size:11px;color:#888;white-space:nowrap;">'+esc(j.id)+'</span>';
         j.goals.forEach(function(g){h+='<span class="job-goal-pill">'+esc(g)+'</span>';});
         h+='</div>';
     });
