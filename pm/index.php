@@ -262,7 +262,7 @@ Felhasználó: <?php print $_SESSION["username"]; ?>
 	print "<hr>";
 	print "<a href=\"admin_user.php\" class=\"mybutton_vh\">Felhasználók</a><br><br>";
 	print "<a href=\"admin_goal.php\" class=\"mybutton_vh\">Célpontok</a><br><br>";
-	print "<a href=\"admin_kozbenso_goal.php\" class=\"mybutton_vh\">Pont-pont közbenső célpont</a><br><br>";
+	print "<a href=\"admin_kozbenso_goal.php\" class=\"mybutton_vh\">Pont-pont beállítások</a><br><br>";
 	print "<a href=\"admin_munkaallomas.php\" class=\"mybutton_vh\">Munkaállomások (Robot ide)</a><br><br>";
 	print "<a href=\"time.php\" class=\"mybutton_vh\">Szerver dátum / idő beállítás</a><br><br>";
 	print "<a href=\"napok.php\" class=\"mybutton_vh\">Munkanap/Ünnepnap/Munkaszüneti nap beállítása / idő beállítás</a><br><br>";

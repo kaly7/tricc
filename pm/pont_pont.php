@@ -16,6 +16,10 @@ if ($res_kb && $res_kb->num_rows > 0) { $kozbenso_ok = true; }
 $goals = [];
 $result = $conn->query("SELECT Index_, Goal_name, Megjegyzes FROM Goals WHERE Active='Y' ORDER BY Megjegyzes");
 while ($row = $result->fetch_assoc()) { $goals[] = $row; }
+
+$res_kfg = $conn->query("SELECT ertek FROM pm_konfig WHERE kulcs='pp_job_lathatosag' LIMIT 1");
+$pp_job_lathatosag = ($res_kfg && $res_kfg->num_rows > 0) ? $res_kfg->fetch_assoc()['ertek'] : 'sajat';
+
 $conn->close();
 
 // Szerver aktuális ideje + 1 óra, datetime-local formátumban
@@ -52,7 +56,10 @@ select, input[type=datetime-local] {
 <div class="bg-text">
 Felhasználó: <?php echo isset($_SESSION["username"]) ? htmlspecialchars($_SESSION["username"]) : htmlspecialchars($_SERVER['REMOTE_ADDR']); ?>
 <center><br>
-<a href="index.php" class="button_x">Főmenü</a><br><br><hr>
+<?php if (isset($_SESSION["loggedin"]) && $_SESSION["loggedin"] === true): ?>
+<a href="index.php" class="button_x">Főmenü</a><br><br>
+<?php endif; ?>
+<hr>
 <h2 style="color:#fff;">Pont-pont útvonal</h2>
 
 <?php if (!$kozbenso_ok): ?>
@@ -112,6 +119,15 @@ Felhasználó: <?php echo isset($_SESSION["username"]) ? htmlspecialchars($_SESS
 <br>
 <input type="submit" class="button_mentes" value="Elküldés" <?php if (!$kozbenso_ok) echo 'disabled title="Közbenső célpont nincs beállítva"'; ?>>
 </form>
+
+<?php
+$aktiv_jobok_conn = new mysqli('localhost', 'robot', 'abrakadabra', 'Robot');
+$aktiv_jobok_lathatosag = $pp_job_lathatosag;
+$aktiv_jobok_tipus = 'PP';
+include __DIR__ . '/aktiv_jobok_inc.php';
+$aktiv_jobok_conn->close();
+?>
+
 </center>
 </div>
 <script>

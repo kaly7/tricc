@@ -13,9 +13,11 @@ $client_ip = $_SERVER['REMOTE_ADDR'];
 $ip_safe   = $conn->real_escape_string($client_ip);
 
 $res = $conn->query(
-    "SELECT m.*, gc.Goal_name as cel_goal_name, gc.Megjegyzes as cel_megjegyzes
+    "SELECT m.*, gc.Goal_name as cel_goal_name, gc.Megjegyzes as cel_megjegyzes,
+            gk.Goal_name as kozbenso_goal_name, gk.Megjegyzes as kozbenso_megjegyzes
      FROM munkaallomas m
      JOIN Goals gc ON m.cel_goal_index = gc.Index_
+     LEFT JOIN Goals gk ON m.kozbenso_goal_index = gk.Index_
      WHERE m.ip = '$ip_safe' LIMIT 1"
 );
 $allomas = ($res && $res->num_rows > 0) ? $res->fetch_assoc() : null;
@@ -39,6 +41,7 @@ if ($allomas && $allomas['allapot'] === 'uton' && !empty($allomas['aktiv_job_id'
     }
 }
 
+$job_lathatosag_ri = $allomas ? $allomas['job_lathatosag'] : 'semmi';
 $conn->close();
 ?>
 <!DOCTYPE html>
@@ -75,7 +78,10 @@ $conn->close();
 <div class="bg-text">
 Felhasználó: <?php echo isset($_SESSION["username"]) ? htmlspecialchars($_SESSION["username"]) : htmlspecialchars($client_ip); ?>
 <center><br>
-<a href="index.php" class="button_x">Főmenü</a><br><br><hr>
+<?php if (isset($_SESSION["loggedin"]) && $_SESSION["loggedin"] === true): ?>
+<a href="index.php" class="button_x">Főmenü</a><br><br>
+<?php endif; ?>
+<hr>
 
 <?php if (!$allomas): ?>
   <h2 style="color:#ff8888;">Ismeretlen munkaállomás</h2>
@@ -89,14 +95,27 @@ Felhasználó: <?php echo isset($_SESSION["username"]) ? htmlspecialchars($_SESS
   <?php if ($allomas['allapot'] === 'uton'): ?>
     <button type="button" class="nagy_gomb gomb_uton" disabled>Robot úton...</button>
     <p class="allapot_info">Cél: <?php echo htmlspecialchars($allomas['cel_megjegyzes'] ?: $allomas['cel_goal_name']); ?></p>
+    <?php if ($allomas['kozbenso_goal_index'] > 0): ?>
+    <p class="allapot_info" style="font-size:12px;">Közbenső: <?php echo htmlspecialchars($allomas['kozbenso_megjegyzes'] ?: $allomas['kozbenso_goal_name']); ?></p>
+    <?php endif; ?>
     <p class="allapot_info" style="font-size:13px;">Az oldal automatikusan frissül, amint a robot megérkezett.</p>
   <?php else: ?>
     <form action="robot_ide_go.php" method="POST">
       <input type="hidden" name="allomas_id" value="<?php echo (int)$allomas['id']; ?>">
       <button type="submit" class="nagy_gomb gomb_ide">Robot ide</button>
       <p class="allapot_info">Cél: <?php echo htmlspecialchars($allomas['cel_megjegyzes'] ?: $allomas['cel_goal_name']); ?></p>
+      <?php if ($allomas['kozbenso_goal_index'] > 0): ?>
+      <p class="allapot_info" style="font-size:12px;">Közbenső: <?php echo htmlspecialchars($allomas['kozbenso_megjegyzes'] ?: $allomas['kozbenso_goal_name']); ?></p>
+      <?php endif; ?>
     </form>
   <?php endif; ?>
+  <?php
+    $aktiv_jobok_conn = new mysqli('localhost', 'robot', 'abrakadabra', 'Robot');
+    $aktiv_jobok_lathatosag = $job_lathatosag_ri;
+    $aktiv_jobok_tipus = 'RI';
+    include __DIR__ . '/aktiv_jobok_inc.php';
+    $aktiv_jobok_conn->close();
+  ?>
 <?php endif; ?>
 </center>
 </div>

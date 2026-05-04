@@ -27,15 +27,19 @@ if (isset($_POST["mentes"])) {
     $id  = (int)$_POST["id"];
     $ip  = $conn->real_escape_string(trim($_POST["ip"]));
     $nev = $conn->real_escape_string(trim($_POST["nev"]));
-    $cel    = (int)$_POST["cel_goal_index"];
-    $vissza = (int)$_POST["vissza_goal_index"];
+    $cel       = (int)$_POST["cel_goal_index"];
+    $vissza    = (int)$_POST["vissza_goal_index"];
+    $kozbenso  = (int)$_POST["kozbenso_goal_index"];
+    $lathatosag = in_array($_POST["job_lathatosag"], ['semmi','sajat','osszes'])
+                  ? $_POST["job_lathatosag"] : 'sajat';
 
     if ($id === 0) {
-        $conn->query("INSERT INTO munkaallomas(ip, nev, cel_goal_index, vissza_goal_index, allapot)
-                      VALUES('$ip', '$nev', $cel, $vissza, 'szabad')");
+        $conn->query("INSERT INTO munkaallomas(ip, nev, cel_goal_index, vissza_goal_index, kozbenso_goal_index, job_lathatosag, allapot)
+                      VALUES('$ip', '$nev', $cel, $vissza, $kozbenso, '$lathatosag', 'szabad')");
         $uzenet = "Új munkaállomás hozzáadva.";
     } else {
-        $conn->query("UPDATE munkaallomas SET ip='$ip', nev='$nev', cel_goal_index=$cel, vissza_goal_index=$vissza WHERE id=$id");
+        $conn->query("UPDATE munkaallomas SET ip='$ip', nev='$nev', cel_goal_index=$cel, vissza_goal_index=$vissza,
+                      kozbenso_goal_index=$kozbenso, job_lathatosag='$lathatosag' WHERE id=$id");
         $uzenet = "Módosítás mentve.";
     }
 }
@@ -44,10 +48,12 @@ if (isset($_POST["mentes"])) {
 $allomas_list = [];
 $res = $conn->query(
     "SELECT m.*, gc.Megjegyzes as cel_megjegyzes, gc.Goal_name as cel_goal_name,
-            gv.Megjegyzes as vissza_megjegyzes, gv.Goal_name as vissza_goal_name
+            gv.Megjegyzes as vissza_megjegyzes, gv.Goal_name as vissza_goal_name,
+            gk.Megjegyzes as kozbenso_megjegyzes, gk.Goal_name as kozbenso_goal_name
      FROM munkaallomas m
      JOIN Goals gc ON m.cel_goal_index = gc.Index_
      LEFT JOIN Goals gv ON m.vissza_goal_index = gv.Index_
+     LEFT JOIN Goals gk ON m.kozbenso_goal_index = gk.Index_
      ORDER BY m.nev"
 );
 if ($res) { while ($row = $res->fetch_assoc()) { $allomas_list[] = $row; } }
@@ -101,7 +107,7 @@ Felhasználó: <?php echo htmlspecialchars($_SESSION["username"]); ?>
 
 <table class="blueTable">
 <thead><tr>
-  <th>Név</th><th>IP cím</th><th>"Robot ide" cél</th><th>"Vissza" cél</th><th>Állapot</th><th>Műveletek</th>
+  <th>Név</th><th>IP cím</th><th>"Robot ide" cél</th><th>Közbenső</th><th>"Vissza" cél</th><th>Job lista</th><th>Állapot</th><th>Műveletek</th>
 </tr></thead>
 <tbody>
 <?php if (empty($allomas_list)): ?>
@@ -112,7 +118,9 @@ Felhasználó: <?php echo htmlspecialchars($_SESSION["username"]); ?>
   <td><?php echo htmlspecialchars($a['nev']); ?></td>
   <td><?php echo htmlspecialchars($a['ip']); ?></td>
   <td><?php echo htmlspecialchars($a['cel_megjegyzes'] ?: $a['cel_goal_name']); ?></td>
+  <td><?php echo htmlspecialchars($a['kozbenso_megjegyzes'] ?: ($a['kozbenso_goal_name'] ?? '—')); ?></td>
   <td><?php echo htmlspecialchars($a['vissza_megjegyzes'] ?: ($a['vissza_goal_name'] ?? '—')); ?></td>
+  <td><?php echo htmlspecialchars($a['job_lathatosag']); ?></td>
   <td><?php echo $a['allapot'] === 'uton' ? 'Robot úton' : 'Szabad'; ?></td>
   <td style="white-space:nowrap;">
     <a href="admin_munkaallomas.php?edit=<?php echo (int)$a['id']; ?>" class="button_mentes" style="font-size:12px;padding:4px 10px;display:block;margin-bottom:4px;">Szerkesztés</a>
@@ -143,8 +151,33 @@ Felhasználó: <?php echo htmlspecialchars($_SESSION["username"]); ?>
   <td><?php goalSelect('cel_goal_index', $goals, $edit ? (int)$edit['cel_goal_index'] : 0); ?></td>
 </tr>
 <tr>
+  <td>Közbenső cél (opcionális):</td>
+  <td>
+    <select name="kozbenso_goal_index" style="padding:5px;font-size:13px;background:#eee;color:#222;border-radius:4px;">
+      <option value="0">— nincs közbenső —</option>
+      <?php foreach ($goals as $g):
+          $sel = ($edit && (int)$edit['kozbenso_goal_index'] === (int)$g['Index_']) ? ' selected' : '';
+          echo "<option value=\"{$g['Index_']}\"$sel>" . htmlspecialchars($g['Megjegyzes'] ?: $g['Goal_name']) . "</option>";
+      endforeach; ?>
+    </select>
+  </td>
+</tr>
+<tr>
   <td>"Vissza" cél:</td>
   <td><?php goalSelect('vissza_goal_index', $goals, $edit ? (int)$edit['vissza_goal_index'] : 0); ?></td>
+</tr>
+<tr>
+  <td>Aktív job lista:</td>
+  <td>
+    <select name="job_lathatosag" style="padding:5px;font-size:13px;background:#eee;color:#222;border-radius:4px;">
+      <?php
+      $lat_cur = $edit ? $edit['job_lathatosag'] : 'sajat';
+      foreach (['semmi' => 'Semmi', 'sajat' => 'Csak saját (RI)', 'osszes' => 'Összes'] as $val => $label):
+          $sel = ($lat_cur === $val) ? ' selected' : '';
+          echo "<option value=\"$val\"$sel>$label</option>";
+      endforeach; ?>
+    </select>
+  </td>
 </tr>
 </tbody>
 </table>
