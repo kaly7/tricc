@@ -78,12 +78,9 @@ if ($tipusa === "azonnali") {
 <body>
 <?php include __DIR__ . '/header_inc.php'; ?>
 <div class="bg-text" style="max-width:600px; text-align:center;">
-<h2 class="page-title" style="color:#2e7d32;">&#10003; Feladat elküldve</h2>
-<p style="color:#333; font-size:15px; margin:8px 0;">
+<h2 class="page-title" style="color:#2e7d32;">&#10003; Feladat elküldve a Fleet Managernek</h2>
+<p style="color:#555; font-size:15px; margin:12px 0;">
   <?php echo htmlspecialchars($indulo_name); ?> &rarr; <?php echo htmlspecialchars($kozbenso_name); ?> &rarr; <?php echo htmlspecialchars($cel_name); ?>
-</p>
-<p style="color:#888; font-size:12px; font-family:monospace; word-break:break-all; max-width:560px; margin:10px auto;">
-  <?php echo htmlspecialchars($parancs); ?>
 </p>
 <p style="color:#aaa; font-size:13px; margin-top:16px;">Átirányítás...</p>
 </div>

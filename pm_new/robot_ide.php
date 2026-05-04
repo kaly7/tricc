@@ -105,16 +105,40 @@ $conn->close();
       <?php endif; ?>
     </form>
   <?php endif; ?>
-  <?php
-    $aktiv_jobok_conn = new mysqli('localhost', 'robot', 'abrakadabra', 'Robot');
-    $aktiv_jobok_lathatosag = $job_lathatosag_ri;
-    $aktiv_jobok_tipus = 'RI';
-    include __DIR__ . '/aktiv_jobok_inc.php';
-    $aktiv_jobok_conn->close();
-  ?>
+  <?php if ($job_lathatosag_ri !== 'semmi'): ?>
+  <div class="live-panel">
+    <div class="live-panel-header"><span class="live-dot"></span><span>Aktív jobok</span></div>
+    <div id="jobs-panel"><em class="no-jobs">Betöltés...</em></div>
+  </div>
+  <?php endif; ?>
 <?php endif; ?>
 </center>
 </div>
+<?php if ($job_lathatosag_ri !== 'semmi'): ?>
+<script>
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function renderJobs(jobs){
+    var p=document.getElementById('jobs-panel');
+    if(!jobs||jobs.length===0){p.innerHTML='<p class="no-jobs">Nincs aktív job.</p>';return;}
+    var h='';
+    jobs.forEach(function(j){
+        h+='<div class="job-row">'
+          +'<button class="button_delete" style="font-size:12px;padding:4px 10px;" onclick="location.href=\'job_del.php?id='+esc(j.id)+'\'">'+esc(j.id)+' &ndash; Törlés</button>';
+        j.goals.forEach(function(g){h+='<span class="job-goal-pill">'+esc(g)+'</span>';});
+        h+='</div>';
+    });
+    p.innerHTML=h;
+}
+function pollJobs(){
+    fetch('jobok_api.php?tipus=RI&lathatosag=<?php echo urlencode($job_lathatosag_ri); ?>')
+        .then(function(r){return r.json();})
+        .then(function(d){renderJobs(d.jobs);})
+        .catch(function(){});
+}
+pollJobs();
+setInterval(pollJobs,5000);
+</script>
+<?php endif; ?>
 <?php include __DIR__ . "/footer_inc.php"; ?>
 </body>
 </html>

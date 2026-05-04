@@ -116,13 +116,12 @@ select, input[type=datetime-local] {
 <input type="submit" class="button_mentes" value="Elküldés" <?php if (!$kozbenso_ok) echo 'disabled title="Közbenső célpont nincs beállítva"'; ?>>
 </form>
 
-<?php
-$aktiv_jobok_conn = new mysqli('localhost', 'robot', 'abrakadabra', 'Robot');
-$aktiv_jobok_lathatosag = $pp_job_lathatosag;
-$aktiv_jobok_tipus = 'PP';
-include __DIR__ . '/aktiv_jobok_inc.php';
-$aktiv_jobok_conn->close();
-?>
+<?php if ($pp_job_lathatosag !== 'semmi'): ?>
+<div class="live-panel">
+  <div class="live-panel-header"><span class="live-dot"></span><span>Aktív jobok</span></div>
+  <div id="jobs-panel"><em class="no-jobs">Betöltés...</em></div>
+</div>
+<?php endif; ?>
 
 </center>
 </div>
@@ -136,6 +135,29 @@ function toggleIdopont(show) {
         inp.value = '<?php echo $default_idopont; ?>';
     }
 }
+<?php if ($pp_job_lathatosag !== 'semmi'): ?>
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function renderJobs(jobs){
+    var p=document.getElementById('jobs-panel');
+    if(!jobs||jobs.length===0){p.innerHTML='<p class="no-jobs">Nincs aktív job.</p>';return;}
+    var h='';
+    jobs.forEach(function(j){
+        h+='<div class="job-row">'
+          +'<button class="button_delete" style="font-size:12px;padding:4px 10px;" onclick="location.href=\'job_del.php?id='+esc(j.id)+'\'">'+esc(j.id)+' &ndash; Törlés</button>';
+        j.goals.forEach(function(g){h+='<span class="job-goal-pill">'+esc(g)+'</span>';});
+        h+='</div>';
+    });
+    p.innerHTML=h;
+}
+function pollJobs(){
+    fetch('jobok_api.php?tipus=PP&lathatosag=<?php echo urlencode($pp_job_lathatosag); ?>')
+        .then(function(r){return r.json();})
+        .then(function(d){renderJobs(d.jobs);})
+        .catch(function(){});
+}
+pollJobs();
+setInterval(pollJobs,5000);
+<?php endif; ?>
 </script>
 <?php include __DIR__ . "/footer_inc.php"; ?>
 </body>

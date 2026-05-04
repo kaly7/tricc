@@ -34,54 +34,7 @@ if (isset($_POST["login_name"])) {
 <link rel="stylesheet" href="styles.css?v=<?php echo time(); ?>">
 <title>Robot Fleet Manager</title>
 <style>
-.live-panel {
-    margin-top: 18px;
-    border-top: 1px solid #e0e0e0;
-    padding-top: 16px;
-}
-.live-panel-header {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-bottom: 10px;
-    font-size: 11px;
-    font-weight: 700;
-    color: #aaa;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-}
-.live-dot {
-    width: 7px; height: 7px;
-    border-radius: 50%;
-    background: #2e7d32;
-    animation: pulse 2s infinite;
-}
-@keyframes pulse {
-    0%, 100% { opacity: 1; }
-    50%       { opacity: 0.3; }
-}
 #jobs-panel { margin-top: 12px; }
-.job-row {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-    align-items: center;
-    margin-bottom: 8px;
-    padding: 8px 10px;
-    background: #f8f8f8;
-    border-radius: 8px;
-    border-left: 3px solid #EE3124;
-}
-.job-goal-pill {
-    background: #007BC2;
-    color: #fff;
-    font-size: 12px;
-    font-weight: 600;
-    padding: 3px 10px;
-    border-radius: 20px;
-    white-space: nowrap;
-}
-.no-jobs { color: #bbb; font-size: 13px; font-style: italic; }
 </style>
 </head>
 <body>
