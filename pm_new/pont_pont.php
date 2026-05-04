@@ -137,5 +137,6 @@ function toggleIdopont(show) {
     }
 }
 </script>
+<?php include __DIR__ . "/footer_inc.php"; ?>
 </body>
 </html>

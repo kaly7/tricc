@@ -115,5 +115,6 @@ $conn->close();
 <?php endif; ?>
 </center>
 </div>
+<?php include __DIR__ . "/footer_inc.php"; ?>
 </body>
 </html>

@@ -104,5 +104,6 @@ select { padding: 6px 10px; font-size: 15px; border-radius: 5px; border: 1px sol
 
 </center>
 </div>
+<?php include __DIR__ . "/footer_inc.php"; ?>
 </body>
 </html>

@@ -68,5 +68,6 @@ Felhasználó: <?php echo htmlspecialchars($_SESSION["username"]); ?>
 <?php endif; ?>
 
 </div>
+<?php include __DIR__ . "/footer_inc.php"; ?>
 </body>
 </html>

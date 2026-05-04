@@ -131,7 +131,7 @@ input[type=text] { padding:5px 8px; font-size:14px; border-radius:4px; border:1p
 </table>
 
 <br>
-<h3 style="color:#fff;"><?php echo $edit ? 'Munkaállomás szerkesztése' : 'Új munkaállomás hozzáadása'; ?></h3>
+<h3 style="color:#EE3124; font-size:14px; margin:18px 0 8px;"><?php echo $edit ? 'Munkaállomás szerkesztése' : 'Új munkaállomás hozzáadása'; ?></h3>
 <form action="admin_munkaallomas.php" method="POST">
 <input type="hidden" name="mentes" value="1">
 <input type="hidden" name="id" value="<?php echo $edit ? (int)$edit['id'] : 0; ?>">
@@ -188,5 +188,6 @@ input[type=text] { padding:5px 8px; font-size:14px; border-radius:4px; border:1p
 </form>
 </center>
 </div>
+<?php include __DIR__ . "/footer_inc.php"; ?>
 </body>
 </html>

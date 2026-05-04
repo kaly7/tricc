@@ -117,5 +117,6 @@ $currentDateTime = date('Y-m-d H:i:s');
     }, 1000);
 })();
 </script>
+<?php include __DIR__ . "/footer_inc.php"; ?>
 </body>
 </html>

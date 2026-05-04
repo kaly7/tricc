@@ -262,5 +262,6 @@ function hidden_goals($goals) {
 </div>
 
 </div>
+<?php include __DIR__ . "/footer_inc.php"; ?>
 </body>
 </html>

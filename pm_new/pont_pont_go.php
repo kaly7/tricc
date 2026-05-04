@@ -87,6 +87,7 @@ if ($tipusa === "azonnali") {
 </p>
 <p style="color:#aaa; font-size:13px; margin-top:16px;">Átirányítás...</p>
 </div>
+<?php include __DIR__ . "/footer_inc.php"; ?>
 </body>
 </html>
     <?php
