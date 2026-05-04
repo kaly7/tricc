@@ -387,19 +387,26 @@ table.blueTable tfoot {
     left: 0;
     right: 0;
     z-index: 200;
-    background: rgba(17, 17, 17, 0.90);
-    border-top: 1px solid rgba(238, 49, 36, 0.30);
+    background: #dcdcdc;
+    border-top: 1px solid rgba(0, 0, 0, 0.10);
     padding: 5px 24px;
     display: flex;
     justify-content: space-between;
     align-items: center;
     font-size: 11px;
-    color: #777;
-    backdrop-filter: blur(6px);
-    -webkit-backdrop-filter: blur(6px);
+    color: #888;
     user-select: none;
 }
 .pm-footer a { color: #888; }
+
+/* Login oldalon sötét lábléc */
+body.login-page .pm-footer {
+    background: rgba(17, 17, 17, 0.90);
+    border-top: 1px solid rgba(238, 49, 36, 0.30);
+    color: #999;
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+}
 
 /* ------------------------------------------------------------
    Login oldal
