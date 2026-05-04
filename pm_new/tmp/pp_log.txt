@@ -1,0 +1,7 @@
+[2026-04-27 13:23:15] AZONNALI | Admin | queuemulti 3 2  ACT_KANBAN pickup 10  ACT_KANBAN_GYURI pickup 10  PEHA_KANBAN pickup 10 2026_04_27_13_23_15_Admin_PP
+[2026-04-27 13:54:27] IDOZITETT | Admin | inditas: 2026-04-27 13:55 | queuemulti 3 2  ACT_KANBAN_GYURI pickup 10  ACT_KANBAN_GYURI pickup 10  SECU_KANBAN pickup 10 2026_04_27_13_55_00_Admin_PP
+[2026-04-27 13:57:15] AZONNALI | Admin | queuemulti 3 2  ACT_KANBAN pickup 10  ACT_KANBAN_GYURI pickup 10  ACT_WASTE pickup 10 2026_04_27_13_57_15_Admin_PP
+[2026-04-27 13:57:54] IDOZITETT | Admin | inditas: 2026-04-27 13:58 | queuemulti 3 2  ACT_KANBAN pickup 10  ACT_KANBAN_GYURI pickup 10  ACT_KANBAN_GYURI pickup 10 2026_04_27_13_58_00_Admin_PP
+[2026-04-27 14:18:02] AZONNALI | Admin | queuemulti 3 2  ACT_KANBAN pickup 10  ACT_KANBAN_GYURI pickup 10  ACT_KANBAN_GYURI pickup 10 2026_04_27_14_18_02_Admin_PP
+[2026-04-27 14:19:09] IDOZITETT | Admin | inditas: 2026-04-27 14:20 | queuemulti 3 2  Park 1 pickup 10  ACT_KANBAN_GYURI pickup 10  Park 2 pickup 10 2026_04_27_14_20_00_Admin_PP
+[2026-04-27 14:24:47] IDOZITETT | Admin | inditas: 2026-04-27 14:25 | queuemulti 3 2  Park 1 pickup 10  ACT_KANBAN_GYURI pickup 10  Park 2 pickup 10 2026_04_27_14_25_00_Admin_PP

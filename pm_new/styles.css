@@ -1,0 +1,444 @@
+/* ============================================================
+   Pannon Mechanika – Robot Fleet Manager
+   Honeywell vizuális stílus
+   ============================================================ */
+
+/* ------------------------------------------------------------
+   Alap
+   ------------------------------------------------------------ */
+*, *::before, *::after { box-sizing: border-box; }
+
+body, html {
+    height: 100%;
+    margin: 0;
+    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    font-size: 15px;
+    color: #222;
+    background: #1a1a1a;
+}
+
+a { color: #EE3124; text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+/* ------------------------------------------------------------
+   Fejléc
+   ------------------------------------------------------------ */
+.pm-header {
+    background: #111111;
+    border-bottom: 3px solid #EE3124;
+    position: relative;
+    z-index: 100;
+    user-select: none;
+}
+
+.pm-header-inner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 28px;
+    max-width: 1100px;
+    margin: 0 auto;
+}
+
+.pm-header-logos {
+    display: flex;
+    align-items: center;
+    gap: 24px;
+    flex: 1;
+}
+
+.logo-honeywell {
+    height: 38px;
+    width: auto;
+    filter: brightness(0) invert(1);
+}
+
+.logo-omron {
+    height: 30px;
+    width: auto;
+    filter: brightness(0) invert(1);
+    opacity: 0.85;
+}
+
+.pm-header-title {
+    flex: 1;
+    text-align: center;
+    color: #ffffff;
+    font-size: 17px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.pm-header-user {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex: 1;
+    justify-content: flex-end;
+    color: #aaa;
+    font-size: 13px;
+    white-space: nowrap;
+}
+
+.pm-header-user .user-name {
+    color: #ccc;
+}
+
+/* ------------------------------------------------------------
+   Háttérkép sáv (fejléc alatt)
+   ------------------------------------------------------------ */
+.bg-image {
+    background-image: url("pictures/16.jpg");
+    filter: blur(1px);
+    -webkit-filter: blur(1px);
+    height: 100%;
+    width: 100%;
+    position: fixed;
+    top: 0; left: 0;
+    z-index: -1;
+    background-position: center;
+    background-repeat: no-repeat;
+    background-size: cover;
+}
+
+/* ------------------------------------------------------------
+   Tartalom panel
+   ------------------------------------------------------------ */
+.pm-content {
+    position: relative;
+    z-index: 1;
+    min-height: calc(100vh - 70px);
+    display: flex;
+    justify-content: center;
+    padding: 30px 16px 40px;
+}
+
+.pm-card {
+    background: rgba(255, 255, 255, 0.96);
+    border-radius: 6px;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.45);
+    padding: 28px 32px;
+    width: 100%;
+    max-width: 960px;
+    align-self: flex-start;
+}
+
+/* Visszafele-kompatibilitás: régi bg-text div */
+.bg-text {
+    background: rgba(255, 255, 255, 0.96);
+    color: #222;
+    border-radius: 6px;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.45);
+    position: absolute;
+    top: 86px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 2;
+    width: 95%;
+    max-width: 960px;
+    padding: 24px 28px;
+    text-align: left;
+}
+
+/* ------------------------------------------------------------
+   Táblázatok
+   ------------------------------------------------------------ */
+table.blueTable {
+    border: 1px solid #ddd;
+    background-color: #fff;
+    width: 90%;
+    text-align: left;
+    border-collapse: collapse;
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+table.blueTable td, table.blueTable th {
+    border: 1px solid #ddd;
+    padding: 7px 10px;
+}
+
+table.blueTable tbody td {
+    font-size: 13px;
+    color: #333;
+}
+
+table.blueTable tr:nth-child(even) {
+    background: #f5f5f5;
+}
+
+table.blueTable tbody tr:hover {
+    background: #fde8e6;
+}
+
+table.blueTable thead {
+    background: #EE3124;
+    border-bottom: 2px solid #b71c1c;
+}
+
+table.blueTable thead th,
+table.blueTable thead td {
+    font-size: 14px;
+    font-weight: bold;
+    color: #ffffff;
+    border-left: 1px solid rgba(255,255,255,0.2);
+    letter-spacing: 0.03em;
+}
+
+table.blueTable thead th:first-child,
+table.blueTable thead td:first-child {
+    border-left: none;
+}
+
+table.blueTable tfoot {
+    font-weight: bold;
+    background: #f0f0f0;
+}
+
+/* result-table (migrate oldal) */
+.result-table { width:100%; border-collapse:collapse; font-size:12px; margin-top:16px; }
+.result-table th { background:#EE3124; color:#fff; padding:6px 8px; text-align:left; }
+.result-table td { padding:5px 8px; border-bottom:1px solid #ddd; vertical-align:top; }
+.result-table tr.ok  td { background:#e8f5e9; }
+.result-table tr.err td { background:#ffebee; }
+.badge-ok  { color:#2e7d32; font-weight:bold; }
+.badge-err { color:#c62828; font-weight:bold; }
+.sql-cell  { font-family:monospace; color:#444; word-break:break-all; }
+.err-cell  { color:#c62828; font-family:monospace; }
+.summary-ok  { color:#2e7d32; font-size:16px; }
+.summary-err { color:#c62828; font-size:16px; }
+.preview-list { text-align:left; font-family:monospace; font-size:11px; color:#333;
+                background:#f5f5f5; border:1px solid #ddd; padding:10px; border-radius:4px;
+                max-height:200px; overflow-y:auto; margin:10px 0 20px; }
+.preview-list div { padding:2px 0; border-bottom:1px solid #eee; }
+
+/* ------------------------------------------------------------
+   Gombok
+   ------------------------------------------------------------ */
+
+/* Elsődleges akció – Honeywell piros */
+.button_mentes {
+    color: #fff;
+    background-color: #EE3124;
+    font-size: 15px;
+    font-weight: 600;
+    border: none;
+    border-radius: 4px;
+    padding: 10px 28px;
+    cursor: pointer;
+    letter-spacing: 0.02em;
+    transition: background 0.15s;
+}
+.button_mentes:hover { background-color: #c62828; color: #fff; }
+.button_mentes:active { background-color: #b71c1c; }
+
+/* Navigációs / vissza gomb – sötétszürke */
+.button_x {
+    color: #fff;
+    background-color: #444;
+    font-size: 15px;
+    font-weight: 600;
+    border: none;
+    border-radius: 4px;
+    padding: 10px 28px;
+    cursor: pointer;
+    transition: background 0.15s;
+    text-decoration: none;
+    display: inline-block;
+}
+.button_x:hover { background-color: #222; color: #fff; text-decoration: none; }
+
+/* Funkcionális gomb – Honeywell kék */
+.mybutton_vh, .myButton_vh {
+    color: #fff;
+    background-color: #007BC2;
+    font-size: 15px;
+    font-weight: 600;
+    border: none;
+    border-radius: 4px;
+    padding: 10px 26px;
+    cursor: pointer;
+    transition: background 0.15s;
+    text-decoration: none;
+    display: inline-block;
+}
+.mybutton_vh:hover, .myButton_vh:hover {
+    background-color: #005f99;
+    color: #fff;
+    text-decoration: none;
+}
+.myButton_vh:active { position: relative; top: 1px; }
+
+/* Admin / konfig gomb – Omron kék */
+.mybutton_vh2, .myButton_vh2 {
+    color: #fff;
+    background-color: #166FC0;
+    font-size: 15px;
+    font-weight: 600;
+    border: none;
+    border-radius: 4px;
+    padding: 10px 26px;
+    cursor: pointer;
+    transition: background 0.15s;
+    text-decoration: none;
+    display: inline-block;
+}
+.mybutton_vh2:hover, .myButton_vh2:hover {
+    background-color: #0d4f8a;
+    color: #fff;
+    text-decoration: none;
+}
+
+/* Törlés gomb – piros */
+.button_delete {
+    color: #fff;
+    background-color: #c62828;
+    font-size: 13px;
+    font-weight: 600;
+    border: none;
+    border-radius: 4px;
+    padding: 6px 16px;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+.button_delete:hover { background-color: #8b0000; color: #fff; }
+
+/* Időbeállítás gomb */
+.button_ido {
+    color: #fff;
+    background-color: #007BC2;
+    font-size: 13px;
+    font-weight: 600;
+    border: none;
+    border-radius: 4px;
+    padding: 6px 14px;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+.button_ido:hover { background-color: #005f99; }
+
+/* Törlés (schedule) */
+.button_torles {
+    color: #fff;
+    background-color: #c62828;
+    font-size: 13px;
+    font-weight: 600;
+    border: none;
+    border-radius: 4px;
+    padding: 6px 14px;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+.button_torles:hover { background-color: #8b0000; }
+
+/* Sor hozzáadás gomb */
+.btn-add {
+    color: #fff;
+    background-color: #007BC2;
+    font-size: 14px;
+    font-weight: 600;
+    border: none;
+    border-radius: 4px;
+    padding: 8px 20px;
+    cursor: pointer;
+    margin-bottom: 12px;
+    transition: background 0.15s;
+}
+.btn-add:hover { background-color: #005f99; }
+
+.btn-remove, .button_delete_small {
+    color: #fff;
+    background-color: #c62828;
+    font-size: 12px;
+    border: none;
+    border-radius: 4px;
+    padding: 4px 10px;
+    cursor: pointer;
+}
+.btn-remove:hover { background-color: #8b0000; }
+
+/* Robot-ide nagy gombok */
+.nagy_gomb {
+    font-size: 32px;
+    padding: 36px 80px;
+    border-radius: 8px;
+    border: none;
+    cursor: pointer;
+    font-weight: bold;
+    margin-top: 40px;
+    display: block;
+    width: 80%;
+    margin-left: auto;
+    margin-right: auto;
+    transition: background 0.15s;
+}
+.gomb_ide    { background-color: #2e7d32; color: #fff; }
+.gomb_ide:hover    { background-color: #1b5e20; }
+.gomb_uton   { background-color: #e65100; color: #fff; cursor: default; opacity: 0.85; }
+.allapot_info { color: #555; font-size: 14px; margin-top: 12px; }
+
+/* ------------------------------------------------------------
+   Form elemek
+   ------------------------------------------------------------ */
+input[type=text], input[type=password], input[type=time],
+input[type=date], input[type=datetime-local], select, textarea {
+    padding: 7px 10px;
+    font-size: 14px;
+    border: 1px solid #bbb;
+    border-radius: 4px;
+    background: #f9f9f9;
+    color: #222;
+    font-family: inherit;
+}
+input[type=text]:focus, input[type=password]:focus,
+input[type=time]:focus, input[type=date]:focus,
+input[type=datetime-local]:focus, select:focus {
+    outline: 2px solid #EE3124;
+    border-color: #EE3124;
+    background: #fff;
+}
+
+/* ------------------------------------------------------------
+   Üzenet / státusz sávok
+   ------------------------------------------------------------ */
+.figyelmeztes {
+    background: #b71c1c;
+    color: #fff;
+    padding: 10px 20px;
+    border-radius: 4px;
+    margin-bottom: 15px;
+    font-size: 14px;
+}
+
+.error { color: #c62828; margin-bottom: 12px; font-weight: bold; }
+
+/* ------------------------------------------------------------
+   Schedule oldal elemek
+   ------------------------------------------------------------ */
+.day-container { display: flex; gap: 6px; flex-wrap: wrap; }
+.day-container div { display: flex; flex-direction: column; align-items: center; font-size: 11px; }
+.time-input { width: 90px; }
+.date-input { width: 130px; }
+
+/* ------------------------------------------------------------
+   Tablet reszponzivitás (max 900px)
+   ------------------------------------------------------------ */
+@media (max-width: 900px) {
+    .bg-text {
+        width: 99%;
+        padding: 14px 10px;
+        top: 80px;
+    }
+    .pm-header-title { font-size: 13px; }
+    .logo-honeywell  { height: 28px; }
+    .logo-omron      { height: 22px; }
+    table.blueTable  { width: 100%; }
+    .nagy_gomb       { font-size: 24px; padding: 24px 30px; width: 95%; }
+}
+
+@media (max-width: 600px) {
+    .pm-header-inner { padding: 8px 10px; }
+    .pm-header-title { display: none; }
+    .bg-text { top: 68px; }
+}

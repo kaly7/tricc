@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<body>
+
+<script src="jquery.min.js"></script>
+
+kb ide jon a szöveg:<hr>
+<div id="container"></div> 
+<hr>
+
+<script type="text/javascript">
+    $.ajaxSetup({cache: false})
+    setTimeout(read, 1000);
+    function read(){
+        jQuery.get('now.txt',function(data){
+        $('#container').html(data);});
+    }
+</script>
+
+</body>
+</html>
