@@ -86,8 +86,8 @@ $conn->close();
 </head>
 <body>
 <?php include __DIR__ . '/header_inc.php'; ?>
-<center>    
-<br>
+<div class="bg-text">
+<center><br>
 <a href="schedule_add.php"> <button type=button class="button_x" value="Főmenü">Vissza</button></a><br>
     <h2>Útvonal időzítése</h2>
 <?php
@@ -254,5 +254,6 @@ $conn->close();
         }
     </script>
 </center>
+</div>
 </body>
 </html>
