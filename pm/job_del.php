@@ -1,197 +1,126 @@
 <?php
-    $job_id=$_GET["id"];
-    $parancs ="queueCancel jobId ".$job_id;
-    $myfile = fopen("/var/www/html/pm/tmp/newfile.txt", "w") or die("Unable to open file!");
-    fwrite($myfile, $parancs);
-    fclose($myfile);
-    $ret_val = exec("/var/www/html/pm/go.pl",$retval);
-
-
-
-$servername = "localhost";
-$username = "robot";
-$password = "abrakadabra";
-$dbname = "Robot";
-
-$sql="update Button_Goals set akcio=\"deleted\" where Megjegyzes=\"".$job_id."\"";
-#$sql="Select * from Button_Goals where akcio=\"aktiv\" order by Megjegyzes";
-
-// Create connection
-$conn = mysqli_connect($servername, $username, $password, $dbname);
-// Check connection
-if (!$conn) {
-  die("Connection failed: " . mysqli_connect_error());
+session_start();
+if (!isset($_SESSION["loggedin"]) || $_SESSION["loggedin"] !== true) {
+    header("location: login.php"); exit;
 }
 
-$result = mysqli_query($conn, $sql);
+$job_id = $_GET['id'] ?? '';
+if ($job_id === '') {
+    header("location: index.php"); exit;
+}
+
+$conn = new mysqli('localhost', 'robot', 'abrakadabra', 'Robot');
+if ($conn->connect_error) { die("DB error"); }
+
+$jid_safe = $conn->real_escape_string($job_id);
+
+// Létezik-e, törlhető-e?
+$res = $conn->query("SELECT COUNT(*) as cnt FROM Button_Goals WHERE Megjegyzes='$jid_safe' AND akcio != 'deleted'");
+$row = $res ? $res->fetch_assoc() : null;
+$letezik = ($row && (int)$row['cnt'] > 0);
+
+$sikeres = false;
+if ($letezik) {
+    // Fleet Manager cancel parancs
+    $parancs = "queueCancel jobId $job_id";
+    $myfile = fopen("/var/www/html/pm/tmp/newfile.txt", "w");
+    if ($myfile) { fwrite($myfile, $parancs); fclose($myfile); }
+    exec("/var/www/html/pm/go.pl");
+
+    // DB-ben töröl
+    $conn->query("UPDATE Button_Goals SET akcio='deleted' WHERE Megjegyzes='$jid_safe'");
+    $sikeres = true;
+}
+$conn->close();
 ?>
-
-
-<html>
+<!DOCTYPE html>
+<html lang="hu">
 <head>
+<meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta http-equiv="Refresh" content="3; url='index.php'" >
-<body>
+<?php if ($sikeres): ?>
+<meta http-equiv="Refresh" content="3; url=index.php">
+<?php endif; ?>
+<link rel="stylesheet" href="styles.css?v=<?php echo time(); ?>">
+<title>Job törlés – Robot Fleet Manager</title>
 <style>
-body, html {
-  height: 100%;
-  margin: 0;
-  font-family: Arial, Helvetica, sans-serif;
+.del-card {
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 10px;
+    padding: 32px 36px;
+    max-width: 440px;
+    margin: 28px auto;
+    text-align: center;
 }
-
-* {
-  box-sizing: border-box;
+.del-icon { font-size: 48px; margin-bottom: 14px; }
+.del-title {
+    font-size: 20px;
+    font-weight: 700;
+    margin-bottom: 10px;
 }
-
-.bg-image {
-  /* The image used */
-  background-image: url("fogaskerek.jpeg");
-  
-  /* Add the blur effect */
-  filter: blur(8px);
-  -webkit-filter: blur(8px);
-  
-  /* Full height */
-  height: 100%; 
-  
-  /* Center and scale the image nicely */
-  background-position: center;
-  background-repeat: no-repeat;
-  background-size: cover;
+.del-title.ok  { color: #2e7d32; }
+.del-title.err { color: #c62828; }
+.del-jobid {
+    display: inline-block;
+    background: #f5f5f5;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    padding: 5px 14px;
+    font-family: monospace;
+    font-size: 13px;
+    color: #444;
+    margin: 8px 0 18px;
+    word-break: break-all;
 }
-
-/* Position text in the middle of the page/image */
-.bg-text {
-  background-color: rgb(0,0,0); /* Fallback color */
-  background-color: rgba(0,0,0, 0.4); /* Black w/opacity/see-through */
-  color: white;
-  font-weight: bold;
-  border: 3px solid #f1f1f1;
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  z-index: 2;
-  width: 90%;
-  padding: 10px;
-  text-align: left;
+.del-info {
+    font-size: 13px;
+    color: #999;
+    margin-top: 6px;
 }
-
-
-
-.button {
-   border-top: 1px solid #96d1f8;
-   background: #bcd665;
-   background: -webkit-gradient(linear, left top, left bottom, from(#409c3e), to(#bcd665));
-   background: -webkit-linear-gradient(top, #409c3e, #bcd665);
-   background: -moz-linear-gradient(top, #409c3e, #bcd665);
-   background: -ms-linear-gradient(top, #409c3e, #bcd665);
-   background: -o-linear-gradient(top, #409c3e, #bcd665);
-   padding: 18px 36px;
-   -webkit-border-radius: 8px;
-   -moz-border-radius: 8px;
-   border-radius: 8px;
-   -webkit-box-shadow: rgba(0,0,0,1) 0 1px 0;
-   -moz-box-shadow: rgba(0,0,0,1) 0 1px 0;
-   box-shadow: rgba(0,0,0,1) 0 1px 0;
-   text-shadow: rgba(0,0,0,.4) 0 1px 0;
-   color: #000000;
-   font-size: 14px;
-   font-family: Helvetica, Arial, Sans-Serif;
-   text-decoration: none;
-   vertical-align: middle;
-   }
-.button:hover {
-   border-top-color: #c94818;
-   background: #c94818;
-   color: #ccc;
-   }
-.button:active {
-   border-top-color: #1b435e;
-   background: #1b435e;
-   }
-
-
-table.blueTable {
-  border: 1px solid #1C6EA4;
-  background-color: #EEEEEE;
-  width: 80%;
-  text-align: left;
-  border-collapse: collapse;
+.btn-back {
+    display: inline-block;
+    margin-top: 18px;
+    background: #007BC2;
+    color: #fff;
+    padding: 10px 28px;
+    border-radius: 6px;
+    font-weight: 700;
+    font-size: 14px;
+    text-decoration: none;
 }
-table.blueTable td, table.blueTable th {
-  border: 1px solid #AAAAAA;
-  padding: 3px 2px;
-}
-table.blueTable tbody td {
-  font-size: 13px;
-}
-table.blueTable tr:nth-child(even) {
-  background: #D0E4F5;
-}
-table.blueTable thead {
-  background: #1C6EA4;
-  background: -moz-linear-gradient(top, #5592bb 0%, #327cad 66%, #1C6EA4 100%);
-  background: -webkit-linear-gradient(top, #5592bb 0%, #327cad 66%, #1C6EA4 100%);
-  background: linear-gradient(to bottom, #5592bb 0%, #327cad 66%, #1C6EA4 100%);
-  border-bottom: 2px solid #444444;
-}
-table.blueTable thead th {
-  font-size: 15px;
-  font-weight: bold;
-  color: #FFFFFF;
-  border-left: 2px solid #D0E4F5;
-}
-table.blueTable thead th:first-child {
-  border-left: none;
-}
-
-table.blueTable tfoot {
-  font-weight: bold;
-}
-
-
-.myButton_vh {
-    box-shadow: 0px 1px 0px 0px #f0f7fa;
-    background:linear-gradient(to bottom, #33bdef 5%, #019ad2 100%);
-    background-color:#33bdef;
-    border-radius:6px;
-    border:1px solid #057fd0;
-    display:inline-block;
-    cursor:pointer;
-    color:#ffffff;
-    font-family:Arial;
-    font-size:15px;
-    font-weight:bold;
-    padding:6px 24px;
-    text-decoration:none;
-    text-shadow:0px -1px 0px #5b6178;
-}
-.myButton_vh:hover {
-    background:linear-gradient(to bottom, #019ad2 5%, #33bdef 100%);
-    background-color:#019ad2;
-}
-.myButton_vh:active {
-    position:relative;
-    top:1px;
-}
-
-
-
+.btn-back:hover { background: #005f99; }
 </style>
 </head>
 <body>
-
-<div class="bg-image"></div>
-
+<?php include __DIR__ . '/header_inc.php'; ?>
 <div class="bg-text">
-<center><br>
+<center><br><hr>
+<h2 class="page-title">Job törlés</h2>
 
-
-<br><hr>
-<?php
-echo "JobId:".$job_id." törölve";
-?>
-<hr>
+<div class="del-card">
+<?php if ($sikeres): ?>
+  <div class="del-icon">&#10003;</div>
+  <div class="del-title ok">Job törölve</div>
+  <div class="del-jobid"><?php echo htmlspecialchars($job_id); ?></div>
+  <div class="del-info">A Fleet Manager értesítve, az oldal visszatér a főmenübe...</div>
+  <a href="index.php" class="btn-back">Főmenü</a>
+<?php elseif (!$letezik): ?>
+  <div class="del-icon">&#8505;</div>
+  <div class="del-title err">Job nem található</div>
+  <div class="del-jobid"><?php echo htmlspecialchars($job_id); ?></div>
+  <div class="del-info">Ez a job már nem aktív, vagy nem létezik.</div>
+  <a href="index.php" class="btn-back">Főmenü</a>
+<?php else: ?>
+  <div class="del-icon">&#10007;</div>
+  <div class="del-title err">Törlés sikertelen</div>
+  <div class="del-jobid"><?php echo htmlspecialchars($job_id); ?></div>
+  <a href="index.php" class="btn-back">Főmenü</a>
+<?php endif; ?>
 </div>
+
+</center>
+</div>
+<?php include __DIR__ . '/footer_inc.php'; ?>
+</body>
 </html>

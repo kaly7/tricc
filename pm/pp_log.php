@@ -14,6 +14,7 @@ if (file_exists($logfile)) {
 <!DOCTYPE html>
 <html>
 <head>
+<meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="stylesheet" href="styles.css?v=<?php echo time(); ?>">
 <title>Pont-pont napló</title>
@@ -28,12 +29,13 @@ if (file_exists($logfile)) {
 </style>
 </head>
 <body>
+<?php include __DIR__ . '/header_inc.php'; ?>
 <div class="bg-image"></div>
 <div class="bg-text">
 Felhasználó: <?php echo htmlspecialchars($_SESSION["username"]); ?>
 <center><br>
-<a href="index.php" class="button_x">Főmenü</a><br><br><hr>
-<h2 style="color:#fff;">Pont-pont parancsnapló</h2>
+
+<h2 class="page-title">Pont-pont parancsnapló</h2>
 </center>
 
 <?php if (empty($sorok)): ?>
@@ -66,5 +68,6 @@ Felhasználó: <?php echo htmlspecialchars($_SESSION["username"]); ?>
 <?php endif; ?>
 
 </div>
+<?php include __DIR__ . "/footer_inc.php"; ?>
 </body>
 </html>

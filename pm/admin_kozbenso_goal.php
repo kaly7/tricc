@@ -54,15 +54,14 @@ select { padding: 6px 10px; font-size: 15px; border-radius: 5px; border: 1px sol
 </style>
 </head>
 <body>
-<div class="bg-image"></div>
+<?php include __DIR__ . '/header_inc.php'; ?>
 <div class="bg-text">
-Felhasználó: <?php echo htmlspecialchars($_SESSION["username"]); ?>
 <center><br>
-<a href="index.php" class="button_x">Főmenü</a><br><br><hr>
-<h2 style="color:#fff;">Pont-pont beállítások</h2>
+
+<h2 class="page-title">Pont-pont beállítások</h2>
 
 <?php if ($uzenet): ?>
-<p style="color:#7fff7f; font-size:18px;"><?php echo $uzenet; ?></p>
+<p style="color:#2e7d32; font-size:16px; font-weight:600;"><?php echo $uzenet; ?></p>
 <?php endif; ?>
 
 <form action="admin_kozbenso_goal.php" method="POST">
@@ -105,5 +104,6 @@ Felhasználó: <?php echo htmlspecialchars($_SESSION["username"]); ?>
 
 </center>
 </div>
+<?php include __DIR__ . "/footer_inc.php"; ?>
 </body>
 </html>

@@ -1,350 +1,193 @@
 <?php
-$servername = "localhost";
-$username = "robot";
-$password = "abrakadabra";
-$dbname = "Robot";
+$servername = "localhost"; $username = "robot"; $password = "abrakadabra"; $dbname = "Robot";
 session_start();
-    if ( isset($_POST["login_name"]) ) {
-	$login_name=$_POST["login_name"];
-	$login_passwd = $_POST["login_passwd"];
-	
-	$sql="select * from Felhasznalok where nev=\"".$login_name."\" and jelszo=\"".$login_passwd."\"";
-	//print $sql;
-	$conn =  new mysqli($servername, $username, $password, $dbname);
-	// Check connection
-	if ($conn->connect_error) {
-	      die("Connection failed: " . $conn->connect_error);
-	}
 
-	$result = $conn->query($sql);
-	$number = 0;
-	if ($result->num_rows > 0) {
-	      while($row = $result->fetch_assoc()) {
-		    $ip[$number] = $row["ip"];
-		    $admin[$number] = $row["admin"];
-		    $funkcio[$number] = $row["funkcio"];
-		    $goal_name[$number] = $row["goal_name"];
-		    $jelszo[$number] = $row["jelszo"];
-		    $nev[$number] = $row["nev"];
-		    $Index[$number] = $row["Index_"];
-		    $jogok[$number] = $row["jogok"];
-#		    print $ip[$number]."-".$admin[$number]."-".$funkcio[$number]."-".$nev[$number]."-".$jleszo[$number]."-".$Index[0]."<hr>";
-		    $number++;
-	    }
-	    // Van ilyen felhasznalo
-	    $_SESSION["loggedin"] = true;
-	    $_SESSION["username"] = $nev[0];
-	    $_SESSION["admin"] = $admin[0];
-	    $_SESSION["logintime"] = time();
-	    $_SESSION["user_id"] = $Index[0];
-	    $_SESSION["jogok"] = $jogok[0];
-	} else {
-	     header("location: login.php?x=1");
-	}
-
-} else {
-    if(!isset($_SESSION["loggedin"]) || $_SESSION["loggedin"] !== true){
-	header("location: login.php");
-	exit;
+if (isset($_POST["login_name"])) {
+    $login_name   = $_POST["login_name"];
+    $login_passwd = $_POST["login_passwd"];
+    $conn = new mysqli($servername, $username, $password, $dbname);
+    if ($conn->connect_error) { die("Connection failed: " . $conn->connect_error); }
+    $result = $conn->query("SELECT * FROM Felhasznalok WHERE nev=\"$login_name\" AND jelszo=\"$login_passwd\"");
+    if ($result->num_rows > 0) {
+        $row = $result->fetch_assoc();
+        $_SESSION["loggedin"]  = true;
+        $_SESSION["username"]  = $row["nev"];
+        $_SESSION["admin"]     = $row["admin"];
+        $_SESSION["logintime"] = time();
+        $_SESSION["user_id"]   = $row["Index_"];
+        $_SESSION["jogok"]     = $row["jogok"];
+    } else {
+        header("location: login.php?x=1"); exit;
     }
-
+    $conn->close();
+} else {
+    if (!isset($_SESSION["loggedin"]) || $_SESSION["loggedin"] !== true) {
+        header("location: login.php"); exit;
+    }
 }
-
-
-
 ?>
-
-
-<html>
+<!DOCTYPE html>
+<html lang="hu">
 <head>
+<meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta http-equiv="Refresh" content="10; url='index.php'" >
-<body>
+<link rel="stylesheet" href="styles.css?v=<?php echo time(); ?>">
+<title>Robot Fleet Manager</title>
 <style>
-body, html {
-  height: 100%;
-  margin: 0;
-  font-family: Arial, Helvetica, sans-serif;
+#jobs-panel { margin-top: 12px; }
+.menu-section {
+    display: flex;
+    flex-direction: row;
+    width: 420px;
+    margin: 0 auto 12px;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid #ddd;
+    background: rgba(255,255,255,0.6);
 }
-
-* {
-  box-sizing: border-box;
+.menu-side {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    min-width: 36px;
+    writing-mode: vertical-rl;
+    text-orientation: mixed;
+    transform: rotate(180deg);
+    font-size: 10px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: .15em;
+    color: #fff;
+    padding: 16px 0;
+    flex-shrink: 0;
 }
-
-.bg-image {
-  /* The image used */
-  background-image: url("pictures/16.jpg");
-  
-  /* Add the blur effect */
-  filter: blur(1px);
-  -webkit-filter: blur(1px);
-  
-  /* Full height */
-  height: 100%; 
-  
-  /* Center and scale the image nicely */
-  background-position: center;
-  background-repeat: no-repeat;
-  background-size: cover;
+.menu-side-red  { background: #EE3124; }
+.menu-side-blue { background: #007BC2; }
+.menu-side-dark { background: #37474F; }
+.menu-buttons {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 10px 12px;
 }
-
-/* Position text in the middle of the page/image */
-.bg-text {
-  background-color: rgb(0,0,0); /* Fallback color */
-  background-color: rgba(0,0,0, 0.4); /* Black w/opacity/see-through */
-  color: white;
-  font-weight: bold;
-  border: 3px solid #f1f1f1;
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  z-index: 2;
-  width: 95%;
-  padding: 10px;
-  text-align: left;
+#status-panel table.blueTable,
+#status-panel table.blueTable td,
+#status-panel table.blueTable th {
+    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
 }
-
-
-
-.button {
-   border-top: 1px solid #96d1f8;
-   background: #bcd665;
-   background: -webkit-gradient(linear, left top, left bottom, from(#409c3e), to(#bcd665));
-   background: -webkit-linear-gradient(top, #409c3e, #bcd665);
-   background: -moz-linear-gradient(top, #409c3e, #bcd665);
-   background: -ms-linear-gradient(top, #409c3e, #bcd665);
-   background: -o-linear-gradient(top, #409c3e, #bcd665);
-   padding: 18px 36px;
-   -webkit-border-radius: 8px;
-   -moz-border-radius: 8px;
-   border-radius: 8px;
-   -webkit-box-shadow: rgba(0,0,0,1) 0 1px 0;
-   -moz-box-shadow: rgba(0,0,0,1) 0 1px 0;
-   box-shadow: rgba(0,0,0,1) 0 1px 0;
-   text-shadow: rgba(0,0,0,.4) 0 1px 0;
-   color: #000000;
-   font-size: 14px;
-   font-family: Helvetica, Arial, Sans-Serif;
-   text-decoration: none;
-   vertical-align: middle;
-   }
-.button:hover {
-   border-top-color: #c94818;
-   background: #c94818;
-   color: #ccc;
-   }
-.button:active {
-   border-top-color: #1b435e;
-   background: #1b435e;
-   }
-
-
-table.blueTable {
-  border: 1px solid #1C6EA4;
-  background-color: #EEEEEE;
-  width: 80%;
-  text-align: left;
-  border-collapse: collapse;
-}
-table.blueTable td, table.blueTable th {
-  border: 1px solid #AAAAAA;
-  padding: 3px 2px;
-}
-table.blueTable tbody td {
-  font-size: 13px;
-}
-table.blueTable tr:nth-child(even) {
-  background: #D0E4F5;
-}
-table.blueTable thead {
-  background: #1C6EA4;
-  background: -moz-linear-gradient(top, #5592bb 0%, #327cad 66%, #1C6EA4 100%);
-  background: -webkit-linear-gradient(top, #5592bb 0%, #327cad 66%, #1C6EA4 100%);
-  background: linear-gradient(to bottom, #5592bb 0%, #327cad 66%, #1C6EA4 100%);
-  border-bottom: 2px solid #444444;
-}
-table.blueTable thead th {
-  font-size: 15px;
-  font-weight: bold;
-  color: #FFFFFF;
-  border-left: 2px solid #D0E4F5;
-}
-table.blueTable thead th:first-child {
-  border-left: none;
-}
-
-table.blueTable tfoot {
-  font-weight: bold;
-}
-
-
-.myButton_vh {
-    box-shadow: 0px 1px 0px 0px #f0f7fa;
-    background:linear-gradient(to bottom, #33bdef 5%, #019ad2 100%);
-    background-color:#33bdef;
-    border-radius:6px;
-    border:1px solid #057fd0;
-    display:inline-block;
-    cursor:pointer;
-    color:#ffffff;
-    font-family:Arial;
-    font-size:15px;
-    font-weight:bold;
-    padding:6px 24px;
-    text-decoration:none;
-    text-shadow:0px -1px 0px #5b6178;
-}
-.myButton_vh:hover {
-    background:linear-gradient(to bottom, #019ad2 5%, #33bdef 100%);
-    background-color:#019ad2;
-}
-.myButton_vh:active {
-    position:relative;
-    top:1px;
-}
-
-
-.myButton_vh2 {
-    box-shadow: 0px 1px 0px 0px #f0f7fa;
-    background:linear-gradient(to bottom, #33bdef 5%, #019ad2 100%);
-    background-color:#ffa500;
-    border-radius:6px;
-    border:1px solid #057fd0;
-    display:inline-block;
-    cursor:pointer;
-    color:#ffffff;
-    font-family:Arial;
-    font-size:15px;
-    font-weight:bold;
-    padding:6px 24px;
-    text-decoration:none;
-    text-shadow:0px -1px 0px #5b6178;
-}
-.myButton_vh2:hover {
-    background:linear-gradient(to bottom, #019ad2 5%, #33bdef 100%);
-    background-color:#019ad2;
-}
-.myButton_vh2:active {
-    position:relative;
-    top:1px;
-}
-
-
-
 </style>
 </head>
 <body>
+<?php include __DIR__ . '/header_inc.php'; ?>
+<div class="bg-text" style="text-align:center;">
 
-<div class="bg-image"></div>
-
-<div class="bg-text">
-Felhasználó: <?php print $_SESSION["username"]; ?>
-<center><br>
-<!-- a href="button_list.php" class="button" >Gombok listája</a>
-<a href="goals.php" class="button" >Gomb létrehozása</a>
-<br><br><hr><br -->
-<a href="goals2.php" class="mybutton_vh" >Küldetés tervezés</a>
-<br><br>
-<a href="pont_pont.php" class="mybutton_vh" >Pont-pont útvonal</a>
-<br><br>
-<a href="robot_ide.php" class="mybutton_vh" >Robot ide / Vissza</a>
-<?php 
-    if ($_SESSION["jogok"]== "on") {
-	print "<br><br><hr><br>";
-	print "<a href=\"admin_user_goal.php\" class=\"mybutton_vh2\">Fix Célpontok felvitele</a><br>";
-	print "<br><a href=\"route_add.php\" class=\"mybutton_vh2\">Útvonalak felvitele</a><br>";
-	print "<br><a href=\"schedule_add.php\" class=\"mybutton_vh2\">Útvonalak időzítése</a><br>";
-    }
-?>
-<br><?php
-    if ($_SESSION["admin"]== "on") {
-	print "<hr>";
-	print "<a href=\"admin_user.php\" class=\"mybutton_vh\">Felhasználók</a><br><br>";
-	print "<a href=\"admin_goal.php\" class=\"mybutton_vh\">Célpontok</a><br><br>";
-	print "<a href=\"admin_kozbenso_goal.php\" class=\"mybutton_vh\">Pont-pont beállítások</a><br><br>";
-	print "<a href=\"admin_munkaallomas.php\" class=\"mybutton_vh\">Munkaállomások (Robot ide)</a><br><br>";
-	print "<a href=\"time.php\" class=\"mybutton_vh\">Szerver dátum / idő beállítás</a><br><br>";
-	print "<a href=\"napok.php\" class=\"mybutton_vh\">Munkanap/Ünnepnap/Munkaszüneti nap beállítása / idő beállítás</a><br><br>";
-	print "<a href=\"admin_migrate.php\" class=\"mybutton_vh2\">Adatbázis migráció</a><br><br>";
-    }
-    
-?>
-<hr>
-
-
-<table class="blueTable">
-<thead>
-<tr>
-<th>&nbsp;</th>
-<th>&nbsp;Kiss_Gyuri</th>
-<th>&nbsp;Kiss_Marci</th>
-</tr>
-</thead>
-<tbody>
-</tr>
-<tr>
-<td><span style="caret-color: #000000; color: #000000; font-family: -webkit-standard; font-size: medium;">&nbsp;St&aacute;tusz&nbsp;</span></td>
-<td>&nbsp; 
-<?php 
-    $myfile = fopen("/var/www/html/pm/tmp/GYURI", "r") or die("Unable to open file!");
-    echo fread($myfile,filesize("/var/www/html/pm/tmp/GYURI"));
-    ?>
-</td>
-<td>&nbsp;
-<?php 
-    $myfile = fopen("/var/www/html/pm/tmp/MARCI", "r") or die("Unable to open file!");
-    echo fread($myfile,filesize("/var/www/html/pm/tmp/MARCI"));
-    ?>
-
-</td>
-</tr>
-</tbody>
-</table>
-</center>
-Aktív jobok:
-<?php
-
-$servername = "localhost";
-$username = "robot";
-$password = "abrakadabra";
-$dbname = "Robot";
-
-
-$sql="Select * from Button_Goals where akcio=\"aktiv\" order by Megjegyzes";
-
-// Create connection
-$conn = mysqli_connect($servername, $username, $password, $dbname);
-// Check connection
-if (!$conn) {
-  die("Connection failed: " . mysqli_connect_error());
-}
-
-$result = mysqli_query($conn, $sql);
-$job_id = "---";
-if (mysqli_num_rows($result) > 0) {
-  // output data of each row
-  while($row = mysqli_fetch_assoc($result)) {
-	//echo "Goal: " . $row["Goal_name"]. "<br>";
-	if ($job_id != $row["Megjegyzes"]) {
-	// uj job
-	    $job_id = $row["Megjegyzes"];
-	    echo "<br><hr>";
-	    echo "<input type=button class=mybutton_vh value=\"".$job_id." Törlése\"  onclick=\"location.href='job_del.php?id=".$job_id."'\">" ;
-	}
-	echo " <input type=button class=mybutton_vh value=\"".$row["Goal_name"]."\">";
-
-
-
-
-  }
-} else {
-  echo "0 results";
-}
-
-mysqli_close($conn);
-print "<hr><center><a href=\"logout.php\" class=\"mybutton_vh\">Kilépés</a><br><br>";
-
-?>
+<div class="menu-section">
+  <div class="menu-side menu-side-red">Robot vezérlés</div>
+  <div class="menu-buttons">
+    <a href="goals2.php"    class="mybutton_vh">Küldetés tervezés</a>
+    <a href="pont_pont.php" class="mybutton_vh">Pont-pont útvonal</a>
+    <a href="robot_ide.php" class="mybutton_vh">Robot ide / Vissza</a>
+  </div>
 </div>
+
+<?php if ($_SESSION["jogok"] == "on"): ?>
+<div class="menu-section">
+  <div class="menu-side menu-side-blue">Útvonalak</div>
+  <div class="menu-buttons">
+    <a href="admin_user_goal.php" class="mybutton_vh2">Fix célpontok felvitele</a>
+    <a href="route_add.php"       class="mybutton_vh2">Útvonalak felvitele</a>
+    <a href="schedule_add.php"    class="mybutton_vh2">Útvonalak időzítése</a>
+  </div>
+</div>
+<?php endif; ?>
+
+<?php if ($_SESSION["admin"] == "on"): ?>
+<div class="menu-section">
+  <div class="menu-side menu-side-dark">Setup</div>
+  <div class="menu-buttons">
+    <a href="admin_user.php"          class="mybutton_vh">Felhasználók</a>
+    <a href="admin_goal.php"          class="mybutton_vh">Célpontok</a>
+    <a href="admin_kozbenso_goal.php" class="mybutton_vh">Pont-pont beállítások</a>
+    <a href="admin_munkaallomas.php"  class="mybutton_vh">Munkaállomások (Robot ide)</a>
+    <a href="time.php"                class="mybutton_vh">Szerver dátum / idő beállítás</a>
+    <a href="napok.php"               class="mybutton_vh">Munkanap / Ünnepnap beállítás</a>
+    <a href="admin_migrate.php"       class="mybutton_vh2">Adatbázis migráció</a>
+    <a href="admin_update.php"        class="mybutton_vh2">Rendszer frissítés (ZIP)</a>
+  </div>
+</div>
+<?php endif; ?>
+
+<hr style="margin:8px 0 14px;">
+
+<div class="live-panel" style="text-align:left;">
+  <div class="live-panel-header">
+    <span class="live-dot"></span>
+    <span>Robot státusz &amp; aktív jobok</span>
+  </div>
+  <div id="status-panel"><em style="color:#bbb;font-size:13px;">Betöltés...</em></div>
+  <div id="jobs-panel"></div>
+</div>
+
+<div style="margin-top:16px; text-align:center;">
+  <a href="logout.php" class="mybutton_vh">Kilépés</a>
+</div>
+
+</div>
+
+<script>
+function esc(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function renderStatus(data) {
+    // Robots tábla
+    var rHtml = '<table class="blueTable" style="width:100%;margin-bottom:12px;"><thead><tr><th>Robot</th><th>Státusz</th></tr></thead><tbody>';
+    data.robots.forEach(function(r) {
+        rHtml += '<tr><td>' + esc(r.name) + '</td><td>' + esc(r.status) + '</td></tr>';
+    });
+    rHtml += '</tbody></table>';
+    document.getElementById('status-panel').innerHTML = rHtml;
+
+    // Aktív jobok
+    var jDiv = document.getElementById('jobs-panel');
+    if (data.jobs.length === 0) {
+        jDiv.innerHTML = '<p class="no-jobs">Nincs aktív job.</p>';
+        return;
+    }
+    var jHtml = '<div style="font-size:11px;font-weight:700;color:#aaa;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;">Aktív jobok</div>';
+    data.jobs.forEach(function(job) {
+        jHtml += '<div class="job-row">'
+            + '<button class="button_delete" style="font-size:12px;padding:4px 10px;" onclick="location.href=\'job_del.php?id=' + esc(job.id) + '\'">'
+            + esc(job.id) + ' &ndash; Törlés</button>';
+        job.goals.forEach(function(g) {
+            jHtml += '<span class="job-goal-pill">' + esc(g) + '</span>';
+        });
+        jHtml += '</div>';
+    });
+    jDiv.innerHTML = jHtml;
+}
+
+function poll() {
+    fetch('status_api.php')
+        .then(function(r) { return r.json(); })
+        .then(renderStatus)
+        .catch(function() {});
+}
+
+poll();
+setInterval(poll, 5000);
+
+// Menü gombok: href helyett data-href, hogy a státuszsáv ne mutassa az URL-t
+document.querySelectorAll('.menu-buttons a, .menu-section a').forEach(function(a) {
+    a.setAttribute('data-href', a.getAttribute('href'));
+    a.removeAttribute('href');
+    a.style.cursor = 'pointer';
+    a.addEventListener('click', function() { window.location = this.dataset.href; });
+});
+</script>
+
+<?php include __DIR__ . '/footer_inc.php'; ?>
+</body>
 </html>

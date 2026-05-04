@@ -93,16 +93,15 @@ input[type=text] { padding:5px 8px; font-size:14px; border-radius:4px; border:1p
 </style>
 </head>
 <body>
-<div class="bg-image"></div>
+<?php include __DIR__ . '/header_inc.php'; ?>
 <div class="bg-text">
-Felhasználó: <?php echo htmlspecialchars($_SESSION["username"]); ?>
 <center><br>
-<a href="index.php" class="button_x">Főmenü</a><br><br><hr>
-<h2 style="color:#fff;">Munkaállomások kezelése</h2>
-<p style="color:#ccc;">IP-cím alapján azonosított állomások – ezekről a "Robot ide" gomb érhető el.</p>
+
+<h2 class="page-title">Munkaállomások kezelése</h2>
+<p style="color:#666; text-align:center;">IP-cím alapján azonosított állomások – ezekről a "Robot ide" gomb érhető el.</p>
 
 <?php if ($uzenet): ?>
-<p style="color:#7fff7f; font-size:16px;"><?php echo htmlspecialchars($uzenet); ?></p>
+<p style="color:#2e7d32; font-size:16px; font-weight:600;"><?php echo htmlspecialchars($uzenet); ?></p>
 <?php endif; ?>
 
 <table class="blueTable">
@@ -132,7 +131,7 @@ Felhasználó: <?php echo htmlspecialchars($_SESSION["username"]); ?>
 </table>
 
 <br>
-<h3 style="color:#fff;"><?php echo $edit ? 'Munkaállomás szerkesztése' : 'Új munkaállomás hozzáadása'; ?></h3>
+<h3 style="color:#EE3124; font-size:14px; margin:18px 0 8px;"><?php echo $edit ? 'Munkaállomás szerkesztése' : 'Új munkaállomás hozzáadása'; ?></h3>
 <form action="admin_munkaallomas.php" method="POST">
 <input type="hidden" name="mentes" value="1">
 <input type="hidden" name="id" value="<?php echo $edit ? (int)$edit['id'] : 0; ?>">
@@ -189,5 +188,6 @@ Felhasználó: <?php echo htmlspecialchars($_SESSION["username"]); ?>
 </form>
 </center>
 </div>
+<?php include __DIR__ . "/footer_inc.php"; ?>
 </body>
 </html>

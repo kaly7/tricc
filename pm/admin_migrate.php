@@ -88,13 +88,12 @@ $statements_preview = parse_sql_statements($sql_file);
 </style>
 </head>
 <body>
-<div class="bg-image"></div>
+<?php include __DIR__ . '/header_inc.php'; ?>
 <div class="bg-text">
-Felhasználó: <?php echo htmlspecialchars($_SESSION["username"]); ?>
 <center><br>
-<a href="index.php" class="button_x">Főmenü</a><br><br><hr>
-<h2 style="color:#fff;">Adatbázis migráció</h2>
-<p style="color:#ccc;">Futtatja a <code>migrate_robot_db.sql</code> tartalmát.<br>
+
+<h2 class="page-title">Adatbázis migráció</h2>
+<p style="color:#666; text-align:center;">Futtatja a <code>migrate_robot_db.sql</code> tartalmát.<br>
 Biztonságos: csak <code>CREATE IF NOT EXISTS</code> és <code>ADD COLUMN IF NOT EXISTS</code> utasítások – meglévő adatokat nem töröl.</p>
 
 <?php if (!$ran): ?>
@@ -152,5 +151,6 @@ $err_count = count($results) - $ok_count;
 
 </center>
 </div>
+<?php include __DIR__ . "/footer_inc.php"; ?>
 </body>
 </html>

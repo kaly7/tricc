@@ -42,6 +42,11 @@ function pp_log($sor) {
     file_put_contents($f, "[$ts] $sor\n", FILE_APPEND | LOCK_EX);
 }
 
+// Ha nem főmenüből jött (nincs bejelentkezve), visszaküldés a pont_pont oldalra
+$redirect_url = (isset($_SESSION["loggedin"]) && $_SESSION["loggedin"] === true)
+    ? "index.php"
+    : "pont_pont.php";
+
 if ($tipusa === "azonnali") {
     $caller  = isset($_SESSION["username"]) ? $_SESSION["username"] : str_replace('.', '_', $_SERVER['REMOTE_ADDR']);
     $job_id  = date("Y_m_d_H_i_s") . "_" . $caller . "_PP";
@@ -62,62 +67,24 @@ if ($tipusa === "azonnali") {
     pp_log("AZONNALI | " . $caller . " | " . $parancs);
     ?>
 <!DOCTYPE html>
-<html>
+<html lang="hu">
 <head>
+<meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta http-equiv="Refresh" content="3; url=index.php">
+<meta http-equiv="Refresh" content="3; url=<?php echo $redirect_url; ?>">
 <link rel="stylesheet" href="styles.css?v=<?php echo time(); ?>">
+<title>Robot Fleet Manager</title>
 </head>
 <body>
-<div class="bg-image"></div>
-<div class="bg-text">
-<center><br>
-<p style="color:#7fff7f; font-size:20px;">Feladat elküldve!</p>
-<p style="color:#fff; font-size:16px;">Parancs:</p>
-<p style="color:#ffdd88; font-size:13px; font-family:monospace; word-break:break-all; max-width:600px;"><?php echo htmlspecialchars($parancs); ?></p>
-<p style="color:#aaa;">Átirányítás a főmenübe...</p>
-</center>
+<?php include __DIR__ . '/header_inc.php'; ?>
+<div class="bg-text" style="max-width:600px; text-align:center;">
+<h2 class="page-title" style="color:#2e7d32;">&#10003; Feladat elküldve a Fleet Managernek</h2>
+<p style="color:#555; font-size:15px; margin:12px 0;">
+  <?php echo htmlspecialchars($indulo_name); ?> &rarr; <?php echo htmlspecialchars($kozbenso_name); ?> &rarr; <?php echo htmlspecialchars($cel_name); ?>
+</p>
+<p style="color:#aaa; font-size:13px; margin-top:16px;">Átirányítás...</p>
 </div>
-</body>
-</html>
-    <?php
-    exit;
-
-} else {
-    // Időzített – egyszeri
-    $idopont_raw = $_POST["idopont"];
-    $idopont_sql = $conn->real_escape_string(str_replace("T", " ", $idopont_raw) . ":00");
-
-    // Előre összeállított parancs (a timer.php fogja ténylegesen elküldeni)
-    $caller      = isset($_SESSION["username"]) ? $_SESSION["username"] : str_replace('.', '_', $_SERVER['REMOTE_ADDR']);
-    $job_id_terv = date("Y_m_d_H_i_s", strtotime(str_replace("T", " ", $idopont_raw)))
-                   . "_" . $caller . "_PP";
-    $parancs_terv = "queuemulti 3 2 $indulo_name pickup 10 $kozbenso_name pickup 10 $cel_name pickup 10 $job_id_terv";
-
-    $conn->query("INSERT INTO egyedi_utemezesek(indulo_goal_index, kozbenso_goal_index, cel_goal_index, idopont, active)
-                  VALUES($indulo_index, $kozbenso_index, $cel_index, '$idopont_sql', 1)");
-    $conn->close();
-
-    pp_log("IDOZITETT | " . $caller . " | inditas: " . str_replace("T", " ", $idopont_raw) . " | " . $parancs_terv);
-    ?>
-<!DOCTYPE html>
-<html>
-<head>
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<meta http-equiv="Refresh" content="4; url=index.php">
-<link rel="stylesheet" href="styles.css?v=<?php echo time(); ?>">
-</head>
-<body>
-<div class="bg-image"></div>
-<div class="bg-text">
-<center><br>
-<p style="color:#7fff7f; font-size:20px;">Időzített feladat elmentve!</p>
-<p style="color:#fff; font-size:16px;">Indítás: <?php echo htmlspecialchars(str_replace("T", " ", $idopont_raw)); ?></p>
-<p style="color:#fff; font-size:15px;">Tervezett parancs:</p>
-<p style="color:#ffdd88; font-size:13px; font-family:monospace; word-break:break-all; max-width:600px;"><?php echo htmlspecialchars($parancs_terv); ?></p>
-<p style="color:#aaa;">Átirányítás a főmenübe...</p>
-</center>
-</div>
+<?php include __DIR__ . "/footer_inc.php"; ?>
 </body>
 </html>
     <?php

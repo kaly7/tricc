@@ -52,23 +52,23 @@ session_start();
 
 
 ?>
-<html>
+<!DOCTYPE html>
+<html lang="hu">
 <head>
+<meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<body>
-<link rel="stylesheet" href="styles.css?v=<?php echo time()?>">
+<link rel="stylesheet" href="styles.css?v=<?php echo time(); ?>">
+<title>Robot Fleet Manager</title>
 </head>
 <body>
-
-<div class="bg-image"></div>
-
+<?php include __DIR__ . '/header_inc.php'; ?>
 <div class="bg-text">
-Felhasználó: <?php print $_SESSION["username"]; ?>
 
-<center><br>
+<h2 class="page-title">Célpontok</h2>
+<center>
 
 <br><br><br>
-<a href=index.php class="button_x">Főmenü</a><br><br><hr>
+
 
 <?php
 
@@ -194,7 +194,6 @@ print "</form>";
             window.location.href = fullUrl;
         }
     </script>
-
-
-
+<?php include __DIR__ . '/footer_inc.php'; ?>
+</body>
 </html>

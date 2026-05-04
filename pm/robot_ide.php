@@ -50,9 +50,6 @@ $conn->close();
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="stylesheet" href="styles.css?v=<?php echo time(); ?>">
 <title>Robot ide</title>
-<?php if ($allomas && $allomas['allapot'] === 'uton'): ?>
-<meta http-equiv="Refresh" content="5">
-<?php endif; ?>
 <style>
 .nagy_gomb {
     font-size: 36px;
@@ -70,35 +67,31 @@ $conn->close();
 .gomb_ide    { background-color: #2e7d32; color: #fff; }
 .gomb_ide:hover    { background-color: #1b5e20; }
 .gomb_uton   { background-color: #f57f17; color: #fff; cursor: default; opacity: 0.85; }
-.allapot_info { color: #ccc; font-size: 15px; margin-top: 15px; }
+.allapot_info { color: #666; font-size: 15px; margin-top: 15px; }
 </style>
 </head>
 <body>
-<div class="bg-image"></div>
+<?php include __DIR__ . '/header_inc.php'; ?>
 <div class="bg-text">
-Felhasználó: <?php echo isset($_SESSION["username"]) ? htmlspecialchars($_SESSION["username"]) : htmlspecialchars($client_ip); ?>
 <center><br>
-<?php if (isset($_SESSION["loggedin"]) && $_SESSION["loggedin"] === true): ?>
-<a href="index.php" class="button_x">Főmenü</a><br><br>
-<?php endif; ?>
 <hr>
 
 <?php if (!$allomas): ?>
-  <h2 style="color:#ff8888;">Ismeretlen munkaállomás</h2>
-  <p style="color:#ccc;">Ez az IP cím (<?php echo htmlspecialchars($client_ip); ?>) nincs konfigurálva.</p>
+  <h2 class="page-title" style="color:#c62828;">Ismeretlen munkaállomás</h2>
+  <p style="color:#666;">Ez az IP cím (<?php echo htmlspecialchars($client_ip); ?>) nincs konfigurálva.</p>
   <?php if (isset($_SESSION["admin"]) && $_SESSION["admin"] == "on"): ?>
   <a href="admin_munkaallomas.php" class="button_mentes">Munkaállomás beállítás</a>
   <?php endif; ?>
 <?php else: ?>
-  <h2 style="color:#fff;"><?php echo htmlspecialchars($allomas['nev']); ?></h2>
+  <h2 class="page-title"><?php echo htmlspecialchars($allomas['nev']); ?></h2>
 
+  <div id="allomas-panel">
   <?php if ($allomas['allapot'] === 'uton'): ?>
     <button type="button" class="nagy_gomb gomb_uton" disabled>Robot úton...</button>
     <p class="allapot_info">Cél: <?php echo htmlspecialchars($allomas['cel_megjegyzes'] ?: $allomas['cel_goal_name']); ?></p>
     <?php if ($allomas['kozbenso_goal_index'] > 0): ?>
     <p class="allapot_info" style="font-size:12px;">Közbenső: <?php echo htmlspecialchars($allomas['kozbenso_megjegyzes'] ?: $allomas['kozbenso_goal_name']); ?></p>
     <?php endif; ?>
-    <p class="allapot_info" style="font-size:13px;">Az oldal automatikusan frissül, amint a robot megérkezett.</p>
   <?php else: ?>
     <form action="robot_ide_go.php" method="POST">
       <input type="hidden" name="allomas_id" value="<?php echo (int)$allomas['id']; ?>">
@@ -109,15 +102,69 @@ Felhasználó: <?php echo isset($_SESSION["username"]) ? htmlspecialchars($_SESS
       <?php endif; ?>
     </form>
   <?php endif; ?>
-  <?php
-    $aktiv_jobok_conn = new mysqli('localhost', 'robot', 'abrakadabra', 'Robot');
-    $aktiv_jobok_lathatosag = $job_lathatosag_ri;
-    $aktiv_jobok_tipus = 'RI';
-    include __DIR__ . '/aktiv_jobok_inc.php';
-    $aktiv_jobok_conn->close();
-  ?>
+  </div>
+  <?php if ($job_lathatosag_ri !== 'semmi'): ?>
+  <div class="live-panel">
+    <div class="live-panel-header"><span class="live-dot"></span><span>Aktív jobok</span></div>
+    <div id="jobs-panel"><em class="no-jobs">Betöltés...</em></div>
+  </div>
+  <?php endif; ?>
 <?php endif; ?>
 </center>
 </div>
+<script>
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+
+function renderAllomas(data){
+    if(!data||!data.found) return;
+    var panel=document.getElementById('allomas-panel');
+    var h='';
+    if(data.allapot==='uton'){
+        h='<button type="button" class="nagy_gomb gomb_uton" disabled>Robot úton...</button>'
+         +'<p class="allapot_info">Cél: '+esc(data.cel_label)+'</p>';
+        if(data.kozbenso_label) h+='<p class="allapot_info" style="font-size:12px;">Közbenső: '+esc(data.kozbenso_label)+'</p>';
+    } else {
+        h='<form action="robot_ide_go.php" method="POST">'
+         +'<input type="hidden" name="allomas_id" value="'+esc(data.id)+'">'
+         +'<button type="submit" class="nagy_gomb gomb_ide">Robot ide</button>'
+         +'<p class="allapot_info">Cél: '+esc(data.cel_label)+'</p>';
+        if(data.kozbenso_label) h+='<p class="allapot_info" style="font-size:12px;">Közbenső: '+esc(data.kozbenso_label)+'</p>';
+        h+='</form>';
+    }
+    panel.innerHTML=h;
+}
+function pollAllomas(){
+    fetch('allomas_api.php')
+        .then(function(r){return r.json();})
+        .then(renderAllomas)
+        .catch(function(){});
+}
+pollAllomas();
+setInterval(pollAllomas,3000);
+
+<?php if ($job_lathatosag_ri !== 'semmi'): ?>
+function renderJobs(jobs){
+    var p=document.getElementById('jobs-panel');
+    if(!jobs||jobs.length===0){p.innerHTML='<p class="no-jobs">Nincs aktív job.</p>';return;}
+    var h='';
+    jobs.forEach(function(j){
+        h+='<div class="job-row">'
+          +'<span style="font-size:11px;color:#888;white-space:nowrap;">'+esc(j.id)+'</span>';
+        j.goals.forEach(function(g){h+='<span class="job-goal-pill">'+esc(g)+'</span>';});
+        h+='</div>';
+    });
+    p.innerHTML=h;
+}
+function pollJobs(){
+    fetch('jobok_api.php?tipus=RI&lathatosag=<?php echo urlencode($job_lathatosag_ri); ?>')
+        .then(function(r){return r.json();})
+        .then(function(d){renderJobs(d.jobs);})
+        .catch(function(){});
+}
+pollJobs();
+setInterval(pollJobs,5000);
+<?php endif; ?>
+</script>
+<?php include __DIR__ . "/footer_inc.php"; ?>
 </body>
 </html>

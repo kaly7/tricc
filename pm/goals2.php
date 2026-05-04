@@ -1,318 +1,267 @@
 <?php
-    session_start();
-    if(!isset($_SESSION["loggedin"]) || $_SESSION["loggedin"] !== true){
-	header("location: login.php");
-	exit;
-    }
+session_start();
+if (!isset($_SESSION["loggedin"]) || $_SESSION["loggedin"] !== true) {
+    header("location: login.php"); exit;
+}
 
+$servername = "localhost"; $username = "robot"; $password = "abrakadabra"; $dbname = "Robot";
+
+// Goals
+$conn = new mysqli($servername, $username, $password, $dbname);
+$result = $conn->query("SELECT Index_, Goal_name, Megjegyzes FROM Goals WHERE Active='Y' ORDER BY Megjegyzes");
+$goals_number = 0; $goal_name_megjegyzes = []; $goal_Index_ = []; $goal_real_name = [];
+while ($row = $result->fetch_assoc()) {
+    $goal_name_megjegyzes[$goals_number] = $row["Megjegyzes"];
+    $goal_Index_[$goals_number]          = $row["Index_"];
+    $goal_real_name[$goals_number]       = $row["Goal_name"];
+    $goals_number++;
+}
+$conn->close();
+
+// Eleje szekvencia
+$conn = new mysqli($servername, $username, $password, $dbname);
+$result = $conn->query("SELECT * FROM Felhasznalo_goal_eleje WHERE Felhasznalo_index = '".(int)$_SESSION["user_id"]."'");
+$eleje_Goal_index = []; $eleje_Akcio = []; $eleje_number = 0;
+while ($row = $result->fetch_assoc()) {
+    $eleje_Goal_index[$eleje_number] = $row["Goal_index"];
+    $eleje_Akcio[$eleje_number]      = $row["Akcio"];
+    $eleje_number++;
+}
+$conn->close();
+
+// Vége szekvencia
+$conn = new mysqli($servername, $username, $password, $dbname);
+$result = $conn->query("SELECT * FROM Felhasznalo_goal_vege WHERE Felhasznalo_index = '".(int)$_SESSION["user_id"]."'");
+$vege_Goal_index = []; $vege_Akcio = []; $vege_number = 0;
+while ($row = $result->fetch_assoc()) {
+    $vege_Goal_index[$vege_number] = $row["Goal_index"];
+    $vege_Akcio[$vege_number]      = $row["Akcio"];
+    $vege_number++;
+}
+$conn->close();
+
+// Route state: existing goals + newly added goal merged
+$goals = isset($_POST['mytext2']) ? $_POST['mytext2'] : [];
+if (isset($_POST["new"]) && $_POST["new"] !== '') {
+    $goals[] = $_POST["new"];
+}
+if (isset($_POST["delete"])) {
+    array_splice($goals, (int)$_POST["delete"], 1);
+}
+
+// Goal index → Megjegyzes név feloldása
+function resolve_goal_name($goal_index, $goal_Index_, $goal_name_megjegyzes, $goals_number) {
+    for ($i = 0; $i < $goals_number; $i++) {
+        if ($goal_index == $goal_Index_[$i]) return $goal_name_megjegyzes[$i];
+    }
+    return '?';
+}
+
+// Hidden inputs helper
+function hidden_goals($goals) {
+    $out = '';
+    foreach ($goals as $i => $v) {
+        $out .= '<input type="hidden" name="mytext2['.$i.']" value="'.htmlspecialchars($v, ENT_QUOTES).'">';
+    }
+    return $out;
+}
 ?>
-<html>
+<!DOCTYPE html>
+<html lang="hu">
 <head>
+<meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<body>
-    <link rel="stylesheet" href="styles.css?v=<?php echo time(); ?>">
+<link rel="stylesheet" href="styles.css?v=<?php echo time(); ?>">
+<title>Robot Fleet Manager</title>
+<style>
+.seq-section {
+    background: #f8f8f8;
+    border: 1px solid #e0e0e0;
+    border-left: 4px solid #EE3124;
+    border-radius: 8px;
+    padding: 10px 16px;
+    margin-bottom: 12px;
+    text-align: left;
+}
+.seq-section.vege { border-left-color: #666; }
+.seq-section h3 {
+    margin: 0 0 8px;
+    font-size: 11px;
+    font-weight: 700;
+    color: #EE3124;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+}
+.seq-section.vege h3 { color: #666; }
+.seq-pills { display: flex; flex-wrap: wrap; gap: 6px; }
+.seq-pill {
+    background: #007BC2;
+    color: #fff;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 3px 12px;
+    border-radius: 20px;
+    white-space: nowrap;
+}
+.seq-section.vege .seq-pill { background: #666; }
+
+.route-section {
+    background: #fff;
+    border: 2px solid #EE3124;
+    border-radius: 8px;
+    padding: 14px 18px;
+    margin-bottom: 12px;
+    min-height: 60px;
+}
+.route-section h3 {
+    margin: 0 0 10px;
+    font-size: 11px;
+    font-weight: 700;
+    color: #EE3124;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+}
+.route-buttons { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.route-btn {
+    background: #444;
+    color: #fff;
+    font-size: 13px;
+    font-weight: 600;
+    border: none;
+    border-radius: 8px;
+    padding: 7px 14px;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+.route-btn:hover { background: #c62828; color: #fff; }
+.route-empty { color: #aaa; font-size: 13px; font-style: italic; }
+
+.exec-bar {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    background: #f0f0f0;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 12px 18px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+}
+.exec-bar label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    color: #444;
+}
+.exec-bar input[type=checkbox] { width: 16px; height: 16px; cursor: pointer; }
+
+.goals-section { margin-top: 4px; }
+.goals-section h3 {
+    margin: 0 0 10px;
+    font-size: 11px;
+    font-weight: 700;
+    color: #888;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+}
+.goals-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+.goal-add-btn {
+    background: #007BC2;
+    color: #fff;
+    font-size: 13px;
+    font-weight: 600;
+    border: none;
+    border-radius: 8px;
+    padding: 7px 16px;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+.goal-add-btn:hover { background: #005f99; color: #fff; }
+</style>
 </head>
 <body>
-
-<div class="bg-image"></div>
-
+<?php include __DIR__ . '/header_inc.php'; ?>
 <div class="bg-text">
-Felhasználó: <?php print $_SESSION["username"]; ?>
 
-<center><br>
+<h2 class="page-title">Küldetés tervezés</h2>
 
-<a href=index.php class=button_x>Főmenü</a><br><br><hr>
-
-<?php
-
-$servername = "localhost";
-$username = "robot";
-$password = "abrakadabra";
-$dbname = "Robot";
-
-// Create connection
-$conn = new mysqli($servername, $username, $password, $dbname);
-// Check connection
-if ($conn->connect_error) {
-  die("Connection failed: " . $conn->connect_error);
-}
-
-$sql = "SELECT * FROM Goals where Active = \"Y\"";
-$result = $conn->query($sql);
-$goals_number = 0;
-if ($result->num_rows > 0) {
-  // output data of each row
-  while($row = $result->fetch_assoc()) {
-    //echo "id: " . $row["Index_"]. " - Name: " . $row["Goal_name"]. "<br>";
-    $goal_name_megjegyzes[$goals_number] = $row["Megjegyzes"];
-    $goal_Index_[$goals_number] = $row["Index_"];
-    $goal_real_name[$goals_number] = $row["Goal_name"];
-    $goals_number++;
-  }
-} else {
-  echo "0 results";
-}
-$conn->close();
-
-
-$conn = new mysqli($servername, $username, $password, $dbname);
-// Check connection
-if ($conn->connect_error) {
-  die("Connection failed: " . $conn->connect_error);
-}
-//print "user id: ". $_SESSION["user_id"]."<hr>";
-//print "admin: ".$_SESSION['admin']."<hr>";
-//print_r ($_SESSION);
-$sql = "select * from Felhasznalok where Index_ = \"".$_SESSION["user_id"]."\"";
-$result = $conn->query($sql);
-$number = 0;
-if ($result->num_rows > 0) {
-  // output data of each row
-  while($row = $result->fetch_assoc()) {
-    //echo "id: " . $row["Index_"]. " - Name: " . $row["Goal_name"]. "<br>";
-		    $ip[$number] = $row["ip"];
-		    $admin[$number] = $row["admin"];
-		    $funkcio[$number] = $row["funkcio"];
-		    $goal_name[$number] = $row["goal_name"];
-		    $jelszo[$number] = $row["jelszo"];
-		    $nev[$number] = $row["nev"];
-		    $Index[$number] = $row["Index_"];
-    $number++;
-  }
-} else {
-  echo "0 results";
-}
-$conn->close();
-
-
-
-
-$conn =  new mysqli($servername, $username, $password, $dbname);
-$sql= "select * from Felhasznalo_goal_eleje where Felhasznalo_index = \"".$_SESSION["user_id"]."\"";
-$result = $conn->query($sql);
-$number = 0;
-//print "3";
-if ($result->num_rows > 0) {
-  // output data of each row
-  while($row = $result->fetch_assoc()) {
-//    echo "id: " . $row["Index_"]. " - Name: " . $row["Goal_index"]. "<br>";
-    $eleje_Goal_index[$number] = $row["Goal_index"];
-    $eleje_Akcio[$number] = $row["Akcio"];
-    $number++;
-  }
-} else {
-  //echo "0 results";
-}
-$eleje_number = $number;
-//print $eleje_number;
-$conn->close();
-//print $eleje_number;
-$conn =  new mysqli($servername, $username, $password, $dbname);
-$sql= "select * from Felhasznalo_goal_vege where Felhasznalo_index = \"".$_SESSION["user_id"]."\"";
-$result = $conn->query($sql);
-$number = 0;
-//print "3";
-if ($result->num_rows > 0) {
-  // output data of each row
-  while($row = $result->fetch_assoc()) {
-//    echo "id: " . $row["Index_"]. " - Name: " . $row["Goal_index"]. "<br>";
-    $vege_Goal_index[$number] = $row["Goal_index"];
-    $vege_Akcio[$number] = $row["Akcio"];
-    $number++;
-  }
-} else {
-  //echo "0 results";
-}
-$vege_number = $number;
-
-$conn->close();
-// eleje utvonal
-
-if ( $eleje_number >0) {
-
-    $checked = "";
-//    print "ELEJE->".$_GET["eleje_check"]." - ".$_POST["eleje_check"]."<hr>";
-    if ($_GET["eleje_check"] == "on" ) { $checked="checked" ; }
-    if ( isset($_GET["zz"]) ) { $checked="checked"; }
-
-//    print "<input type=checkbox ".$checked." name=eleje_check>";
-    print "Eleje :";
-
-    for ($ie=0;$ie<$eleje_number;$ie++) {
-	for ($i=0;$i<$goals_number;$i++) {
-	    if ($eleje_Goal_index[$ie] == $goal_Index_[$i] ) {
-		if ($eleje_Akcio[$ie] == "pickup" ) {$akcio_pd = " /P ";} else { $akcio_pd = " /D";}
-		print "<button class=\"mybutton_vh\" >".$goal_name_megjegyzes[$i]." ".$akcio_pd."</button>";
-	    }	
-	}
-    }
-echo "<hr>";    
-}
-
-?>
-
-
-<script src="jquery.min.js"></script>
-<div class="gombok">
-    <?php
-    $new = $_POST["new"];
-    $goals = $_POST['mytext2'];
-
-    if (isset($_POST["delete"])) {
-        //echo "DELETE ";
-        $j=0;
-        $i=0;
-        foreach ($goals as &$value) {
-            if ($_POST["delete"] != $j) {
-                $goals2[$i] = $value;
-                $i++;
-            }
-            $j++;
-        }
-        unset($goals);
-        $i=0;
-        foreach ($goals2 as &$value) {
-            $goals[$i]=$value;
-            $i++;
-        }
-    }
-
-
-    $j=0;
-    //echo $new."<hr>";
-    $van=0;
-    echo "<table border=0 valign=center><tr>";
-    $cella = 0;
-    $max_cella = 6;
-    $cella_percent = 100 / $max_cella;
-    if (isset($goals)) {
-        foreach ($goals as &$value) {
-//            echo "<td style=\"width:".$cella_percent."%\" align=center>";
-            echo "<td style=\"text-align: center; vertical-align: middle;width:".$cella_percent."%\">";
-            echo "<form action=goals2.php  method=post>";
-            echo "<input type=hidden name=delete value=\"".$j."\">";
-            echo "<input type=submit class=\"myButton_vh\" name=mytext1[".$j."] value=\"".$value."\">";
-            $van=1;
-                $j1=0;
-                foreach($goals as &$value2) {
-                    echo "<input type=hidden name=mytext2[".$j1."] value=\"".$value2."\">";
-                    $j1++;
-                }
-                if (isset($new)) {
-                    echo "<input type=hidden name=mytext2[".$j1."] value=\"".$new."\">";
-                }
-            echo "</form>";
-            echo"</td>";
-            $cella++;
-            if ( ($cella % $max_cella) == 0) {
-                echo "</tr><tr>";
-            }
-            $j++;
-        }
-    }
-    if (isset($new)) {
-        $van=1;
-        echo "<td style=\"width:".$cella_percent."%\" align=center>";
-        echo "<form action=goals2.php method=post>";
-        echo "<input type=hidden name=delete value=\"".$j."\">";
-        echo "<input type=submit class=\"myButton_vh\"  name=mytext1[".$j."] value=\"".$new."\">";
-
-            $j1=0;
-            foreach($goals as &$value2) {
-                echo "<input type=hidden name=mytext2[".$j1."] value=\"".$value2."\">";
-                $j1++;
-            }
-            if (isset($new)) {
-                echo "<input type=hidden name=mytext2[".$j1."] value=\"".$new."\">";
-            }
-        echo "</form></td>";
-
-
-
-
-    }
-    if ($van == 0) {
-        echo"<td>Nincs útvonal.</td>";
-    }
-    echo "</table>";
-
-// vege utvonal
-
-
-if ( $vege_number >0) {
-//    print "<input type=checkbox checked name=vege_check>";
-    print "<hr>Vége :";
-    for ($ie=0;$ie<$vege_number;$ie++) {
-	for ($i=0;$i<$goals_number;$i++) {
-	    if ($vege_Goal_index[$ie] == $goal_Index_[$i] ) {
-		if ($vege_Akcio[$ie] == "pickup" ) {$akcio_pd = " /P ";} else { $akcio_pd = " /D";}
-		print "<button class=\"mybutton_vh\" >".$goal_name_megjegyzes[$i]." ".$akcio_pd."</button>";
-	    }	
-	}
-    }
-
-}
-
-
-
-            echo "<hr>";
-            echo "<form action=button_go2.php  method=post>";
-	    echo " <input type=checkbox  name=eleje_check> Eleje szekvencia ";
-            echo "<input type=submit class=button_mentes value=\"Végrehajtás\">";
-	    echo " <input type=checkbox  name=vege_check> Vége szekvencia";
-
-            $j1=0;
-            foreach($goals as &$value2) {
-                echo "<input type=hidden name=mytext2[".$j1."] value=\"".$value2."\">";
-                $j1++;
-            }
-            if (isset($new)) {
-                echo "<input type=hidden name=mytext2[".$j1."] value=\"".$new."\">";
-            }
-            echo"</form>";
-            echo "<hr>";
-
-    echo"<!-- GOMBOK LISTAJA --><div>";
-    //GOALS KIIRAS
-    echo "<br> Elérhető célok:<br>";
-    echo "<table><tr>";
-    $row_count =0;
-    for ($i=0;$i<$goals_number;$i++) {
-	
-	    if ($row_count>3) {
-		echo "</tr><tr>";
-		$row_count = 0;
-	    }
-	    echo "<td>";
-	    
-	    if (substr($goal_name_megjegyzes[$i],0,1) != "*") {
-                echo "<form action=goals2.php method=post>";
-                echo "<input type=submit class=\"myButton_vh\" type=button value=\"".$goal_name_megjegyzes[$i]. "\">";
-                echo "<input type=hidden name=new value=\"".$goal_name_megjegyzes[$i]."\">";
-                $j=0;
-                if (isset($goals)) {
-                    foreach ($goals as &$value) {
-                        echo "<input type=hidden name=mytext2[".$j."] value=\"".$value."\">";
-                        $j++;
-                    }
-                }
-                if (isset($new)) {
-                    echo "<input type=hidden name=mytext2[".$j."] value=\"".$new."\">";
-                }
-                echo "</form>";
-	    }
-	    
-	    echo "</td>";
-	    $row_count++;
-    }	  
-    echo "</tr></table>";	    
+<?php if ($eleje_number > 0): ?>
+<div class="seq-section">
+  <h3>&#9654; Eleje szekvencia</h3>
+  <div class="seq-pills">
+    <?php for ($ie = 0; $ie < $eleje_number; $ie++):
+        $gname = resolve_goal_name($eleje_Goal_index[$ie], $goal_Index_, $goal_name_megjegyzes, $goals_number);
+        $ap = $eleje_Akcio[$ie] === 'pickup' ? '/P' : '/D';
     ?>
+    <span class="seq-pill"><?php echo htmlspecialchars($gname); ?> <?php echo $ap; ?></span>
+    <?php endfor; ?>
+  </div>
+</div>
+<?php endif; ?>
+
+<div class="route-section">
+  <h3>Jelenlegi útvonal</h3>
+  <div class="route-buttons">
+    <?php if (empty($goals)): ?>
+      <span class="route-empty">Nincs kiválasztott célpont – kattints az elérhető célok egyikére.</span>
+    <?php else: ?>
+      <?php foreach ($goals as $j => $val): ?>
+      <form action="goals2.php" method="post" style="margin:0">
+        <input type="hidden" name="delete" value="<?php echo $j; ?>">
+        <?php echo hidden_goals($goals); ?>
+        <button type="submit" class="route-btn"><?php echo htmlspecialchars($val); ?> &nbsp;✕</button>
+      </form>
+      <?php endforeach; ?>
+    <?php endif; ?>
+  </div>
+</div>
+
+<?php if ($vege_number > 0): ?>
+<div class="seq-section vege">
+  <h3>&#9654; Vége szekvencia</h3>
+  <div class="seq-pills">
+    <?php for ($ie = 0; $ie < $vege_number; $ie++):
+        $gname = resolve_goal_name($vege_Goal_index[$ie], $goal_Index_, $goal_name_megjegyzes, $goals_number);
+        $ap = $vege_Akcio[$ie] === 'pickup' ? '/P' : '/D';
+    ?>
+    <span class="seq-pill"><?php echo htmlspecialchars($gname); ?> <?php echo $ap; ?></span>
+    <?php endfor; ?>
+  </div>
+</div>
+<?php endif; ?>
+
+<form action="button_go2.php" method="post">
+  <div class="exec-bar">
+    <?php if ($eleje_number > 0): ?>
+    <label><input type="checkbox" name="eleje_check"> Eleje szekvencia</label>
+    <?php endif; ?>
+    <?php if ($vege_number > 0): ?>
+    <label><input type="checkbox" name="vege_check"> Vége szekvencia</label>
+    <?php endif; ?>
+    <button type="submit" class="button_mentes">&#9658;&nbsp; Végrehajtás</button>
+    <?php echo hidden_goals($goals); ?>
+  </div>
+</form>
+
+<div class="goals-section">
+  <h3>Elérhető célok</h3>
+  <div class="goals-grid">
+    <?php for ($i = 0; $i < $goals_number; $i++):
+        if (substr($goal_name_megjegyzes[$i], 0, 1) === '*') continue;
+    ?>
+    <form action="goals2.php" method="post" style="margin:0">
+      <input type="hidden" name="new" value="<?php echo htmlspecialchars($goal_name_megjegyzes[$i], ENT_QUOTES); ?>">
+      <?php echo hidden_goals($goals); ?>
+      <button type="submit" class="goal-add-btn"><?php echo htmlspecialchars($goal_name_megjegyzes[$i]); ?></button>
+    </form>
+    <?php endfor; ?>
+  </div>
+</div>
 
 </div>
-</div<
-</html>
+<?php include __DIR__ . "/footer_inc.php"; ?>
 </body>
-
-
-
 </html>
