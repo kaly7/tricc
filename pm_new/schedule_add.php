@@ -64,7 +64,8 @@ session_start();
 <?php include __DIR__ . '/header_inc.php'; ?>
 <div class="bg-text">
 
-<center><br>
+<h2 class="page-title">Útvonalak időzítése</h2>
+<center>
 
 <br><br><br>
 

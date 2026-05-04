@@ -379,6 +379,19 @@ table.blueTable tfoot {
 .allapot_info { color: #555; font-size: 14px; margin-top: 12px; }
 
 /* ------------------------------------------------------------
+   Oldalcím
+   ------------------------------------------------------------ */
+.page-title {
+    font-size: 20px;
+    font-weight: 700;
+    color: #222;
+    margin: 4px 0 20px;
+    text-align: center;
+    letter-spacing: 0.01em;
+}
+.page-title .accent { color: #EE3124; }
+
+/* ------------------------------------------------------------
    Form elemek
    ------------------------------------------------------------ */
 input[type=text], input[type=password], input[type=time],

@@ -80,13 +80,13 @@ $conn->close();
 <hr>
 
 <?php if (!$allomas): ?>
-  <h2 style="color:#ff8888;">Ismeretlen munkaállomás</h2>
-  <p style="color:#ccc;">Ez az IP cím (<?php echo htmlspecialchars($client_ip); ?>) nincs konfigurálva.</p>
+  <h2 class="page-title" style="color:#c62828;">Ismeretlen munkaállomás</h2>
+  <p style="color:#666;">Ez az IP cím (<?php echo htmlspecialchars($client_ip); ?>) nincs konfigurálva.</p>
   <?php if (isset($_SESSION["admin"]) && $_SESSION["admin"] == "on"): ?>
   <a href="admin_munkaallomas.php" class="button_mentes">Munkaállomás beállítás</a>
   <?php endif; ?>
 <?php else: ?>
-  <h2 style="color:#fff;"><?php echo htmlspecialchars($allomas['nev']); ?></h2>
+  <h2 class="page-title"><?php echo htmlspecialchars($allomas['nev']); ?></h2>
 
   <?php if ($allomas['allapot'] === 'uton'): ?>
     <button type="button" class="nagy_gomb gomb_uton" disabled>Robot úton...</button>

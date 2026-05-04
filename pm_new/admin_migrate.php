@@ -92,8 +92,8 @@ $statements_preview = parse_sql_statements($sql_file);
 <div class="bg-text">
 <center><br>
 
-<h2 style="color:#fff;">Adatbázis migráció</h2>
-<p style="color:#ccc;">Futtatja a <code>migrate_robot_db.sql</code> tartalmát.<br>
+<h2 class="page-title">Adatbázis migráció</h2>
+<p style="color:#666; text-align:center;">Futtatja a <code>migrate_robot_db.sql</code> tartalmát.<br>
 Biztonságos: csak <code>CREATE IF NOT EXISTS</code> és <code>ADD COLUMN IF NOT EXISTS</code> utasítások – meglévő adatokat nem töröl.</p>
 
 <?php if (!$ran): ?>

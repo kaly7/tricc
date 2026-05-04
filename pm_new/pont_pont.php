@@ -56,7 +56,7 @@ select, input[type=datetime-local] {
 <div class="bg-text">
 <center><br>
 <hr>
-<h2 style="color:#fff;">Pont-pont útvonal</h2>
+<h2 class="page-title">Pont-pont útvonal</h2>
 
 <?php if (!$kozbenso_ok): ?>
 <div class="figyelmeztes">Figyelem: a közbenső célpont nincs beállítva! Az útvonal nem indítható.<br>

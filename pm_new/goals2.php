@@ -186,6 +186,8 @@ function hidden_goals($goals) {
 <?php include __DIR__ . '/header_inc.php'; ?>
 <div class="bg-text">
 
+<h2 class="page-title">Küldetés tervezés</h2>
+
 <?php if ($eleje_number > 0): ?>
 <div class="seq-section">
   <h3>&#9654; Eleje szekvencia</h3>

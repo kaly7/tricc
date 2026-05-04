@@ -97,11 +97,11 @@ input[type=text] { padding:5px 8px; font-size:14px; border-radius:4px; border:1p
 <div class="bg-text">
 <center><br>
 
-<h2 style="color:#fff;">Munkaállomások kezelése</h2>
-<p style="color:#ccc;">IP-cím alapján azonosított állomások – ezekről a "Robot ide" gomb érhető el.</p>
+<h2 class="page-title">Munkaállomások kezelése</h2>
+<p style="color:#666; text-align:center;">IP-cím alapján azonosított állomások – ezekről a "Robot ide" gomb érhető el.</p>
 
 <?php if ($uzenet): ?>
-<p style="color:#7fff7f; font-size:16px;"><?php echo htmlspecialchars($uzenet); ?></p>
+<p style="color:#2e7d32; font-size:16px; font-weight:600;"><?php echo htmlspecialchars($uzenet); ?></p>
 <?php endif; ?>
 
 <table class="blueTable">

@@ -35,7 +35,7 @@ if (file_exists($logfile)) {
 Felhasználó: <?php echo htmlspecialchars($_SESSION["username"]); ?>
 <center><br>
 
-<h2 style="color:#fff;">Pont-pont parancsnapló</h2>
+<h2 class="page-title">Pont-pont parancsnapló</h2>
 </center>
 
 <?php if (empty($sorok)): ?>
