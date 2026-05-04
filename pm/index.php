@@ -266,6 +266,7 @@ Felhasználó: <?php print $_SESSION["username"]; ?>
 	print "<a href=\"admin_munkaallomas.php\" class=\"mybutton_vh\">Munkaállomások (Robot ide)</a><br><br>";
 	print "<a href=\"time.php\" class=\"mybutton_vh\">Szerver dátum / idő beállítás</a><br><br>";
 	print "<a href=\"napok.php\" class=\"mybutton_vh\">Munkanap/Ünnepnap/Munkaszüneti nap beállítása / idő beállítás</a><br><br>";
+	print "<a href=\"admin_migrate.php\" class=\"mybutton_vh2\">Adatbázis migráció</a><br><br>";
     }
     
 ?>
