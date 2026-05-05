@@ -26,6 +26,8 @@ $include_deleted= (isset($_GET['include_deleted']) && is_admin()) ? 1 : 0;
 $sort = $_GET['sort'] ?? 'issued_at';
 $allowed = ['pp_status','eventus','issued_at','due_at','city'];
 if (!in_array($sort, $allowed, true)) $sort='issued_at';
+$desc = !empty($_GET['desc']);
+$dir  = $desc ? 'DESC' : 'ASC';
 
 $statuses = db()->query('SELECT id,name,color_hex FROM pp_status ORDER BY name')->fetchAll();
 $cities   = db()->query('SELECT id,name FROM cities ORDER BY name')->fetchAll();
@@ -110,7 +112,7 @@ $sql = "SELECT r.*, ps.name AS pp_name, ps.color_hex, c.name AS city_name
         JOIN pp_status ps ON ps.id=r.pp_status_id
         JOIN cities c ON c.id=r.city_id
         $wsql
-        ORDER BY $orderBy ASC
+        ORDER BY $orderBy $dir
         LIMIT 1000";
 $st = db()->prepare($sql); $st->execute($p); $rows = $st->fetchAll();
 
@@ -157,6 +159,17 @@ foreach ($all_templates as $t) {
 
 // csak akkor jelenjen meg a form, ha van sablon + találat
 $canShowBulkMailer = !empty($availableTplsBulk) && !empty($rows);
+
+function make_sort_link(string $col, string $label, array $qp, string $curSort, bool $curDesc): string {
+    $p = $qp;
+    unset($p['sort'], $p['desc']);
+    $p['sort'] = $col;
+    if ($curSort === $col && !$curDesc) { $p['desc'] = '1'; }
+    $arrow = ($curSort === $col) ? ($curDesc ? ' ▼' : ' ▲') : '';
+    $url = 'records.php?' . http_build_query($p);
+    return '<a href="' . h($url) . '" class="sort-link">'
+         . h($label) . '<span class="sort-arrow">' . $arrow . '</span></a>';
+}
 ?>
 <!doctype html>
 <html lang="hu">
@@ -347,6 +360,9 @@ $canShowBulkMailer = !empty($availableTplsBulk) && !empty($rows);
     display: inline-block;
   }
   .marvin-inline:hover { filter: brightness(1.15); }
+  .sort-link { color: inherit; text-decoration: none; }
+  .sort-link:hover { text-decoration: underline; opacity: .8; }
+  .sort-arrow { font-size: .75em; margin-left: .2em; opacity: .7; }
 </style>
 </head>
 <body>
@@ -533,17 +549,6 @@ $canShowBulkMailer = !empty($availableTplsBulk) && !empty($rows);
       </div>
     </div>
 
-    <div class="col-md-2">
-      <label class="form-label">Rendezés</label>
-      <select name="sort" class="form-select">
-        <option value="issued_at" <?=$sort==='issued_at'?'selected':''?>>Kiadva</option>
-        <!-- option value="due_at" <?=$sort==='due_at'?'selected':''?>>+38 nap</option -->
-        <option value="pp_status" <?=$sort==='pp_status'?'selected':''?>>PP státusz</option>
-        <option value="eventus" <?=$sort==='eventus'?'selected':''?>>Eventus</option>
-        <option value="city" <?=$sort==='city'?'selected':''?>>Város</option>
-      </select>
-    </div>
-
     <div class="col-md-3">
       <div class="form-check mt-4">
         <input class="form-check-input" type="checkbox" name="include_arch" id="arch" <?=$include_arch?'checked':''?>>
@@ -559,9 +564,21 @@ $canShowBulkMailer = !empty($availableTplsBulk) && !empty($rows);
       <?php endif; ?>
     </div>
 
-    <div class="col-12 d-flex gap-2">
+    <div class="col-12 d-flex gap-2 align-items-center flex-wrap">
       <button class="btn btn-primary">Szűrés / Frissítés</button>
       <a class="btn btn-secondary" href="records.php">Alaphelyzet</a>
+      <span class="ms-2 fw-semibold small text-nowrap">Rendezés:</span>
+      <select name="sort" class="form-select form-select-sm" style="width:auto;">
+        <option value="issued_at" <?=$sort==='issued_at'?'selected':''?>>Kiadva</option>
+        <option value="due_at"    <?=$sort==='due_at'   ?'selected':''?>>+38 nap</option>
+        <option value="pp_status" <?=$sort==='pp_status'?'selected':''?>>PP státusz</option>
+        <option value="eventus"   <?=$sort==='eventus'  ?'selected':''?>>Eventus</option>
+        <option value="city"      <?=$sort==='city'     ?'selected':''?>>Város</option>
+      </select>
+      <div class="form-check mb-0">
+        <input class="form-check-input" type="checkbox" name="desc" id="sortDesc" value="1" <?=$desc?'checked':''?>>
+        <label class="form-check-label small" for="sortDesc">Csökkenő</label>
+      </div>
       <a class="btn btn-success ms-auto" href="records_new.php">Új tétel</a>
     </div>
   </form>
@@ -582,11 +599,11 @@ $canShowBulkMailer = !empty($availableTplsBulk) && !empty($rows);
             🖨
           </button>
         </th>
-        <th>Eventus</th>
-        <th>PP státusz</th>
-        <th>Kiadva</th>
-        <th>+38 nap</th>
-        <th>Város</th>
+        <th><?= make_sort_link('eventus',   'Eventus',    $_GET, $sort, $desc) ?></th>
+        <th><?= make_sort_link('pp_status', 'PP státusz', $_GET, $sort, $desc) ?></th>
+        <th><?= make_sort_link('issued_at', 'Kiadva',     $_GET, $sort, $desc) ?></th>
+        <th><?= make_sort_link('due_at',    '+38 nap',    $_GET, $sort, $desc) ?></th>
+        <th><?= make_sort_link('city',      'Város',      $_GET, $sort, $desc) ?></th>
         <th>Cím</th>
         <th class="col-op">Elvégzendő művelet</th>
         <th>Archív</th>

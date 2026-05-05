@@ -6,6 +6,19 @@ require_once __DIR__.'/../src/records_filter.php';
 
 $db = db();
 
+// Rendezési irány – mindkét útvonalhoz
+$_allowedSort = ['issued_at','due_at','pp_status','eventus','city'];
+$_sort = $_REQUEST['sort'] ?? 'issued_at';
+if (!in_array($_sort, $_allowedSort, true)) $_sort = 'issued_at';
+$_dir  = !empty($_REQUEST['desc']) ? 'DESC' : 'ASC';
+$_orderBy = ($_sort === 'pp_status') ? "ps.name $_dir"
+          : (($_sort === 'city')     ? "c.name $_dir"
+          : "r.$_sort $_dir");
+$_sortArrow = $_dir === 'DESC' ? ' ▼' : ' ▲';
+function _ph(string $col, string $label, string $cs, string $arrow): string {
+    return $label . ($col === $cs ? '<span style="font-size:.8em;opacity:.6;margin-left:.2em">'.$arrow.'</span>' : '');
+}
+
 // 1) jöttek-e konkrétan kijelölt ID-k?
 $printIds = $_REQUEST['print_ids'] ?? [];
 $isByIds  = is_array($printIds) && count($printIds) > 0;
@@ -27,7 +40,7 @@ if ($isByIds) {
                 JOIN pp_status ps ON ps.id=r.pp_status_id
                 JOIN cities c ON c.id=r.city_id
                 WHERE r.id IN ($placeholders)
-                ORDER BY r.id";
+                ORDER BY $_orderBy, r.id";
         $st = $db->prepare($sql);
         $st->execute($ids);
         $rows = $st->fetchAll(PDO::FETCH_ASSOC);
@@ -45,7 +58,7 @@ if (!$isByIds) {
             JOIN pp_status ps ON ps.id=r.pp_status_id
             JOIN cities c ON c.id=r.city_id
             WHERE {$f['where']}
-            ORDER BY {$f['order']}, r.id";
+            ORDER BY $_orderBy, r.id";
     $st = $db->prepare($sql); 
     $st->execute($params); 
     $rows = $st->fetchAll(PDO::FETCH_ASSOC);
@@ -114,6 +127,7 @@ if ($isByIds) {
       'city'      => 'Rendezés: Város szerint',
       default     => 'Rendezés: Kiadva szerint'
     };
+    if (!empty($A['desc'])) $sortText .= ' (csökkenő)';
     $filtersText = [];
 
     if (!empty($A['q']))        $filtersText[] = "Keresés: '".h($A['q'])."'";
@@ -134,8 +148,12 @@ if ($isByIds) {
 <table>
   <thead>
     <tr>
-      <th>Eventus</th><th>PP-státusz</th><th>Kiadva</th><th>+38 nap</th>
-      <th>Város</th><th>Cím</th><th>Elvégzendő művelet</th>
+      <th><?= _ph('eventus',   'Eventus',    $_sort, $_sortArrow) ?></th>
+      <th><?= _ph('pp_status', 'PP-státusz', $_sort, $_sortArrow) ?></th>
+      <th><?= _ph('issued_at', 'Kiadva',     $_sort, $_sortArrow) ?></th>
+      <th><?= _ph('due_at',    '+38 nap',    $_sort, $_sortArrow) ?></th>
+      <th><?= _ph('city',      'Város',      $_sort, $_sortArrow) ?></th>
+      <th>Cím</th><th>Elvégzendő művelet</th>
     </tr>
   </thead>
   <tbody>
