@@ -967,13 +967,17 @@ public function showExport(): void
   }
 
   $this->view->render('layout/header', ['title' => 'Adatexport', 'user' => $user]);
+  $allEmployees = $employees;
+  usort($allEmployees, fn($a, $b) => strcmp($a['full_name'], $b['full_name']));
+
   $this->view->render('employees/export', [
-    'byDivision'  => $byDivision,
-    'fieldDefs'   => self::EXPORT_FIELD_DEFS,
-    'extraFields' => $this->getActiveExtraFields(),
-    'csrf'        => $this->csrf->token(),
-    'is_admin'    => (($user['role'] ?? '') === 'admin'),
-    'error'       => $_GET['error'] ?? null,
+    'byDivision'   => $byDivision,
+    'allEmployees' => $allEmployees,
+    'fieldDefs'    => self::EXPORT_FIELD_DEFS,
+    'extraFields'  => $this->getActiveExtraFields(),
+    'csrf'         => $this->csrf->token(),
+    'is_admin'     => (($user['role'] ?? '') === 'admin'),
+    'error'        => $_GET['error'] ?? null,
   ]);
   $this->view->render('layout/footer');
 }
