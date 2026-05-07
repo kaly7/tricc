@@ -9,6 +9,11 @@ if (!$id || !isset($_SESSION['_csrf']) || !hash_equals((string)$_SESSION['_csrf'
   flash_set('err','Érvénytelen kérés.'); redirect('admin_tasks.php');
 }
 
+$chk = db()->prepare("SELECT system_key FROM tasks WHERE id=?");
+$chk->execute([$id]);
+$row = $chk->fetch();
+if ($row && $row['system_key']) { flash_set('err','Rendszer-feladat nem törölhető.'); redirect('admin_tasks.php'); }
+db()->prepare("DELETE FROM task_assignments WHERE task_id=?")->execute([$id]);
 db()->prepare("DELETE FROM tasks WHERE id=?")->execute([$id]);
 audit('task_delete','task',$id);
 touch_last_modified();

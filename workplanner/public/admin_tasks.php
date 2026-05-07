@@ -1,80 +1,89 @@
 <?php
 require_once __DIR__ . '/../app/auth.php';
 require_admin();
+
 $page = 'admin_tasks';
 
-$from = $_GET['from'] ?? date('Y-m-d');
-if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $from)) $from = date('Y-m-d');
-$to   = $_GET['to']   ?? date('Y-m-d', strtotime('+14 days'));
-if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $to)) $to = date('Y-m-d', strtotime('+14 days'));
+$validStatuses = ['aktív','passzív','vár','archív'];
+$filterStatus  = in_array($_GET['status'] ?? '', $validStatuses) ? $_GET['status'] : '';
 
-$st = db()->prepare("
-  SELECT t.id, t.title, t.task_date, t.time_from, t.time_to, t.color, t.note,
-         l.name AS location_name,
-         GROUP_CONCAT(e.full_name ORDER BY e.full_name SEPARATOR ', ') AS emp_names
-  FROM tasks t
-  LEFT JOIN locations l ON l.id=t.location_id
-  LEFT JOIN task_assignments ta ON ta.task_id=t.id
-  LEFT JOIN hr.employees e ON e.id=ta.employee_id
-  WHERE t.task_date BETWEEN ? AND ?
-  GROUP BY t.id
-  ORDER BY t.task_date, t.time_from, t.id
-");
-$st->execute([$from, $to]);
+if ($filterStatus) {
+  $st = db()->prepare("SELECT id, title, status, system_key, color, note FROM tasks WHERE status=? ORDER BY system_key IS NULL, title");
+  $st->execute([$filterStatus]);
+} else {
+  $st = db()->query("SELECT id, title, status, system_key, color, note FROM tasks ORDER BY system_key IS NULL, title");
+}
 $tasks = $st->fetchAll();
 
-$empMap = employees_map();
 require __DIR__ . '/_header.php';
 ?>
 
 <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
-  <h1 class="h5 mb-0">Feladatok kezelése</h1>
-  <a class="btn btn-primary btn-sm" href="<?= base_url('admin_task_edit.php') ?>">+ Új feladat</a>
+  <h1 class="h5 mb-0">Feladatbank</h1>
+  <a class="btn btn-sm btn-primary" href="<?= base_url('admin_task_edit.php') ?>">+ Új feladat</a>
 </div>
 
-<form method="get" class="row g-2 mb-3 align-items-end">
-  <div class="col-auto">
-    <label class="form-label small mb-1">Dátumtól</label>
-    <input type="date" name="from" class="form-control form-control-sm" value="<?= e($from) ?>">
+<?php $ok = flash_get('ok'); if ($ok): ?>
+  <div class="alert alert-success alert-dismissible fade show py-2" role="alert">
+    <?= e($ok) ?> <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
   </div>
-  <div class="col-auto">
-    <label class="form-label small mb-1">Dátumig</label>
-    <input type="date" name="to" class="form-control form-control-sm" value="<?= e($to) ?>">
-  </div>
-  <div class="col-auto"><button class="btn btn-outline-secondary btn-sm">Szűrés</button></div>
+<?php endif; ?>
+
+<form class="d-flex gap-2 mb-3 flex-wrap" method="get">
+  <select name="status" class="form-select form-select-sm" style="width:auto">
+    <option value="">Minden státusz</option>
+    <?php foreach (['aktív','passzív','vár','archív'] as $s): ?>
+      <option value="<?= $s ?>" <?= $filterStatus === $s ? 'selected' : '' ?>><?= ucfirst($s) ?></option>
+    <?php endforeach; ?>
+  </select>
+  <button class="btn btn-sm btn-outline-secondary" type="submit">Szűrés</button>
+  <?php if ($filterStatus): ?>
+    <a class="btn btn-sm btn-link" href="?">Összes</a>
+  <?php endif; ?>
 </form>
 
 <?php if (!$tasks): ?>
-  <div class="alert alert-info">Nincs feladat ebben az időszakban.</div>
+  <div class="alert alert-info">Nincs feladat<?= $filterStatus ? ' ebben a státuszban' : '' ?>.
+    <a href="<?= base_url('admin_task_edit.php') ?>">Adj hozzá egyet.</a></div>
 <?php else: ?>
 <div class="card">
   <div class="table-responsive">
     <table class="table table-hover table-sm mb-0">
       <thead class="table-dark">
         <tr>
-          <th style="width:36px"></th>
-          <th>Dátum</th>
-          <th>Időpont</th>
-          <th>Feladat</th>
-          <th>Helyszín</th>
-          <th>Dolgozók</th>
+          <th style="width:32px"></th>
+          <th>Feladat neve</th>
+          <th>Státusz</th>
+          <th>Megjegyzés</th>
           <th></th>
         </tr>
       </thead>
       <tbody>
-        <?php foreach ($tasks as $t): ?>
+        <?php foreach ($tasks as $t):
+          $sysEmoji = match($t['system_key'] ?? '') {
+            'vacation'  => '🌴 ',
+            'sick_leave'=> '🤒 ',
+            default     => '',
+          };
+        ?>
         <tr>
-          <td><span style="display:inline-block;width:22px;height:22px;border-radius:4px;background:<?= e($t['color']) ?>"></span></td>
-          <td class="text-nowrap"><?= e($t['task_date']) ?></td>
-          <td class="text-nowrap text-muted">
-            <?= $t['time_from'] ? fmt_time($t['time_from']) : '—' ?>
-            <?= $t['time_to']   ? '–'.fmt_time($t['time_to']) : '' ?>
+          <td>
+            <span style="display:inline-block;width:22px;height:22px;border-radius:4px;background:<?= e($t['color']) ?>"></span>
           </td>
-          <td class="fw-semibold"><?= e($t['title']) ?></td>
-          <td class="text-muted"><?= e($t['location_name'] ?? '') ?></td>
-          <td class="small text-muted"><?= e($t['emp_names'] ?? '—') ?></td>
+          <td class="fw-semibold">
+            <?= $sysEmoji . e($t['title']) ?>
+            <?php if ($t['system_key']): ?>
+              <span class="badge bg-secondary ms-1" style="font-size:.65rem">rendszer</span>
+            <?php endif; ?>
+          </td>
+          <td><?= status_badge($t['status']) ?></td>
+          <td class="text-muted small"><?= e(mb_strimwidth((string)$t['note'], 0, 60, '…')) ?></td>
           <td class="text-end text-nowrap">
-            <a class="btn btn-sm btn-outline-primary" href="<?= base_url('admin_task_edit.php?id='.(int)$t['id']) ?>">Szerkesztés</a>
+            <?php if (!$t['system_key']): ?>
+              <a class="btn btn-sm btn-outline-secondary" href="<?= base_url('admin_task_edit.php?id='.(int)$t['id']) ?>">Szerkesztés</a>
+            <?php else: ?>
+              <span class="text-muted small">védett</span>
+            <?php endif; ?>
           </td>
         </tr>
         <?php endforeach; ?>

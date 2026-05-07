@@ -57,17 +57,21 @@ $hunMonths = ['','január','február','március','április','május','június','
 
     /* Fejléc */
     .k-hdr  { background: #fff; border-bottom: 1px solid #dee2e6; height: 50px;
-        padding: 0 20px; display: flex; justify-content: space-between; align-items: center; }
+        padding: 0 20px; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; }
     .k-title { font-size: 1.05rem; font-weight: 700; }
     .k-clock { font-size: 1.6rem; font-weight: 700; color: #0d6efd; font-variant-numeric: tabular-nums; }
     .k-date  { font-size: .70rem; color: #6c757d; text-align: right; }
+    .k-lastmod { text-align: center; color: #6c757d; line-height: 1.25; }
+    .k-lastmod-lbl  { font-size: .68rem; }
+    .k-lastmod-time { font-size: .85rem; font-weight: 600; color: #212529; }
+    .k-lastmod-ago  { font-size: .68rem; }
 
-    /* Tábla wrapper */
+    /* Tábla wrapper – magasságát JS állítja be (böngészőfüggetlen) */
     .k-wrap  { height: calc(100vh - 50px); overflow: hidden; background: #ced4da; }
 
-    /* Tábla: kitölti a maradék magasságot */
+    /* Tábla: a wrapper magasságát veszi át */
     .k-table { border-collapse: separate; border-spacing: 2px; width: 100%;
-        height: calc(100vh - 50px); table-layout: fixed; background: #ced4da; }
+        height: 100%; table-layout: fixed; background: #ced4da; }
     .k-table th, .k-table td { border: none; padding: 0; }
 
     /* Fejléc sor */
@@ -93,14 +97,19 @@ $hunMonths = ['','január','február','március','április','május','június','
     .k-emp  { background: #f8f9fa; font-size: var(--k-emp-fs); font-weight: 600; padding: 4px 10px;
         overflow: hidden; word-break: break-word; line-height: 1.25;
         position: sticky; left: 0; z-index: 1; border-right: 2px solid #adb5bd;
-        vertical-align: middle; width: 170px; min-width: 140px; }
+        vertical-align: middle; height: var(--k-cell-h, 60px); }
     .k-emp small { display: block; color: #6c757d; font-weight: 400; font-size: var(--k-emp-sub-fs); line-height: 1.2; }
 
-    /* Nap cellák: egyenlő magasság, kitölti a képernyőt */
+    /* Nap cellák: egyenlő magasság, JS állítja be a --k-cell-h változót */
     .k-cell { background: #fff; vertical-align: top;
         padding: 7px 5px;
-        height: calc((100vh - 82px) / <?= $n ?>); }
+        height: var(--k-cell-h, 60px); }
     .k-cell.k-today { background: #eff6ff; }
+
+    /* Váltakozó sávszínek */
+    .k-table tbody tr:nth-child(even) .k-emp        { background: #e2e8f0; }
+    .k-table tbody tr:nth-child(even) .k-cell       { background: #f1f5f9; }
+    .k-table tbody tr:nth-child(even) .k-cell.k-today { background: #dbeafe; }
 
     /* Fejléc betűméret */
     .k-table thead th { font-size: var(--k-hdr-fs) !important; }
@@ -116,8 +125,35 @@ $hunMonths = ['','január','február','március','április','május','június','
           rgba(0,0,0,.18) 5px, rgba(0,0,0,.18) 7px);
         pointer-events: none; }
     .k-task-time  { font-weight: 700; font-size: .84em; flex-shrink: 0; opacity: .9; }
-    .k-task-title { overflow: hidden; text-overflow: ellipsis; font-weight: 600; }
+    .k-task-title { overflow: hidden; text-overflow: ellipsis; font-weight: 600; min-width: 0; }
     .k-task-loc   { font-size: .76em; opacity: .8; flex-shrink: 0; }
+    /* Egyetlen feladat a cellában: nagyobb betű, törhet a szöveg */
+    .k-cell-flex .k-task:only-child { font-size: calc(var(--k-task-fs) * 1.25); white-space: normal; align-items: flex-start; padding: 6px 12px; }
+    .k-cell-flex .k-task:only-child .k-task-title { white-space: normal; overflow: visible; text-overflow: unset; line-height: 1.3; }
+    .k-task.task-vacation {
+        background: linear-gradient(135deg, #fde68a 0%, #fb923c 100%) !important;
+        color: #7c2d12 !important; font-weight: 700;
+    }
+    .k-task.task-sick {
+        background: linear-gradient(135deg, #e2e8f0 0%, #94a3b8 100%) !important;
+        color: #1e293b !important;
+    }
+    .k-task.task-passive::after {
+        content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+        background: repeating-linear-gradient(-45deg,
+          transparent 0px, transparent 4px,
+          rgba(0,0,0,.20) 4px, rgba(0,0,0,.20) 6px);
+    }
+    .k-task.task-waiting { padding-left: 18px !important; }
+    .k-task.task-waiting::after {
+        content: ''; position: absolute; left: 0; top: 0; bottom: 0;
+        width: 13px; border-radius: 5px 0 0 5px; pointer-events: none;
+        background: repeating-linear-gradient(-45deg,
+          #fbbf24 0px, #fbbf24 5px,
+          #dc2626 5px, #dc2626 10px);
+    }
+    .k-task.task-archived { opacity: .72; }
+    .k-task.task-archived .k-task-title { text-decoration: line-through; }
 
     /* Frissítés sáv */
     .k-rbar { position: fixed; bottom: 0; left: 0; right: 0; height: 3px;
@@ -129,8 +165,17 @@ $hunMonths = ['','január','február','március','április','május','június','
 <body>
 
 <div class="k-hdr">
-  <div class="k-title">📅 Napiterv</div>
-  <div>
+  <div style="display:flex;align-items:center;gap:10px">
+    <div class="k-title">📅 Napiterv</div>
+    <!-- button onclick="showDebug()" style="font-size:.65rem;padding:2px 7px;cursor:pointer;border:1px solid #adb5bd;border-radius:4px;background:#e9ecef;color:#495057">🔍 debug</button>
+    <button onclick="location.reload()" style="font-size:.65rem;padding:2px 7px;cursor:pointer;border:1px solid #adb5bd;border-radius:4px;background:#e9ecef;color:#495057">🔄 frissít</button -->
+  </div>
+  <div class="k-lastmod">
+    <div class="k-lastmod-lbl">Utolsó módosítás</div>
+    <div class="k-lastmod-time" id="klastmod-time">—</div>
+    <div class="k-lastmod-ago"  id="klastmod-ago"></div>
+  </div>
+  <div style="text-align:right">
     <div class="k-clock" id="kclock">--:--</div>
     <div class="k-date" id="kdate"></div>
   </div>
@@ -138,9 +183,15 @@ $hunMonths = ['','január','február','március','április','május','június','
 
 <div class="k-wrap">
 <table class="k-table">
+  <colgroup>
+    <col id="col-name" style="width:170px">
+    <?php foreach ($days as $_): ?>
+    <col>
+    <?php endforeach; ?>
+  </colgroup>
   <thead>
     <tr>
-      <th style="width:170px;min-width:140px">Dolgozó</th>
+      <th id="hdr-name">Dolgozó</th>
       <?php foreach ($days as $d):
         $dow     = (int)(new DateTime($d))->format('N');
         $isToday = ($d === $today);
@@ -169,26 +220,30 @@ $hunMonths = ['','január','február','március','április','május','június','
       ?>
       <td class="k-cell<?= $isToday ? ' k-today' : '' ?>">
         <div class="k-cell-flex">
-          <?php
-          $overlapIds = overlapping_task_ids($cellTasks);
-          foreach ($cellTasks as $t):
-            $timeStr = '';
-            if ($t['time_from']) {
-              $timeStr = fmt_time($t['time_from']);
-              if ($t['time_to']) $timeStr .= '–' . fmt_time($t['time_to']);
-            }
-            $bg  = e($t['color']);
-            $fg  = e(contrast_color($t['color']));
-            $cls = 'k-task' . (isset($overlapIds[$t['id']]) ? ' overlap' : '');
+          <?php foreach ($cellTasks as $t):
+            $isArchiv = ($t['status'] === 'archív');
+            $sysKey   = $t['system_key'] ?? '';
+            $sysCls   = match($sysKey) {
+              'vacation'  => ' task-vacation',
+              'sick_leave'=> ' task-sick',
+              default     => '',
+            };
+            $emoji = match($sysKey) {
+              'vacation'  => '🌴 ',
+              'sick_leave'=> '🤒 ',
+              default     => '',
+            };
+            $statusCls = match($t['status']) {
+              'passzív' => ' task-passive',
+              'vár'     => ' task-waiting',
+              'archív'  => ' task-archived',
+              default   => '',
+            };
+            $bg  = $isArchiv ? '#9ca3af' : e($t['color']);
+            $fg  = $isArchiv ? '#ffffff'  : e(contrast_color($t['color']));
           ?>
-          <div class="<?= $cls ?>" style="background:<?= $bg ?>;color:<?= $fg ?>">
-            <?php if ($timeStr): ?>
-              <span class="k-task-time"><?= e($timeStr) ?></span>
-            <?php endif; ?>
-            <span class="k-task-title"><?= e($t['title']) ?></span>
-            <?php if ($t['location_name']): ?>
-              <span class="k-task-loc">· <?= e($t['location_name']) ?></span>
-            <?php endif; ?>
+          <div class="k-task<?= $sysCls . $statusCls ?>" style="background:<?= $bg ?>;color:<?= $fg ?>">
+            <span class="k-task-title"><?= $emoji . e($t['title']) ?></span>
           </div>
           <?php endforeach; ?>
         </div>
@@ -203,7 +258,9 @@ $hunMonths = ['','január','február','március','április','május','június','
 <div class="k-rbar"></div>
 
 <script>
-const LAST_MOD = <?= $lastMod ?>;
+let LAST_MOD      = <?= $lastMod ?>;
+let LAST_MOD_DATE = <?= json_encode(get_last_modified_date()) ?>;
+const KIOSK_DAYS  = <?= json_encode($days) ?>;
 
 function tick() {
   const now = new Date();
@@ -214,10 +271,48 @@ function tick() {
 }
 tick(); setInterval(tick, 1000);
 
+function updateLastMod() {
+  if (!LAST_MOD) return;
+  const d       = new Date(LAST_MOD * 1000);
+  const hhmm    = d.toLocaleTimeString('hu-HU', {hour: '2-digit', minute: '2-digit'});
+  const diffMin = Math.round((Date.now() - d) / 60000);
+  const ago     = diffMin < 1  ? 'éppen most' :
+                  diffMin < 60 ? diffMin + ' perccel ezelőtt' :
+                  Math.floor(diffMin / 60) + ' órával ezelőtt';
+  const onPage  = !LAST_MOD_DATE || KIOSK_DAYS.includes(LAST_MOD_DATE);
+  document.getElementById('klastmod-time').textContent = hhmm;
+  document.getElementById('klastmod-ago').textContent  =
+    onPage ? ago : ago + ' · más lapon';
+}
+updateLastMod();
+setInterval(updateLastMod, 30000);
+
+const N_EMPS = <?= $n ?>;
+
 function fitFonts() {
   const R = document.documentElement;
 
-  // 1. Feladat sávok: minden téglalaphoz egyedi optimális betűméret
+  // 1. Fejléc dátum betűméret (előbb fut, hogy helyes thead-magasságot mérjünk utána)
+  const thDate = document.querySelector('.k-table thead th:nth-child(2)');
+  if (thDate) {
+    const r = thDate.getBoundingClientRect();
+    R.style.setProperty('--k-hdr-fs',
+      Math.max(8, Math.min(r.width / 10, r.height * 0.65, 24)).toFixed(1) + 'px');
+  }
+
+  // 2. Cella magasság: a CSS már kiszámolta a wrapper magasságát (calc(100vh-50px)),
+  // mi csak a tényleges thead magasságát mérjük és ebből vonjuk le.
+  // Így elkerüljük a window.innerHeight / clientHeight böngészőnkénti eltérését.
+  const wrapEl  = document.querySelector('.k-wrap');
+  const theadEl = document.querySelector('.k-table thead');
+  const wrapH   = wrapEl  ? wrapEl.clientHeight  : (window.innerHeight - 50);
+  const thH     = theadEl ? theadEl.clientHeight  : 32;
+  const sp      = 2;
+  const avail   = wrapH - thH - (N_EMPS + 1) * sp;
+  const cellH   = Math.max(30, Math.floor(avail / N_EMPS));
+  R.style.setProperty('--k-cell-h', cellH + 'px');
+
+  // 3. Feladat sávok: minden téglalaphoz egyedi optimális betűméret
   const cvs = document.createElement('canvas').getContext('2d');
   document.querySelectorAll('.k-task').forEach(el => {
     const r = el.getBoundingClientRect();
@@ -226,7 +321,6 @@ function fitFonts() {
     const availH = r.height;
     const availW = r.width - 28; // padding (12px × 2) + gap tartalék
 
-    // Teljes szöveg összefűzve (így mérjük a szélességet)
     const timeEl  = el.querySelector('.k-task-time');
     const titleEl = el.querySelector('.k-task-title');
     const locEl   = el.querySelector('.k-task-loc');
@@ -236,7 +330,6 @@ function fitFonts() {
       locEl   ? '· ' + locEl.textContent.trim() : '',
     ].filter(Boolean).join('  ');
 
-    // Bináris keresés: max fs ahol magasság és szélesség is megfelel
     let lo = 9, hi = Math.min(availH * 0.68, 48);
     while (hi - lo > 0.4) {
       const mid = (lo + hi) / 2;
@@ -246,67 +339,117 @@ function fitFonts() {
     el.style.fontSize = Math.max(9, lo).toFixed(1) + 'px';
   });
 
-  // 2. Dolgozó névsáv: canvas-alapú bináris keresés – DOM reflow nélkül
+  // 4. Dolgozó névsáv: canvas-alapú bináris keresés
   const empCells = document.querySelectorAll('td.k-emp');
   if (empCells.length) {
-    const r      = empCells[0].getBoundingClientRect();
-    const availW = r.width - 20;   // padding levonva
-    const availH = r.height - 8;   // padding levonva
-    const LH     = 1.25;           // line-height
+    const LH = 1.25;
 
-    // Szövegek kiszedése (small tag nélkül)
     const names = Array.from(empCells).map(cell => {
       const small = cell.querySelector('small');
-      return small
-        ? cell.textContent.replace(small.textContent, '').trim()
-        : cell.textContent.trim();
+      return small ? cell.textContent.replace(small.textContent, '').trim()
+                   : cell.textContent.trim();
     });
-    // Divíziók (small tagok)
     const subs = Array.from(empCells).map(cell => {
       const s = cell.querySelector('small');
       return s ? s.textContent.trim() : '';
     });
 
-    // Canvas mérés – nincs layout reflow
-    const cvs = document.createElement('canvas').getContext('2d');
-    function textW(text, fs, weight) {
-      cvs.font = `${weight} ${fs}px system-ui,sans-serif`;
-      return cvs.measureText(text).width;
+    const cvs2 = document.createElement('canvas').getContext('2d');
+    function textW(txt, fs, weight) {
+      cvs2.font = `${weight} ${fs}px system-ui,sans-serif`;
+      return cvs2.measureText(txt).width;
     }
-    function fits(fs) {
+
+    const availH  = cellH - 8;  // cellH a 2. lépésből – nem DOM-mérés, elkerüli a körkörös függőséget
+    const maxColW = Math.min(Math.round(window.innerWidth * 0.30), 260);
+
+    function fitsInCol(fs, colW) {
+      const aW = colW - 20;
       return names.every((name, i) => {
-        const nameLines = Math.ceil(textW(name, fs, '600') / availW);
-        const subLines  = subs[i] ? Math.ceil(textW(subs[i], fs * 0.78, '400') / availW) : 0;
+        const nameLines = Math.ceil(textW(name, fs, '600') / aW);
+        if (nameLines > 2) return false;
+        const subLines = subs[i] ? Math.ceil(textW(subs[i], fs * 0.78, '400') / aW) : 0;
+        if (subLines > 1) return false;
         return (nameLines + subLines) * fs * LH <= availH;
       });
     }
 
-    // Bináris keresés: max fs ahol még minden név belefér
+    let colW = 170;
     let lo = 8, hi = 26;
     while (hi - lo > 0.4) {
       const mid = (lo + hi) / 2;
-      if (fits(mid)) lo = mid; else hi = mid;
+      if (fitsInCol(mid, colW)) lo = mid; else hi = mid;
     }
+    if (lo <= 8.4) {
+      for (let w = 190; w <= maxColW; w += 10) {
+        let lo2 = 8, hi2 = 26;
+        while (hi2 - lo2 > 0.4) {
+          const mid = (lo2 + hi2) / 2;
+          if (fitsInCol(mid, w)) lo2 = mid; else hi2 = mid;
+        }
+        if (lo2 > 8.4) { colW = w; lo = lo2; break; }
+      }
+    }
+
+    const nameCol = document.getElementById('col-name');
+    const hdrName = document.getElementById('hdr-name');
+    if (nameCol) nameCol.style.width = colW + 'px';
+    if (hdrName) hdrName.style.width = colW + 'px';
+
     const empFs = Math.max(8, lo);
     R.style.setProperty('--k-emp-fs',     empFs.toFixed(1) + 'px');
     R.style.setProperty('--k-emp-sub-fs', Math.max(7, empFs * 0.78).toFixed(1) + 'px');
   }
-
-  // 3. Fejléc dátumok: th szélesség és magasság alapján
-  const th = document.querySelector('.k-table thead th:nth-child(2)');
-  if (th) {
-    const r    = th.getBoundingClientRect();
-    const hFs  = Math.max(8, Math.min(r.width / 10, r.height * 0.65, 24));
-    R.style.setProperty('--k-hdr-fs', hFs.toFixed(1) + 'px');
-  }
 }
 
-window.addEventListener('load', fitFonts);
+// requestAnimationFrame: garantálja, hogy a DOM teljesen renderelt legyen (Chromiumban fontos)
+window.addEventListener('load', () => requestAnimationFrame(fitFonts));
 window.addEventListener('resize', fitFonts);
+
+function showDebug() {
+  const wrapEl  = document.querySelector('.k-wrap');
+  const theadEl = document.querySelector('.k-table thead');
+  const hdrEl   = document.querySelector('.k-hdr');
+  const cs      = getComputedStyle(document.documentElement);
+  const lines = [
+    '=== KIOSK DEBUG ===',
+    'window.innerHeight:       ' + window.innerHeight,
+    'window.innerWidth:        ' + window.innerWidth,
+    'doc.documentElement.clientHeight: ' + document.documentElement.clientHeight,
+    'doc.documentElement.clientWidth:  ' + document.documentElement.clientWidth,
+    'devicePixelRatio:         ' + window.devicePixelRatio,
+    '',
+    '.k-hdr  offsetHeight:     ' + (hdrEl  ? hdrEl.offsetHeight  : 'N/A'),
+    '.k-hdr  clientHeight:     ' + (hdrEl  ? hdrEl.clientHeight  : 'N/A'),
+    '.k-hdr  getBCR().height:  ' + (hdrEl  ? hdrEl.getBoundingClientRect().height.toFixed(2) : 'N/A'),
+    '',
+    '.k-wrap offsetHeight:     ' + (wrapEl ? wrapEl.offsetHeight : 'N/A'),
+    '.k-wrap clientHeight:     ' + (wrapEl ? wrapEl.clientHeight : 'N/A'),
+    '.k-wrap getBCR().height:  ' + (wrapEl ? wrapEl.getBoundingClientRect().height.toFixed(2) : 'N/A'),
+    '',
+    'thead   offsetHeight:     ' + (theadEl ? theadEl.offsetHeight : 'N/A'),
+    'thead   clientHeight:     ' + (theadEl ? theadEl.clientHeight : 'N/A'),
+    'thead   getBCR().height:  ' + (theadEl ? theadEl.getBoundingClientRect().height.toFixed(2) : 'N/A'),
+    '',
+    'N_EMPS:                   ' + N_EMPS,
+    '--k-cell-h (CSS var):     ' + cs.getPropertyValue('--k-cell-h').trim(),
+    '--k-emp-fs (CSS var):     ' + cs.getPropertyValue('--k-emp-fs').trim(),
+    '--k-hdr-fs (CSS var):     ' + cs.getPropertyValue('--k-hdr-fs').trim(),
+    '',
+    'html zoom style:          ' + (document.documentElement.style.zoom || '(nincs)'),
+    'userAgent:                ' + navigator.userAgent,
+  ];
+  alert(lines.join('\n'));
+}
 
 setInterval(() => {
   fetch('kiosk_check.php').then(r => r.json()).then(d => {
-    if (d.last_modified > LAST_MOD) location.reload();
+    if (d.last_modified > LAST_MOD) {
+      LAST_MOD      = d.last_modified;
+      LAST_MOD_DATE = d.last_modified_date || '';
+      updateLastMod();
+      location.reload();
+    }
   }).catch(() => {});
 }, <?= $kioskRefresh * 1000 ?>);
 

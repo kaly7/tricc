@@ -52,11 +52,23 @@ function audit(string $action, string $entityType = '', int $entityId = 0, array
   } catch (Throwable) {}
 }
 
-function touch_last_modified(): void {
+function touch_last_modified(string $date = ''): void {
   try {
-    db()->prepare("INSERT INTO config (k,v) VALUES ('last_modified',?) ON DUPLICATE KEY UPDATE v=VALUES(v)")
-       ->execute([time()]);
+    $pdo = db();
+    $pdo->prepare("INSERT INTO config (k,v) VALUES ('last_modified',?) ON DUPLICATE KEY UPDATE v=VALUES(v)")
+        ->execute([time()]);
+    if ($date) {
+      $pdo->prepare("INSERT INTO config (k,v) VALUES ('last_modified_date',?) ON DUPLICATE KEY UPDATE v=VALUES(v)")
+          ->execute([$date]);
+    }
   } catch (Throwable) {}
+}
+
+function get_last_modified_date(): string {
+  try {
+    $v = db()->query("SELECT v FROM config WHERE k='last_modified_date'")->fetchColumn();
+    return $v ? (string)$v : '';
+  } catch (Throwable) { return ''; }
 }
 
 function get_last_modified(): int {
@@ -77,7 +89,6 @@ function get_employees(): array {
     $placeholders = implode(',', array_fill(0, count($ids), '?'));
     $st = db_hr()->prepare("SELECT id, full_name, company_division FROM employees WHERE id IN ($placeholders) AND is_active=1 ORDER BY full_name");
     $st->execute($ids);
-    // sort_order szerinti sorrend megtartása
     $byId = [];
     foreach ($st->fetchAll() as $e) $byId[(int)$e['id']] = $e;
     $emps = array_values(array_filter(array_map(fn($id) => $byId[$id] ?? null, $ids)));
@@ -101,15 +112,70 @@ function employees_map(): array {
   return $map;
 }
 
-// ── Helyszínek ──────────────────────────────────────────
-function get_locations(): array {
-  return db()->query("SELECT id, name, color FROM locations ORDER BY use_count DESC, name")->fetchAll();
+// ── Feladatbank lekérése ────────────────────────────────
+// $statuses: ha üres, mindent visszaad; ha tömb, csak azokat a státuszokat
+function get_tasks_bank(array $statuses = []): array {
+  try {
+    if ($statuses) {
+      $ph = implode(',', array_fill(0, count($statuses), '?'));
+      $st = db()->prepare("SELECT id, title, status, system_key, color, note FROM tasks WHERE status IN ($ph) ORDER BY title");
+      $st->execute($statuses);
+    } else {
+      $st = db()->query("SELECT id, title, status, system_key, color, note FROM tasks ORDER BY title");
+    }
+    return $st->fetchAll();
+  } catch (Throwable) { return []; }
+}
+
+// ── Feladatok lekérése dátumtartományra ─────────────────
+function get_tasks_for_days(array $days): array {
+  if (!$days) return [];
+  $placeholders = implode(',', array_fill(0, count($days), '?'));
+  $st = db()->prepare("
+    SELECT t.id, t.title, t.status, t.system_key, t.color, t.note,
+           ta.id AS assignment_id, ta.employee_id, ta.task_date
+    FROM task_assignments ta
+    JOIN tasks t ON t.id = ta.task_id
+    WHERE ta.task_date IN ($placeholders)
+    ORDER BY ta.task_date, t.title, ta.employee_id
+  ");
+  $st->execute($days);
+  return $st->fetchAll();
+}
+
+// ── Feladatok indexelve: [date][employee_id] = [task, ...] ─
+function index_tasks(array $tasks): array {
+  $idx = [];
+  foreach ($tasks as $t) {
+    $idx[$t['task_date']][(int)$t['employee_id']][] = $t;
+  }
+  return $idx;
+}
+
+// ── Munkanapok (hétfő–péntek + tervezett hétvégi munkák) ─
+function work_days(string $from, int $count = 5): array {
+  $st = db()->prepare("SELECT DISTINCT task_date FROM task_assignments WHERE task_date >= ? AND DAYOFWEEK(task_date) IN (1,7) ORDER BY task_date");
+  $st->execute([$from]);
+  $weekendWithTasks = array_column($st->fetchAll(), 'task_date');
+
+  $days  = [];
+  $date  = new DateTime($from);
+  $added = 0;
+  while ($added < $count) {
+    $dow = (int)$date->format('N');
+    $ds  = $date->format('Y-m-d');
+    if ($dow <= 5 || in_array($ds, $weekendWithTasks, true)) {
+      $days[] = $ds;
+      $added++;
+    }
+    $date->modify('+1 day');
+  }
+  return $days;
 }
 
 // ── Szín generálás HSL golden-angle alapon ──────────────
 function generate_color(int $index): string {
   $hue = fmod($index * 137.508, 360);
-  // HSL → RGB (s=0.6, l=0.52)
   $s = 0.60; $l = 0.52;
   $c = (1 - abs(2 * $l - 1)) * $s;
   $x = $c * (1 - abs(fmod($hue / 60, 2) - 1));
@@ -123,106 +189,16 @@ function generate_color(int $index): string {
     4 => [$x, 0, $c],
     default => [$c, 0, $x],
   };
-  $r = (int)(($r1 + $m) * 255);
-  $g = (int)(($g1 + $m) * 255);
-  $b = (int)(($b1 + $m) * 255);
-  return sprintf('#%02x%02x%02x', $r, $g, $b);
+  return sprintf('#%02x%02x%02x',
+    (int)(($r1 + $m) * 255),
+    (int)(($g1 + $m) * 255),
+    (int)(($b1 + $m) * 255)
+  );
 }
 
-// ── Következő szabad szín (amit még nem használ helyszín) ─
-function next_location_color(): string {
-  $count = (int)db()->query("SELECT COUNT(*) FROM locations")->fetchColumn();
+function next_task_color(): string {
+  $count = (int)db()->query("SELECT COUNT(*) FROM tasks")->fetchColumn();
   return generate_color($count);
-}
-
-// ── Munkanapok (hétfő–péntek + tervezett hétvégi munkák) ─
-function work_days(string $from, int $count = 5): array {
-  // Lekérjük azokat a hétvégi napokat amikre van feladat
-  $st = db()->prepare("SELECT DISTINCT task_date FROM tasks WHERE task_date >= ? AND DAYOFWEEK(task_date) IN (1,7) ORDER BY task_date");
-  $st->execute([$from]);
-  $weekendWithTasks = array_column($st->fetchAll(), 'task_date');
-
-  $days  = [];
-  $date  = new DateTime($from);
-  $added = 0;
-  while ($added < $count) {
-    $dow = (int)$date->format('N'); // 1=hétfő, 7=vasárnap
-    $ds  = $date->format('Y-m-d');
-    if ($dow <= 5 || in_array($ds, $weekendWithTasks, true)) {
-      $days[] = $ds;
-      $added++;
-    }
-    $date->modify('+1 day');
-  }
-  return $days;
-}
-
-// ── Feladatok lekérése dátumtartományra ─────────────────
-function get_tasks_for_days(array $days): array {
-  if (!$days) return [];
-  $placeholders = implode(',', array_fill(0, count($days), '?'));
-  $st = db()->prepare("
-    SELECT t.id, t.title, t.task_date, t.time_from, t.time_to, t.color, t.note,
-           t.location_id, l.name AS location_name,
-           GROUP_CONCAT(ta.employee_id ORDER BY ta.employee_id) AS employee_ids
-    FROM tasks t
-    LEFT JOIN locations l ON l.id = t.location_id
-    LEFT JOIN task_assignments ta ON ta.task_id = t.id
-    WHERE t.task_date IN ($placeholders)
-    GROUP BY t.id
-    ORDER BY t.task_date, t.time_from, t.id
-  ");
-  $st->execute($days);
-  $rows = $st->fetchAll();
-  // employee_ids string → array
-  foreach ($rows as &$r) {
-    $r['employee_ids'] = $r['employee_ids'] ? array_map('intval', explode(',', $r['employee_ids'])) : [];
-  }
-  return $rows;
-}
-
-// ── Feladatok indexelve: [date][employee_id] = [task, ...] ─
-function index_tasks(array $tasks): array {
-  $idx = [];
-  foreach ($tasks as $t) {
-    foreach ($t['employee_ids'] as $eid) {
-      $idx[$t['task_date']][$eid][] = $t;
-    }
-  }
-  return $idx;
-}
-
-// ── Időpont formázás ────────────────────────────────────
-function fmt_time(?string $t): string {
-  return $t ? substr($t, 0, 5) : '';
-}
-
-// ── Perc konverzió ──────────────────────────────────────
-function task_time_to_min(string $t): int {
-  [$h, $m] = array_map('intval', explode(':', substr($t, 0, 5)));
-  return $h * 60 + $m;
-}
-
-// ── Átfedő feladatok ID-je (egy cella task tömbjéből) ───
-// Visszaadja azon task ID-k halmazát, amelyek legalább egy másikkal átfednek.
-function overlapping_task_ids(array $tasks): array {
-  $result = [];
-  $n      = count($tasks);
-  for ($i = 0; $i < $n; $i++) {
-    for ($j = $i + 1; $j < $n; $j++) {
-      $a     = $tasks[$i];
-      $b     = $tasks[$j];
-      $aFrom = !empty($a['time_from']) ? task_time_to_min($a['time_from']) : 0;
-      $aTo   = !empty($a['time_to'])   ? task_time_to_min($a['time_to'])   : 1440;
-      $bFrom = !empty($b['time_from']) ? task_time_to_min($b['time_from']) : 0;
-      $bTo   = !empty($b['time_to'])   ? task_time_to_min($b['time_to'])   : 1440;
-      if ($aFrom < $bTo && $bFrom < $aTo) {
-        $result[$a['id']] = true;
-        $result[$b['id']] = true;
-      }
-    }
-  }
-  return $result;
 }
 
 // ── Szín kontrasztja (fekete vagy fehér szöveg) ─────────
@@ -233,18 +209,45 @@ function contrast_color(string $hex): string {
   return $lum > 0.55 ? '#1a1a1a' : '#ffffff';
 }
 
-// ── Feladatkártya HTML ──────────────────────────────────
+// ── Feladatkártya HTML (my_tasks.php-hez) ───────────────
 function task_card(array $t, bool $adminLinks = false): string {
-  $bg   = e($t['color']);
-  $fg   = e(contrast_color($t['color']));
-  $time = fmt_time($t['time_from']);
-  if ($t['time_to']) $time .= '–' . fmt_time($t['time_to']);
-  $loc  = $t['location_name'] ? ' · ' . e($t['location_name']) : '';
-  $edit = $adminLinks ? '<a href="'.base_url('admin_task_edit.php?id='.((int)$t['id'])).'" class="wp-card-edit" title="Szerkesztés">✎</a>' : '';
-  return '<div class="wp-card" style="background:'.$bg.';color:'.$fg.'" title="'.e($t['note'] ?? '').'">'
+  $isArchiv  = ($t['status'] ?? '') === 'archív';
+  $sysKey    = $t['system_key'] ?? '';
+  $sysCls    = match($sysKey) {
+    'vacation'   => ' task-vacation',
+    'sick_leave' => ' task-sick',
+    default      => '',
+  };
+  $statusCls = match($t['status'] ?? '') {
+    'passzív' => ' task-passive',
+    'vár'     => ' task-waiting',
+    'archív'  => ' task-archived',
+    default   => '',
+  };
+  $emoji = match($sysKey) {
+    'vacation'   => '🌴 ',
+    'sick_leave' => '🤒 ',
+    default      => '',
+  };
+  $bg  = $isArchiv ? '#9ca3af' : e($t['color']);
+  $fg  = $isArchiv ? '#ffffff'  : e(contrast_color($t['color']));
+  $edit = ($adminLinks && !$sysKey)
+    ? '<a href="'.base_url('admin_task_edit.php?id='.((int)$t['id'])).'" class="tl-edit-lnk" title="Szerkesztés">✎</a>'
+    : '';
+  return '<div class="tl-task'.$statusCls.$sysCls.'" style="background:'.$bg.';color:'.$fg.'">'
        . $edit
-       . ($time ? '<span class="wp-time">'.$time.'</span> ' : '')
-       . '<span class="wp-title">'.e($t['title']).'</span>'
-       . ($t['location_name'] ? '<span class="wp-loc">'.$loc.'</span>' : '')
+       . '<span class="tl-task-title">'.$emoji.e($t['title']).'</span>'
        . '</div>';
+}
+
+// ── Státusz badge HTML ───────────────────────────────────
+function status_badge(string $status): string {
+  $map = [
+    'aktív'   => 'success',
+    'passzív' => 'secondary',
+    'vár'     => 'warning',
+    'archív'  => 'dark',
+  ];
+  $cls = $map[$status] ?? 'secondary';
+  return '<span class="badge bg-' . $cls . '">' . e($status) . '</span>';
 }
