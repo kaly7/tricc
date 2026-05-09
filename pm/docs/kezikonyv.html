@@ -317,6 +317,7 @@
           <li><a href="#munkanapok">Munkanap / Ünnepnap</a></li>
           <li><a href="#migracio">Adatbázis migráció</a></li>
           <li><a href="#frissites">Rendszer frissítés</a></li>
+          <li><a href="#fm-naplo">Fleet Manager kommunikációs napló</a></li>
         </ol>
       </li>
       <li><a href="#job-eletciklus">Job életciklusa</a></li>
@@ -573,6 +574,41 @@
   <div class="box danger">
     <div class="box-title">Figyelem</div>
     A frissítés felülírja a ZIP-ben szereplő fájlokat. Az adatbázis és a konfigurációs adatok (pl. célpontok, felhasználók) érintetlenek maradnak – ezek az adatbázisban vannak tárolva.
+  </div>
+
+  <h3 id="fm-naplo">6.9 Fleet Manager kommunikációs napló</h3>
+  <p>A rendszer minden Fleet Manager felé irányuló státuszlekérdezést naplóz. Ez lehetővé teszi, hogy ellenőrizni lehessen a kommunikáció működését – különösen hasznos az első üzembe helyezéskor vagy ha a job-ok státusza nem frissül megfelelően.</p>
+
+  <h4>Mit tartalmaz a napló?</h4>
+  <p>Minden bejegyzés tartalmazza:</p>
+  <ul>
+    <li><strong>Időbélyeg</strong> – mikor futott a lekérdezés</li>
+    <li><strong>Lekérdezett job ID-k</strong> – melyik aktív job-okra kérdezett rá</li>
+    <li><strong>Fleet Manager nyers válasz</strong> – a Telnet kapcsolaton kapott sorok (QueueQuery eredmények)</li>
+    <li><strong>Feldolgozott eredmény</strong> – melyik job milyen státuszba került (completed, cancelled, failed)</li>
+  </ul>
+
+  <div class="box info">
+    <div class="box-title">Kapcsolati hiba esetén</div>
+    Ha a Fleet Manager nem elérhető, vagy a Telnet kapcsolat meghiúsul, a napló ezt is rögzíti – így a bejegyzésből egyértelműen kiderül, hogy kommunikációs probléma áll-e fenn.
+  </div>
+
+  <h4>A napló elérése</h4>
+  <ol class="steps">
+    <li>Lépj be adminisztrátori fiókkal.</li>
+    <li>A főmenüből nyisd meg: <strong>Setup → Rendszer frissítés</strong> oldal.</li>
+    <li>Görgess le a <em>Fleet Manager kommunikációs napló</em> szekcióig.</li>
+    <li>Az utolsó 60 naplósor azonnal olvasható a képernyőn.</li>
+    <li>A <strong>Letöltés</strong> gombbal a teljes napló <code>.log</code> fájlként menthető.</li>
+    <li>A <strong>Napló törlése</strong> gombbal törölhető a napló tartalma (a jövőbeli bejegyzések ettől nem érintődnek).</li>
+  </ol>
+
+  <h4>Méretkorlát</h4>
+  <p>A naplófájl mérete automatikusan kezelt: ha meghaladja a 512 KB-ot, a legrégebbi bejegyzések törlődnek, a legfrissebb 60% megmarad. Manuálisan is törölhető bármikor a <em>Napló törlése</em> gombbal.</p>
+
+  <div class="box tip">
+    <div class="box-title">Hibaelhárítási tipp</div>
+    Ha a robot job-ok nem frissülnek automatikusan, a napló az első helyen, ahol ellenőrizni érdemes. Ha a <em>FM válasz</em> sorokban <code>Connection refused</code> vagy üres válasz látható, a Fleet Manager hálózati elérhetőségét kell vizsgálni.
   </div>
 
   <hr>
