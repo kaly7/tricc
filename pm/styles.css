@@ -50,14 +50,11 @@ a:hover { text-decoration: underline; }
 .logo-honeywell {
     height: 38px;
     width: auto;
-    filter: brightness(0) invert(1);
 }
 
 .logo-omron {
     height: 30px;
     width: auto;
-    filter: brightness(0) invert(1);
-    opacity: 0.85;
 }
 
 .pm-header-title {
