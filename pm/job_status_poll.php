@@ -41,7 +41,7 @@ $lock_running = file_exists($lock_file) && (time() - filemtime($lock_file)) < 30
 
 if (!empty($active_jobs) && !$lock_running) {
     $args = implode(' ', array_map('escapeshellarg', $active_jobs));
-    exec("/var/www/html/pm/query_multi.pl $args > /dev/null 2>&1 &");
+    exec("perl /var/www/html/pm/query_multi.pl $args > /dev/null 2>&1 &");
     echo json_encode([
         'status'    => 'polling',
         'completed' => $completed,

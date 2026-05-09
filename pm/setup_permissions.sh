@@ -89,7 +89,8 @@ chmod 755 \
     "$PM_DIR/go.pl" \
     "$PM_DIR/goals.pl" \
     "$PM_DIR/goal_indit.sh" \
-    "$PM_DIR/ntp_check.sh"
+    "$PM_DIR/ntp_check.sh" \
+    "$PM_DIR/query_multi.pl"
 
 echo "[OK] Shell/Perl scriptek: 755"
 
