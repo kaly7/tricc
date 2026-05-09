@@ -1,0 +1,628 @@
+<!doctype html>
+<html lang="hu">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Robot Fleet Manager – Felhasználói kézikönyv</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+
+    body {
+      font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+      font-size: 10.5pt;
+      color: #212529;
+      background: #fff;
+      margin: 0;
+      padding: 0;
+      line-height: 1.55;
+    }
+
+    .container {
+      max-width: 840px;
+      margin: 0 auto;
+      padding: 14mm 12mm;
+    }
+
+    /* ---- Fejléc sáv (nyomtatásnál látható) ---- */
+    .doc-header {
+      background: #111;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      padding: 10px 28px;
+      border-bottom: 3px solid #EE3124;
+    }
+    .doc-header-title {
+      font-size: 13pt;
+      font-weight: 700;
+      letter-spacing: .02em;
+      flex: 1;
+      text-align: center;
+    }
+    .doc-header-brand {
+      font-size: 8.5pt;
+      color: #aaa;
+      white-space: nowrap;
+    }
+    .back-btn {
+      display: inline-block;
+      padding: 6px 18px;
+      background: #EE3124;
+      color: #fff;
+      border-radius: 5px;
+      font-size: 10pt;
+      font-weight: bold;
+      text-decoration: none;
+      cursor: pointer;
+      border: none;
+    }
+    .back-btn:hover { background: #c62828; color: #fff; text-decoration: none; }
+
+    /* ---- Borító ---- */
+    .cover {
+      text-align: center;
+      padding: 32px 0 26px;
+      border-bottom: 2px solid #111;
+      margin-bottom: 28px;
+    }
+    .cover-logo-bar {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 32px;
+      margin-bottom: 20px;
+    }
+    .cover-logo-hw {
+      height: 36px;
+      width: auto;
+    }
+    .cover-logo-om {
+      height: 28px;
+      width: auto;
+      opacity: .75;
+    }
+    .cover h1 { font-size: 22pt; margin: 0 0 6px; color: #111; }
+    .cover .sub { font-size: 11.5pt; color: #555; }
+    .cover .version { font-size: 9pt; color: #aaa; margin-top: 10px; }
+    .cover .accent-line {
+      display: block;
+      width: 60px;
+      height: 3px;
+      background: #EE3124;
+      margin: 14px auto 0;
+      border-radius: 2px;
+    }
+
+    /* ---- Tartalomjegyzék ---- */
+    .toc { margin-bottom: 28px; }
+    .toc h2 { font-size: 13pt; border-bottom: 1px solid #dee2e6; padding-bottom: 4px; margin-bottom: 10px; }
+    .toc ol { padding-left: 18px; margin: 0; }
+    .toc li { margin: 3px 0; font-size: 10pt; }
+    .toc a { color: #EE3124; text-decoration: none; }
+    .toc a:hover { text-decoration: underline; }
+
+    /* ---- Fejezetek ---- */
+    h2.ch {
+      font-size: 14pt;
+      margin: 30px 0 10px;
+      padding: 7px 12px;
+      background: #f8f9fa;
+      border-left: 4px solid #EE3124;
+      border-radius: 0 4px 4px 0;
+      page-break-after: avoid;
+    }
+    h2.ch.blue  { border-left-color: #007BC2; }
+    h2.ch.dark  { border-left-color: #37474F; }
+
+    h3 { font-size: 11.5pt; margin: 18px 0 7px; color: #343a40; page-break-after: avoid; }
+    h4 { font-size: 10.5pt; margin: 14px 0 5px; color: #495057; page-break-after: avoid; }
+
+    p { margin: 0 0 8px; }
+    ul, ol { margin: 0 0 8px; padding-left: 20px; }
+    li { margin-bottom: 3px; }
+
+    /* ---- Info boxok ---- */
+    .box {
+      border: 1px solid #dee2e6;
+      border-radius: 5px;
+      padding: 10px 14px;
+      margin: 10px 0;
+    }
+    .box.info   { border-color: #007BC2; background: #f0f7ff; }
+    .box.warn   { border-color: #ffc107; background: #fffdf0; }
+    .box.tip    { border-color: #198754; background: #f0fff4; }
+    .box.danger { border-color: #EE3124; background: #fff5f5; }
+    .box-title  { font-weight: bold; font-size: 9.5pt; text-transform: uppercase; letter-spacing: .04em; margin-bottom: 4px; }
+    .box.info   .box-title { color: #005a9e; }
+    .box.warn   .box-title { color: #856404; }
+    .box.tip    .box-title { color: #146c43; }
+    .box.danger .box-title { color: #b02a37; }
+
+    /* ---- Táblázatok ---- */
+    table { width: 100%; border-collapse: collapse; margin: 10px 0; font-size: 9.5pt; }
+    th { background: #f1f3f5; padding: 5px 8px; text-align: left; border: 1px solid #dee2e6; font-weight: bold; }
+    td { padding: 4px 8px; border: 1px solid #e9ecef; vertical-align: top; }
+    tr:nth-child(even) td { background: #fafafa; }
+
+    /* ---- Badge-ek ---- */
+    .badge {
+      display: inline-block;
+      padding: 2px 9px;
+      border-radius: 12px;
+      font-size: 8.5pt;
+      font-weight: bold;
+      white-space: nowrap;
+    }
+    .badge-admin  { background: #EE3124; color: #fff; }
+    .badge-jog    { background: #007BC2; color: #fff; }
+    .badge-user   { background: #37474F; color: #fff; }
+    .badge-ok     { background: #198754; color: #fff; }
+    .badge-warn   { background: #ffc107; color: #212529; }
+
+    /* ---- Lépéslista ---- */
+    .steps { counter-reset: step; padding: 0; list-style: none; }
+    .steps li {
+      counter-increment: step;
+      padding: 5px 5px 5px 34px;
+      position: relative;
+      margin-bottom: 4px;
+    }
+    .steps li::before {
+      content: counter(step);
+      position: absolute; left: 0; top: 5px;
+      width: 24px; height: 24px;
+      background: #EE3124; color: #fff;
+      border-radius: 50%;
+      font-size: 8.5pt; font-weight: bold;
+      display: flex; align-items: center; justify-content: center;
+    }
+
+    /* ---- Szekció-kártya (menü szekciók vizuális összefoglalója) ---- */
+    .section-card {
+      display: flex;
+      border: 1px solid #dee2e6;
+      border-radius: 6px;
+      overflow: hidden;
+      margin: 12px 0;
+    }
+    .section-card-side {
+      width: 36px;
+      min-width: 36px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      writing-mode: vertical-rl;
+      text-orientation: mixed;
+      transform: rotate(180deg);
+      font-size: 9pt;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: .15em;
+      color: #fff;
+      padding: 14px 0;
+    }
+    .section-card-side.red  { background: #EE3124; }
+    .section-card-side.blue { background: #007BC2; }
+    .section-card-side.dark { background: #37474F; }
+    .section-card-body { flex: 1; padding: 10px 14px; }
+    .section-card-body p { margin: 0; font-size: 9.5pt; }
+
+    hr { border: none; border-top: 1px solid #dee2e6; margin: 22px 0; }
+
+    /* ---- Nyomtatás gomb ---- */
+    .screen-only { text-align: center; margin-bottom: 20px; }
+    .print-btn {
+      padding: 8px 22px; font-size: 10.5pt;
+      background: #EE3124; color: #fff;
+      border: none; border-radius: 5px; cursor: pointer;
+      margin: 0 6px;
+    }
+    .print-btn:hover { background: #c62828; }
+
+    @page {
+      size: A4 portrait;
+      margin: 14mm 12mm 20mm 12mm;
+      @bottom-right {
+        content: counter(page) ". oldal / " counter(pages);
+        font-size: 8pt; color: #6c757d;
+      }
+      @bottom-left {
+        content: "Robot Fleet Manager – Felhasználói kézikönyv";
+        font-size: 8pt; color: #6c757d;
+      }
+    }
+
+    @media print {
+      .doc-header { display: flex !important; }
+      .screen-only { display: none !important; }
+      a::after { content: "" !important; }
+      body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      h2.ch, h3, h4 { page-break-after: avoid; }
+      .box, table, .section-card { page-break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- Fejléc sáv -->
+<div class="doc-header">
+  <a href="../index.php" class="back-btn">&#8592; Vissza</a>
+  <div class="doc-header-title">Robot Fleet Manager</div>
+  <div class="doc-header-brand">Honeywell / Omron &nbsp;|&nbsp; Pannon Mechanika</div>
+</div>
+
+<div class="container">
+
+  <div class="screen-only">
+    <button class="print-btn" onclick="window.print()">&#128438; Nyomtatás / PDF mentés</button>
+  </div>
+
+  <!-- Borító -->
+  <div class="cover">
+    <div class="cover-logo-bar">
+      <img src="../img/honeywell_logo.svg" class="cover-logo-hw" alt="Honeywell"
+           onerror="this.style.display='none'">
+      <img src="../img/omron_logo.svg" class="cover-logo-om" alt="Omron"
+           onerror="this.style.display='none'">
+    </div>
+    <h1>Robot Fleet Manager</h1>
+    <div class="sub">Felhasználói kézikönyv</div>
+    <span class="accent-line"></span>
+    <div class="version">Pannon Mechanika &nbsp;|&nbsp; v1.0.1 &nbsp;|&nbsp; Belső használatra</div>
+  </div>
+
+  <!-- Tartalomjegyzék -->
+  <div class="toc">
+    <h2>Tartalomjegyzék</h2>
+    <ol>
+      <li><a href="#bevezeto">Bevezető – mire való a rendszer?</a></li>
+      <li><a href="#szerepkorok">Szerepkörök és jogosultságok</a></li>
+      <li><a href="#bejelentkezes">Bejelentkezés</a></li>
+      <li><a href="#robot-vezерles">Robot vezérlés szekció</a>
+        <ol>
+          <li><a href="#kuldetés-tervezes">Küldetés tervezés</a></li>
+          <li><a href="#pont-pont">Pont-pont útvonal</a></li>
+          <li><a href="#robot-hivas">Robot hívás</a></li>
+        </ol>
+      </li>
+      <li><a href="#utvonalak">Útvonalak szekció</a>
+        <ol>
+          <li><a href="#fix-celpontok">Fix célpontok felvitele</a></li>
+          <li><a href="#utvonal-felvetel">Útvonalak felvitele</a></li>
+          <li><a href="#utvonal-idozites">Útvonalak időzítése</a></li>
+        </ol>
+      </li>
+      <li><a href="#setup">Setup szekció</a>
+        <ol>
+          <li><a href="#felhasznalok">Felhasználók</a></li>
+          <li><a href="#celpontok">Célpontok</a></li>
+          <li><a href="#pontpont-beallitas">Pont-pont beállítások</a></li>
+          <li><a href="#munkaallomások">Munkaállomások</a></li>
+          <li><a href="#ido-beallitas">Szerver dátum/idő</a></li>
+          <li><a href="#munkanapok">Munkanap / Ünnepnap</a></li>
+          <li><a href="#migracio">Adatbázis migráció</a></li>
+          <li><a href="#frissites">Rendszer frissítés</a></li>
+        </ol>
+      </li>
+      <li><a href="#job-eletciklus">Job életciklusa</a></li>
+      <li><a href="#hibakodok">Gyakori kérdések és hibaelhárítás</a></li>
+    </ol>
+  </div>
+
+  <hr>
+
+  <!-- 1. Bevezető -->
+  <h2 class="ch" id="bevezeto">1. Bevezető – mire való a rendszer?</h2>
+  <p>A <strong>Robot Fleet Manager</strong> egy webalapú vezérlőfelület, amelyen keresztül az üzemben dolgozó Omron AMR (Autonomous Mobile Robot) robotok feladatait lehet kezelni. A rendszer lehetővé teszi:</p>
+  <ul>
+    <li>robotok azonnali irányítását célpontok között (Robot hívás, Pont-pont útvonal),</li>
+    <li>összetettebb, több célpontos küldetések megtervezését és elindítását,</li>
+    <li>ismétlődő útvonalak időzített automatikus futtatását,</li>
+    <li>a robot státuszának és az aktív feladatok (job-ok) valós idejű követését.</li>
+  </ul>
+
+  <div class="box info">
+    <div class="box-title">Technikai háttér</div>
+    A rendszer az Omron Fleet Manager ARCL (Advanced Robotics Command Language) protokollon keresztül kommunikál a robotokkal Telnet-kapcsolaton át. A webes felület PHP-alapú, az adatokat MySQL adatbázisban tárolja.
+  </div>
+
+  <hr>
+
+  <!-- 2. Szerepkörök -->
+  <h2 class="ch" id="szerepkorok">2. Szerepkörök és jogosultságok</h2>
+  <p>A rendszerben három jogosultsági szint létezik:</p>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Szint</th>
+        <th>Jelvény</th>
+        <th>Mit érhet el?</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Alap felhasználó</strong></td>
+        <td><span class="badge badge-user">Felhasználó</span></td>
+        <td>Robot vezérlés szekció összes funkciója (Küldetés tervezés, Pont-pont útvonal, Robot hívás). Saját bejelentkezéssel, IP-alapú munkaállomás azonosítással.</td>
+      </tr>
+      <tr>
+        <td><strong>Útvonal jogosultság</strong></td>
+        <td><span class="badge badge-jog">Útvonal jog</span></td>
+        <td>Alap felhasználói funkciók + az Útvonalak szekció: fix célpontok, útvonalak felvitele és időzítése.</td>
+      </tr>
+      <tr>
+        <td><strong>Adminisztrátor</strong></td>
+        <td><span class="badge badge-admin">Admin</span></td>
+        <td>Minden funkció, beleértve a Setup szekciót: felhasználókezelés, célpontok, munkaállomások, rendszerkarbantartás.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="box tip">
+    <div class="box-title">Megjegyzés</div>
+    Az útvonal jogosultság és az admin jogosultság egymástól független – egy felhasználó lehet adminisztrátor útvonal jog nélkül, vagy fordítva. A jogosultságokat az adminisztrátor állítja be a Felhasználók felületen.
+  </div>
+
+  <hr>
+
+  <!-- 3. Bejelentkezés -->
+  <h2 class="ch" id="bejelentkezes">3. Bejelentkezés</h2>
+  <p>A rendszer eléréséhez felhasználónév és jelszó szükséges. A bejelentkezési oldal automatikusan megjelenik, ha valaki munkamenet nélkül próbálja elérni bármelyik oldalt.</p>
+  <ol class="steps">
+    <li>Nyisd meg a böngészőben a Fleet Manager webcímet.</li>
+    <li>Add meg a felhasználónevedet és jelszavadat.</li>
+    <li>Kattints a <strong>Belépés</strong> gombra.</li>
+    <li>Sikeres bejelentkezés után a főmenü jelenik meg, ahol a jogosultságodnak megfelelő szekciók láthatók.</li>
+  </ol>
+
+  <div class="box warn">
+    <div class="box-title">Munkamenet lejárata</div>
+    Hosszabb tétlenség után a munkamenet lejárhat. Ilyenkor a rendszer visszairányít a bejelentkezési oldalra – a munkád nem vész el, csak újra be kell jelentkezni.
+  </div>
+
+  <hr>
+
+  <!-- 4. Robot vezérlés -->
+  <h2 class="ch" id="robot-vezерles">4. Robot vezérlés szekció &nbsp;<span class="badge badge-user">Minden felhasználó</span></h2>
+
+  <div class="section-card">
+    <div class="section-card-side red">Robot vezérlés</div>
+    <div class="section-card-body">
+      <p>Ez a szekció elérhető minden bejelentkezett felhasználó számára. Innen lehet azonnali robot-feladatokat indítani vagy összetettebb küldetéseket tervezni.</p>
+    </div>
+  </div>
+
+  <h3 id="kuldetés-tervezes">4.1 Küldetés tervezés</h3>
+  <p>A küldetés tervező segítségével összetett, több célpontos útvonalat lehet összeállítani és egyszerre elindítani a robotnak.</p>
+  <ol class="steps">
+    <li>Válaszd ki az elérhető célpontok listájából a kívánt állomásokat (a sorrendjük meghatározza a robot útvonalát).</li>
+    <li>Szükség esetén adj meg prioritást az egyes célpontokhoz.</li>
+    <li>Kattints az <strong>Indítás</strong> gombra – a rendszer azonnal elküldi a feladatot a Fleet Manager-nek.</li>
+  </ol>
+  <p>Az elindított feladat (job) az aktív jobok panelen jelenik meg a főmenüben, ahol szükség esetén törölhető is.</p>
+
+  <h3 id="pont-pont">4.2 Pont-pont útvonal</h3>
+  <p>Egyszerűbb, két végpont közötti mozgás tervezésére és indítására szolgál. A robot az induló célponttól egy opcionális közbenső állomáson át jut el a cél célpontig.</p>
+
+  <h4>Azonnali indítás</h4>
+  <ol class="steps">
+    <li>Válaszd ki az induló célpontot.</li>
+    <li>Válaszd ki a cél célpontot.</li>
+    <li>Szükség esetén válassz közbenső állomást.</li>
+    <li>Válaszd az <strong>Azonnali</strong> típust, majd kattints az <strong>Indítás</strong> gombra.</li>
+  </ol>
+
+  <h4>Időzített indítás</h4>
+  <p>Ugyanúgy kell beállítani az útvonalat, de az <strong>Időzített</strong> típust kell választani, és meg kell adni a kívánt indítási időpontot. A rendszer a megadott időben automatikusan elindítja a feladatot.</p>
+
+  <div class="box info">
+    <div class="box-title">Közbenső célpont</div>
+    A közbenső célpont opcionális. Ha ki van töltve, a robot előbb oda megy, majd onnan a végcélba. Ez hasznos lehet, ha a közvetlen útvonal foglalt vagy nem elérhető.
+  </div>
+
+  <h3 id="robot-hivas">4.3 Robot hívás</h3>
+  <p>A <strong>Robot hívás</strong> oldal az adott munkaállomáshoz rendelt gyors hívó gomb. Az oldal automatikusan felismeri, melyik munkaállomásról töltötték be (IP-cím alapján), és a hozzá tartozó konfigurált célpontot és visszatérési pontot használja.</p>
+
+  <h4>Használat</h4>
+  <ol class="steps">
+    <li>Nyisd meg a <strong>Robot hívás</strong> oldalt a számítógépen, amelyhez a robot-állomás be van állítva.</li>
+    <li>Ha a robot szabad, egy nagy zöld <strong>Robot hívás</strong> gomb látható – kattints rá.</li>
+    <li>A robot elindul: előbb a munkaállomás célpontjára megy, majd visszatér az alaphelyzetébe.</li>
+    <li>Amíg a robot úton van, a gomb narancssárgára vált (<em>Robot úton...</em>) és nem kattintható.</li>
+    <li>Amikor a robot befejezi a feladatot, a gomb automatikusan visszavált zöldre.</li>
+  </ol>
+
+  <div class="box tip">
+    <div class="box-title">Automatikus státuszkövetés</div>
+    Az oldal 8 másodpercenként lekérdezi a Fleet Manager-től, hogy az aktív job befejeződött-e. Ha igen, az adatbázis frissül és a gomb azonnal újra aktív lesz – nem kell kézzel frissíteni az oldalt.
+  </div>
+
+  <div class="box warn">
+    <div class="box-title">Ismeretlen munkaállomás</div>
+    Ha az oldal „Ismeretlen munkaállomás" üzenetet jelenít meg, ez azt jelenti, hogy az adott számítógép IP-címe nincs beállítva a rendszerben. Adminisztrátori segítség szükséges a Munkaállomások felületen.
+  </div>
+
+  <hr>
+
+  <!-- 5. Útvonalak -->
+  <h2 class="ch blue" id="utvonalak">5. Útvonalak szekció &nbsp;<span class="badge badge-jog">Útvonal jogosultság</span></h2>
+
+  <div class="section-card">
+    <div class="section-card-side blue">Útvonalak</div>
+    <div class="section-card-body">
+      <p>Ez a szekció csak útvonal jogosultsággal rendelkező felhasználók számára látható. Az ismétlődő robot-mozgások sablonba rögzíthetők és időzíthetők.</p>
+    </div>
+  </div>
+
+  <h3 id="fix-celpontok">5.1 Fix célpontok felvitele</h3>
+  <p>Minden felhasználóhoz hozzárendelhető egy fix induló és egy fix záró célpont. Ezek a Küldetés tervezésnél automatikusan bekerülnek az útvonal elejére és végére, így a felhasználónak csak a közbülső állomásokat kell kiválasztania.</p>
+  <ul>
+    <li><strong>Induló célpont:</strong> a robot itt kezdi minden feladatát az adott felhasználó küldetéseiben.</li>
+    <li><strong>Záró célpont:</strong> a robot ide tér vissza a küldetés végeztével.</li>
+  </ul>
+
+  <h3 id="utvonal-felvetel">5.2 Útvonalak felvitele</h3>
+  <p>Ismétlődő, több célpontos útvonalak menthetők el sablonként. Egy sablonhoz tetszőleges számú célpont és prioritás adható meg. Az elmentett útvonalak időzítésre is alkalmasak.</p>
+
+  <h3 id="utvonal-idozites">5.3 Útvonalak időzítése</h3>
+  <p>A mentett útvonalsablonokat ütemezni lehet: megadható, mely napokon és milyen időpontban induljon el automatikusan a robot. A rendszer a beállított időpontban a háttérben elindítja a feladatot, emberi beavatkozás nélkül.</p>
+
+  <div class="box info">
+    <div class="box-title">Munkanapok figyelembevétele</div>
+    Az időzítő csak munkanapokra ütemez, ünnep- és szabadnapokon nem indít feladatot. A munkanapok és ünnepnapok listáját az adminisztrátor kezeli a Setup szekción belül.
+  </div>
+
+  <hr>
+
+  <!-- 6. Setup -->
+  <h2 class="ch dark" id="setup">6. Setup szekció &nbsp;<span class="badge badge-admin">Adminisztrátor</span></h2>
+
+  <div class="section-card">
+    <div class="section-card-side dark">Setup</div>
+    <div class="section-card-body">
+      <p>Kizárólag adminisztrátori jogosultsággal érhető el. A rendszer alap konfigurációját, felhasználóit és karbantartási funkcióit tartalmazza.</p>
+    </div>
+  </div>
+
+  <h3 id="felhasznalok">6.1 Felhasználók</h3>
+  <p>A rendszerbe belépni jogosult felhasználók kezelése: új felhasználó felvitele, jelszó módosítása, jogosultságok beállítása.</p>
+  <table>
+    <thead>
+      <tr><th>Beállítás</th><th>Jelentése</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><strong>Felhasználónév</strong></td><td>A belépéshez használt azonosító</td></tr>
+      <tr><td><strong>Jelszó</strong></td><td>Belépési jelszó (nem titkosított tárolás – belső hálózaton)</td></tr>
+      <tr><td><strong>Admin</strong></td><td>Ha be van kapcsolva, a felhasználó látja a Setup szekciót</td></tr>
+      <tr><td><strong>Útvonal jogok</strong></td><td>Ha be van kapcsolva, a felhasználó látja az Útvonalak szekciót</td></tr>
+      <tr><td><strong>Job láthatóság</strong></td><td>Meghatározza, hogy a Robot hívás oldalon látja-e az aktív jobokat (semmi / csak sajátját / mindenkit)</td></tr>
+    </tbody>
+  </table>
+
+  <h3 id="celpontok">6.2 Célpontok</h3>
+  <p>A Fleet Manager-ben definiált fizikai célpontok (goalok) kezelése a rendszerben. Az itt felvett célpontok jelennek meg a Küldetés tervezés, Pont-pont és Robot hívás felületeken.</p>
+  <ul>
+    <li>Az <strong>Aktív</strong> jelölőnégyzet szabályozza, hogy egy célpont látható-e a vezérlőfelületen.</li>
+    <li>A célpont neve meg kell egyezzen a Fleet Manager-ben beállított goal névvel.</li>
+  </ul>
+
+  <div class="box danger">
+    <div class="box-title">Fontos</div>
+    Ha egy célpont neve eltér a Fleet Manager belső nevétől, a robot nem fogja megtalálni a célpontot, és a feladat hibával zárul.
+  </div>
+
+  <h3 id="pontpont-beallitas">6.3 Pont-pont beállítások</h3>
+  <p>A Pont-pont útvonal funkcióhoz felhasználható közbenső célpontok listájának kezelése. Az itt felvett állomások jelennek meg közbenső pontként a Pont-pont oldalon.</p>
+
+  <h3 id="munkaallomások">6.4 Munkaállomások (Robot hívás)</h3>
+  <p>A <strong>Robot hívás</strong> funkcióhoz szükséges munkaállomás-konfigurációk kezelése. Minden munkaállomás egy fizikai számítógépet jelent, ahonnan a dolgozók a robotot hívják.</p>
+  <table>
+    <thead>
+      <tr><th>Mező</th><th>Jelentése</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><strong>IP-cím</strong></td><td>A munkaállomás számítógépének hálózati IP-címe (ez alapján azonosítja be a rendszer)</td></tr>
+      <tr><td><strong>Név</strong></td><td>Ember-olvasható megnevezés (pl. „Összeszerelő sor 1")</td></tr>
+      <tr><td><strong>Cél célpont</strong></td><td>Ide megy a robot, amikor a gombra kattintanak</td></tr>
+      <tr><td><strong>Közbenső célpont</strong></td><td>Opcionális közbülső állomás a cél előtt</td></tr>
+      <tr><td><strong>Visszatérési pont</strong></td><td>Ide tér vissza a robot a feladat végeztével</td></tr>
+      <tr><td><strong>Job láthatóság</strong></td><td>Az adott munkaállomáson láthatók-e az aktív jobok, és ha igen, csak a sajátok vagy az összes</td></tr>
+    </tbody>
+  </table>
+
+  <h3 id="ido-beallitas">6.5 Szerver dátum / idő beállítás</h3>
+  <p>A szerver belső órájának ellenőrzése és beállítása. Az időzített útvonalak pontossága függ a szerver idejétől – ha az eltér, az ütemezés is csúszik.</p>
+
+  <h3 id="munkanapok">6.6 Munkanap / Ünnepnap beállítás</h3>
+  <p>Az automatikus ütemezőhöz szükséges munkarend beállítása: mely napok munkanapok, és melyek ünnep- illetve szabadnapok. Az ütemező ezeket figyelembe véve dönt az automatikus indításról.</p>
+
+  <h3 id="migracio">6.7 Adatbázis migráció</h3>
+  <p>Rendszerfrissítés után szükséges lehet az adatbázis sémájának frissítése. Ha a feltöltött frissítőcsomag új adatbázis-verziót tartalmaz, a rendszer itt jelzi, és egy gombbal futtatható a migráció.</p>
+
+  <div class="box warn">
+    <div class="box-title">Mikor szükséges?</div>
+    Csak akkor kell lefuttatni, ha a rendszer frissítés után jelzi, hogy az adatbázis verzió megváltozott. Szükségtelen újrafuttatás nem okoz adatvesztést (az ALTER TABLE IF NOT EXISTS biztonságos), de nem szükséges.
+  </div>
+
+  <h3 id="frissites">6.8 Rendszer frissítés (ZIP)</h3>
+  <p>A rendszer frissítése egy feltöltött ZIP csomaggal lehetséges – nincs szükség szerver-hozzáférésre vagy FTP-re.</p>
+  <ol class="steps">
+    <li>Töltsd fel a frissítőcsomagot (pl. <code>pm_v1.0.1.zip</code>) a választó mezőbe.</li>
+    <li>Írd be a megerősítő szót: <strong>FRISSITES</strong></li>
+    <li>Kattints a <strong>Frissítés indítása</strong> gombra.</li>
+    <li>A rendszer kicsomagolja a ZIP-et, ellenőrzi a tartalmát, és felülírja a szükséges fájlokat.</li>
+    <li>Ha az adatbázis verzió is változott, a következő lépésben fuss le a migrációt is.</li>
+  </ol>
+
+  <div class="box danger">
+    <div class="box-title">Figyelem</div>
+    A frissítés felülírja a ZIP-ben szereplő fájlokat. Az adatbázis és a konfigurációs adatok (pl. célpontok, felhasználók) érintetlenek maradnak – ezek az adatbázisban vannak tárolva.
+  </div>
+
+  <hr>
+
+  <!-- 7. Job életciklusa -->
+  <h2 class="ch" id="job-eletciklus">7. Job életciklusa</h2>
+  <p>Minden robot-feladatot a rendszer <strong>job</strong>nak nevez. Egy job több célpontból állhat (pl. cél + közbenső + visszatérési pont).</p>
+
+  <table>
+    <thead>
+      <tr><th>Státusz</th><th>Mit jelent?</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><span class="badge badge-warn">Pending</span></td><td>A job elküldve, de a Fleet Manager még nem rendelt hozzá robotot</td></tr>
+      <tr><td><span class="badge badge-jog">InProgress</span></td><td>A robot aktívan dolgozik a feladaton</td></tr>
+      <tr><td><span class="badge badge-ok">Completed</span></td><td>A robot sikeresen teljesítette az útvonalat</td></tr>
+      <tr><td><span class="badge badge-user">Cancelled</span></td><td>A feladatot törölték (pl. a „Törlés" gombbal)</td></tr>
+      <tr><td><span class="badge badge-admin">Failed</span></td><td>A robot nem tudta teljesíteni a feladatot</td></tr>
+    </tbody>
+  </table>
+
+  <p>A rendszer ~8 másodpercenként lekérdezi a Fleet Manager-től az aktív job-ok státuszát. Ha egy job Completed, Cancelled vagy Failed állapotba kerül, automatikusan eltűnik az aktív job listából, és a Robot hívás gomb újra aktívvá válik.</p>
+
+  <h4>Job törlése manuálisan</h4>
+  <p>A főmenüben az aktív jobok panelen minden job mellett megjelenik egy <strong>Törlés</strong> gomb. Erre kattintva a rendszer a Fleet Manager-nek is elküldi a lemondási parancsot (<em>queueCancel</em>), így a robot leáll és visszatér.</p>
+
+  <hr>
+
+  <!-- 8. Hibaelhárítás -->
+  <h2 class="ch" id="hibakodok">8. Gyakori kérdések és hibaelhárítás</h2>
+
+  <h3>A robot nem mozdul el a parancs kiadása után</h3>
+  <ul>
+    <li>Ellenőrizd, hogy a Fleet Manager elérhető-e a hálózaton.</li>
+    <li>Nézd meg a főmenüben a Robot státusz táblázatot – ha a robot „Unavailable" állapotban van, nem tud feladatot fogadni.</li>
+    <li>Ellenőrizd, hogy a célpont neve pontosan egyezik-e a Fleet Manager-ben beállított névvel (Admin → Célpontok).</li>
+  </ul>
+
+  <h3>A Robot hívás gomb „Ismeretlen munkaállomás" üzenetet mutat</h3>
+  <p>Az oldalt olyan számítógépről nyitották meg, amelynek IP-címe nincs beállítva a rendszerben. Adminisztrátori teendő: Setup → Munkaállomások → hozzáadni az adott számítógép IP-címét.</p>
+
+  <h3>A Robot hívás gomb nem vált vissza zöldre a feladat után</h3>
+  <p>A státuszkövetés ~8 másodperces késéssel frissül. Ha hosszabb ideig nem változik:</p>
+  <ul>
+    <li>Frissítsd az oldalt kézzel (F5).</li>
+    <li>Ha a Fleet Manager-ben a job már Completed, de az oldalon még „Robot úton..." látható, az adminisztrátor manuálisan törölheti az aktív jobot a főmenüből.</li>
+  </ul>
+
+  <h3>Az időzített feladat nem indult el a beállított időpontban</h3>
+  <ul>
+    <li>Ellenőrizd, hogy a nap munkanapnak van-e jelölve (Setup → Munkanapok).</li>
+    <li>Ellenőrizd a szerver pontos idejét (Setup → Szerver dátum/idő).</li>
+    <li>Az ütemező csak akkor fut, ha a szerver elérhető – ha a szerver le volt állítva, az időzítés kimarad.</li>
+  </ul>
+
+  <h3>„Gyanús fájlútvonal" hiba rendszerfrissítésnél</h3>
+  <p>A feltöltött ZIP fájl nem megfelelő szerkezetű. A csomagnak <code>pm/</code> alkönyvtárat kell tartalmaznia a gyökerében (pl. <code>pm/index.php</code>, <code>pm/robot_ide.php</code> stb.). Relatív (<code>../</code>) vagy abszolút (<code>/</code>) útvonalak nem megengedettek.</p>
+
+  <hr>
+
+  <p style="text-align:center; font-size:8.5pt; color:#aaa; margin-top:30px;">
+    Robot Fleet Manager – Felhasználói kézikönyv &nbsp;|&nbsp; v1.0.1 &nbsp;|&nbsp; Pannon Mechanika &nbsp;|&nbsp; Belső használatra
+  </p>
+
+</div>
+</body>
+</html>
