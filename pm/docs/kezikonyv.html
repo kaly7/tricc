@@ -33,6 +33,12 @@
       padding: 10px 28px;
       border-bottom: 3px solid #EE3124;
     }
+    .doc-header-logos {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      flex-shrink: 0;
+    }
     .doc-header-title {
       font-size: 13pt;
       font-weight: 700;
@@ -248,8 +254,16 @@
 <!-- Fejléc sáv -->
 <div class="doc-header">
   <a href="../index.php" class="back-btn">&#8592; Vissza</a>
+  <div class="doc-header-logos">
+    <img src="../img/honeywell_logo.svg" alt="Honeywell"
+         style="height:30px;width:auto;filter:brightness(0) invert(1);"
+         onerror="this.style.display='none'">
+    <img src="../img/omron_logo.svg" alt="Omron"
+         style="height:24px;width:auto;filter:brightness(0) invert(1);opacity:.8;"
+         onerror="this.style.display='none'">
+  </div>
   <div class="doc-header-title">Robot Fleet Manager</div>
-  <div class="doc-header-brand">Honeywell / Omron &nbsp;|&nbsp; Pannon Mechanika/kaly</div>
+  <div class="doc-header-brand">Pannon Mechanika/kaly</div>
 </div>
 
 <div class="container">
