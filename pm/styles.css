@@ -432,15 +432,12 @@ body.login-page {
 .login-brand .logo-hw {
     height: 56px;
     width: auto;
-    filter: brightness(0) invert(1);
     display: block;
     margin: 0 auto 18px;
 }
 .login-brand .logo-om {
     height: 30px;
     width: auto;
-    filter: brightness(0) invert(1);
-    opacity: 0.65;
     display: block;
     margin: 0 auto 22px;
 }
