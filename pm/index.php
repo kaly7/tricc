@@ -88,7 +88,7 @@ if (isset($_POST["login_name"])) {
   <div class="menu-buttons">
     <a href="goals2.php"    class="mybutton_vh">Küldetés tervezés</a>
     <a href="pont_pont.php" class="mybutton_vh">Pont-pont útvonal</a>
-    <a href="robot_ide.php" class="mybutton_vh">Robot ide / Vissza</a>
+    <a href="robot_ide.php" class="mybutton_vh">Robot hívás</a>
   </div>
 </div>
 
@@ -110,7 +110,7 @@ if (isset($_POST["login_name"])) {
     <a href="admin_user.php"          class="mybutton_vh">Felhasználók</a>
     <a href="admin_goal.php"          class="mybutton_vh">Célpontok</a>
     <a href="admin_kozbenso_goal.php" class="mybutton_vh">Pont-pont beállítások</a>
-    <a href="admin_munkaallomas.php"  class="mybutton_vh">Munkaállomások (Robot ide)</a>
+    <a href="admin_munkaallomas.php"  class="mybutton_vh">Munkaállomások (Robot hívás)</a>
     <a href="time.php"                class="mybutton_vh">Szerver dátum / idő beállítás</a>
     <a href="napok.php"               class="mybutton_vh">Munkanap / Ünnepnap beállítás</a>
     <a href="admin_migrate.php"       class="mybutton_vh2">Adatbázis migráció</a>

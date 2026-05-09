@@ -49,7 +49,7 @@ $conn->close();
 <head>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="stylesheet" href="styles.css?v=<?php echo time(); ?>">
-<title>Robot ide</title>
+<title>Robot hívás</title>
 <style>
 .nagy_gomb {
     font-size: 36px;
@@ -95,7 +95,7 @@ $conn->close();
   <?php else: ?>
     <form action="robot_ide_go.php" method="POST">
       <input type="hidden" name="allomas_id" value="<?php echo (int)$allomas['id']; ?>">
-      <button type="submit" class="nagy_gomb gomb_ide">Robot ide</button>
+      <button type="submit" class="nagy_gomb gomb_ide">Robot hívás</button>
       <p class="allapot_info">Cél: <?php echo htmlspecialchars($allomas['cel_megjegyzes'] ?: $allomas['cel_goal_name']); ?></p>
       <?php if ($allomas['kozbenso_goal_index'] > 0): ?>
       <p class="allapot_info" style="font-size:12px;">Közbenső: <?php echo htmlspecialchars($allomas['kozbenso_megjegyzes'] ?: $allomas['kozbenso_goal_name']); ?></p>
@@ -126,7 +126,7 @@ function renderAllomas(data){
     } else {
         h='<form action="robot_ide_go.php" method="POST">'
          +'<input type="hidden" name="allomas_id" value="'+esc(data.id)+'">'
-         +'<button type="submit" class="nagy_gomb gomb_ide">Robot ide</button>'
+         +'<button type="submit" class="nagy_gomb gomb_ide">Robot hívás</button>'
          +'<p class="allapot_info">Cél: '+esc(data.cel_label)+'</p>';
         if(data.kozbenso_label) h+='<p class="allapot_info" style="font-size:12px;">Közbenső: '+esc(data.kozbenso_label)+'</p>';
         h+='</form>';
@@ -164,6 +164,21 @@ function pollJobs(){
 pollJobs();
 setInterval(pollJobs,5000);
 <?php endif; ?>
+function pollJobStatus(){
+    fetch('job_status_poll.php')
+        .then(function(r){return r.json();})
+        .then(function(d){
+            if(d.completed&&d.completed.length>0){
+                pollAllomas();
+                <?php if ($job_lathatosag_ri !== 'semmi'): ?>
+                pollJobs();
+                <?php endif; ?>
+            }
+        })
+        .catch(function(){});
+}
+pollJobStatus();
+setInterval(pollJobStatus,8000);
 </script>
 <?php include __DIR__ . "/footer_inc.php"; ?>
 </body>
