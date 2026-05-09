@@ -13,6 +13,15 @@ if (file_exists($log_file)) {
     $all = file($log_file, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
     $log_lines = array_slice(array_reverse($all), 0, 20);
 }
+
+$fleet_log_file = "/var/www/html/pm/tmp/query_comm.log";
+$fleet_log_lines = [];
+$fleet_log_size  = 0;
+if (file_exists($fleet_log_file)) {
+    $fleet_log_size  = filesize($fleet_log_file);
+    $all_fleet       = file($fleet_log_file, FILE_IGNORE_NEW_LINES);
+    $fleet_log_lines = array_slice(array_reverse($all_fleet), 0, 60);
+}
 ?>
 <!DOCTYPE html>
 <html lang="hu">
@@ -175,6 +184,49 @@ if (file_exists($log_file)) {
   </div>
 </div>
 <?php endif; ?>
+
+<div class="update-card" style="margin-top:10px;">
+  <h3>Fleet Manager kommunikációs napló</h3>
+  <?php if ($fleet_log_size > 0): ?>
+  <div style="display:flex;gap:10px;margin-bottom:12px;align-items:center;">
+    <a href="fleet_log_download.php" class="btn-update" style="width:auto;padding:8px 22px;text-decoration:none;display:inline-block;text-align:center;">
+      &#8659; Letöltés
+    </a>
+    <form action="fleet_log_download.php" method="POST" style="margin:0;">
+      <button type="submit" name="clear" value="1"
+              class="btn-update"
+              style="background:#666;width:auto;padding:8px 22px;"
+              onclick="return confirm('Biztosan törlöd a kommunikációs naplót?');">
+        &#10005; Napló törlése
+      </button>
+    </form>
+    <span style="font-size:11px;color:#999;margin-left:4px;">
+      <?php echo round($fleet_log_size / 1024, 1); ?> KB
+    </span>
+  </div>
+  <div class="log-box" style="max-height:320px;">
+    <?php foreach ($fleet_log_lines as $line): ?>
+      <?php
+        $cls = '';
+        if (preg_match('/^\[/', $line))                         $cls = 'style="color:#7ec8e3;font-weight:bold;"';
+        elseif (strpos($line, 'completed') !== false)           $cls = 'style="color:#81c784;"';
+        elseif (strpos($line, 'cancelled') !== false ||
+                strpos($line, 'failed') !== false ||
+                strpos($line, 'interrupted') !== false)         $cls = 'style="color:#ef9a9a;"';
+        elseif (strpos($line, 'FM válasz:') !== false ||
+                strpos($line, 'Eredmény:') !== false)           $cls = 'style="color:#ffb74d;"';
+        elseif (strpos($line, 'hiba') !== false ||
+                strpos($line, 'Connection') !== false)          $cls = 'style="color:#ef9a9a;"';
+      ?>
+      <div <?php echo $cls; ?>><?php echo htmlspecialchars($line); ?></div>
+    <?php endforeach; ?>
+  </div>
+  <?php else: ?>
+  <p style="color:#999;font-size:13px;margin:0;">
+    <?php echo isset($_GET['fleet_log_empty']) ? 'A napló üres.' : 'Még nincs kommunikációs napló – az első lekérdezés után jelenik meg.'; ?>
+  </p>
+  <?php endif; ?>
+</div>
 
 </center>
 </div>
