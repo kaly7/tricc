@@ -1,0 +1,13 @@
+{
+  "name": "oai/fitnessmgr",
+  "description": "Személyi fitness napló – étkezés, mozgás, Mattermost bot, AI",
+  "type": "project",
+  "require": {
+    "php": ">=8.1",
+    "ext-pdo": "*",
+    "textalk/websocket": "^1.6"
+  },
+  "autoload": {
+    "classmap": ["app/Services/", "app/"]
+  }
+}

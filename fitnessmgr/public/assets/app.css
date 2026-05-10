@@ -1,0 +1,45 @@
+/* Fitness napló – alkalmazás CSS */
+
+body { background: #f8f9fa; font-size: 0.92rem; }
+
+/* Dashboard kártyák */
+.stat-card { border-radius: 12px; border: none; box-shadow: 0 2px 8px rgba(0,0,0,.08); }
+.stat-card .display-6 { font-size: 1.8rem; font-weight: 700; }
+.stat-card .label { font-size: 0.78rem; text-transform: uppercase; letter-spacing: .05em; opacity: .7; }
+
+/* Haladásjelző */
+.progress { height: 10px; border-radius: 8px; }
+.progress-label { font-size: 0.78rem; }
+
+/* Étkezési szekciók */
+.meal-section { border-left: 4px solid #dee2e6; padding-left: 12px; margin-bottom: 1.5rem; }
+.meal-section.reggeli  { border-color: #f59e0b; }
+.meal-section.tizorai  { border-color: #10b981; }
+.meal-section.ebed     { border-color: #3b82f6; }
+.meal-section.uzsonna  { border-color: #8b5cf6; }
+.meal-section.vacsora  { border-color: #6366f1; }
+.meal-section .meal-header { font-weight: 600; font-size: 0.95rem; }
+
+/* Étel sor törlés gomb */
+.food-row:hover .delete-btn { visibility: visible; }
+.delete-btn { visibility: hidden; }
+
+/* Súlynapló grafikon konténer */
+#weightChart { max-height: 260px; }
+
+/* Gyors felvitel FAB gombok */
+.fab-group { position: fixed; bottom: 20px; right: 20px; display: flex; flex-direction: column; gap: 8px; z-index: 100; }
+.fab-group .btn { width: 56px; height: 56px; border-radius: 50%; font-size: 1.3rem; box-shadow: 0 3px 12px rgba(0,0,0,.2); display: flex; align-items: center; justify-content: center; padding: 0; }
+
+/* Kalória badge */
+.kcal-badge { font-size: 0.75rem; background: #f0f4ff; color: #4f46e5; border-radius: 6px; padding: 2px 7px; }
+
+/* AI kártya */
+.ai-card { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; }
+.ai-card .card-title { font-weight: 700; }
+
+/* Mobilbarát input stílus */
+@media (max-width: 576px) {
+  .stat-card .display-6 { font-size: 1.5rem; }
+  .fab-group .btn { width: 48px; height: 48px; font-size: 1.1rem; }
+}
