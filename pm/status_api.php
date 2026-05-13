@@ -12,22 +12,23 @@ $servername = "localhost"; $db_user = "robot"; $db_pass = "abrakadabra"; $dbname
 
 $data = ['robots' => [], 'jobs' => []];
 
-// Robot státuszok fájlokból
-$robot_files = [
-    'Kiss_Gyuri' => '/var/www/html/pm/tmp/GYURI',
-    'Kiss_Marci'  => '/var/www/html/pm/tmp/MARCI',
-];
-foreach ($robot_files as $name => $path) {
-    $data['robots'][] = [
-        'name'   => $name,
-        'status' => file_exists($path) ? trim(file_get_contents($path)) : '?',
-    ];
-}
-
-// Aktív jobok
 $conn = new mysqli($servername, $db_user, $db_pass, $dbname);
 if (!$conn->connect_error) {
-    $res = $conn->query("SELECT Goal_name, Megjegyzes FROM Button_Goals WHERE akcio='aktiv' ORDER BY Megjegyzes");
+    // Robot állapotok DB-ből
+    $rres = $conn->query("SELECT Robot_name, availability, fm_status, frissitve FROM Robots WHERE Active != 'N'");
+    if ($rres) {
+        while ($rrow = $rres->fetch_assoc()) {
+            $data['robots'][] = [
+                'name'         => $rrow['Robot_name'],
+                'availability' => $rrow['availability'] ?? null,
+                'fm_status'    => $rrow['fm_status']    ?? null,
+                'frissitve'    => $rrow['frissitve'],
+            ];
+        }
+    }
+
+    // Aktív jobok pickup státuszokkal
+    $res = $conn->query("SELECT Goal_name, Megjegyzes, pickup_status FROM Button_Goals WHERE akcio='aktiv' ORDER BY Megjegyzes, Index_");
     $current = null;
     if ($res) {
         while ($row = $res->fetch_assoc()) {
@@ -35,7 +36,7 @@ if (!$conn->connect_error) {
                 if ($current !== null) $data['jobs'][] = $current;
                 $current = ['id' => $row['Megjegyzes'], 'goals' => []];
             }
-            $current['goals'][] = $row['Goal_name'];
+            $current['goals'][] = ['name' => $row['Goal_name'], 'status' => $row['pickup_status']];
         }
         if ($current !== null) $data['jobs'][] = $current;
     }

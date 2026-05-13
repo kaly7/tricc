@@ -231,11 +231,95 @@ CREATE TABLE IF NOT EXISTS `pm_konfig` (
 INSERT IGNORE INTO `pm_konfig` (`kulcs`, `ertek`) VALUES ('pp_job_lathatosag', 'sajat');
 
 -- ------------------------------------------------------------
+-- egyedi_utemezesek – régi oszlopok DEFAULT 0 + sablon_id
+-- ------------------------------------------------------------
+ALTER TABLE `egyedi_utemezesek`
+  MODIFY COLUMN IF EXISTS `indulo_goal_index`   bigint(20) NOT NULL DEFAULT 0,
+  MODIFY COLUMN IF EXISTS `kozbenso_goal_index` bigint(20) NOT NULL DEFAULT 0,
+  MODIFY COLUMN IF EXISTS `cel_goal_index`      bigint(20) NOT NULL DEFAULT 0;
+
+ALTER TABLE `egyedi_utemezesek`
+  ADD COLUMN IF NOT EXISTS `sablon_id` int(11) NOT NULL DEFAULT 1 AFTER `cel_goal_index`;
+
+-- ------------------------------------------------------------
+-- pp_utvonal_sablon  (pont-pont útvonal sablonok)
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `pp_utvonal_sablon` (
+  `id`      int(11)      NOT NULL AUTO_INCREMENT,
+  `nev`     varchar(100) NOT NULL DEFAULT 'Alap',
+  `leiras`  varchar(255) DEFAULT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+INSERT IGNORE INTO `pp_utvonal_sablon` (`id`, `nev`) VALUES (1, 'Alap');
+
+-- ------------------------------------------------------------
+-- pp_utvonal_sablon_pont  (pont-pont sablon pontok)
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `pp_utvonal_sablon_pont` (
+  `id`         int(11)                        NOT NULL AUTO_INCREMENT,
+  `sablon_id`  int(11)                        NOT NULL DEFAULT 1,
+  `szekcio`    enum('elotte','kozben','utana') NOT NULL,
+  `sorrend`    int(11)                        NOT NULL DEFAULT 10,
+  `goal_index` bigint(20)                     NOT NULL,
+  PRIMARY KEY (`id`),
+  KEY `sablon_szekcio_sorrend` (`sablon_id`, `szekcio`, `sorrend`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- ------------------------------------------------------------
+-- munkaallomas_utvonal  (robot-ide: többpontos útvonal lista)
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `munkaallomas_utvonal` (
+  `id`          int(11)   NOT NULL AUTO_INCREMENT,
+  `allomas_id`  int(11)   NOT NULL,
+  `sorrend`     int(11)   NOT NULL DEFAULT 10,
+  `goal_index`  bigint(20) NOT NULL,
+  PRIMARY KEY (`id`),
+  KEY `allomas_sorrend` (`allomas_id`, `sorrend`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- Meglévő adatok migrációja (csak ha a tábla üres)
+INSERT INTO `munkaallomas_utvonal` (allomas_id, sorrend, goal_index)
+SELECT id, 10, cel_goal_index FROM `munkaallomas`
+WHERE cel_goal_index > 0
+  AND NOT EXISTS (SELECT 1 FROM `munkaallomas_utvonal` LIMIT 1);
+
+INSERT INTO `munkaallomas_utvonal` (allomas_id, sorrend, goal_index)
+SELECT id, 20, kozbenso_goal_index FROM `munkaallomas`
+WHERE kozbenso_goal_index > 0
+  AND NOT EXISTS (SELECT 1 FROM `munkaallomas_utvonal` WHERE sorrend = 20 LIMIT 1);
+
+INSERT INTO `munkaallomas_utvonal` (allomas_id, sorrend, goal_index)
+SELECT id, 30, vissza_goal_index FROM `munkaallomas`
+WHERE vissza_goal_index > 0
+  AND NOT EXISTS (SELECT 1 FROM `munkaallomas_utvonal` WHERE sorrend = 30 LIMIT 1);
+
+-- ------------------------------------------------------------
+-- Button_Goals – célpont-szintű FM státusz (v3)
+-- ------------------------------------------------------------
+ALTER TABLE `Button_Goals`
+  ADD COLUMN IF NOT EXISTS `pickup_id`     VARCHAR(20) DEFAULT NULL AFTER `akcio`,
+  ADD COLUMN IF NOT EXISTS `pickup_status` VARCHAR(20) DEFAULT NULL AFTER `pickup_id`,
+  ADD COLUMN IF NOT EXISTS `robot_nev`     VARCHAR(50) DEFAULT NULL AFTER `pickup_status`,
+  ADD COLUMN IF NOT EXISTS `fm_kezdes`     DATETIME    DEFAULT NULL AFTER `robot_nev`,
+  ADD COLUMN IF NOT EXISTS `fm_vegzes`     DATETIME    DEFAULT NULL AFTER `fm_kezdes`;
+
+-- ------------------------------------------------------------
+-- Robots – FM által visszajelzett állapot (v3)
+-- ------------------------------------------------------------
+ALTER TABLE `Robots`
+  ADD COLUMN IF NOT EXISTS `availability` VARCHAR(20)  DEFAULT NULL AFTER `Active`,
+  ADD COLUMN IF NOT EXISTS `fm_status`    VARCHAR(20)  DEFAULT NULL AFTER `availability`,
+  ADD COLUMN IF NOT EXISTS `frissitve`    TIMESTAMP    NULL DEFAULT NULL AFTER `fm_status`;
+
+-- ------------------------------------------------------------
 SET foreign_key_checks = 1;
 -- ============================================================
 -- Ellenőrzés (opcionális):
 --   SHOW TABLES;
 --   SHOW COLUMNS FROM munkaallomas;
+--   SHOW COLUMNS FROM munkaallomas_utvonal;
 --   SHOW COLUMNS FROM egyedi_utemezesek;
 --   SHOW COLUMNS FROM Button_Goals;
+--   SHOW COLUMNS FROM Robots;
 -- ============================================================

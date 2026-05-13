@@ -13,7 +13,7 @@ if ($lathatosag === 'semmi') {
 $conn = new mysqli('localhost', 'robot', 'abrakadabra', 'Robot');
 $jobs = [];
 if (!$conn->connect_error) {
-    $res = $conn->query("SELECT Goal_name, Megjegyzes FROM Button_Goals WHERE akcio='aktiv' ORDER BY Megjegyzes");
+    $res = $conn->query("SELECT Goal_name, Megjegyzes, pickup_status FROM Button_Goals WHERE akcio='aktiv' ORDER BY Megjegyzes, Index_");
     $current = null;
     if ($res) {
         while ($row = $res->fetch_assoc()) {
@@ -26,7 +26,7 @@ if (!$conn->connect_error) {
                 if ($current !== null) $jobs[] = $current;
                 $current = ['id' => $jid, 'goals' => []];
             }
-            $current['goals'][] = $row['Goal_name'];
+            $current['goals'][] = ['name' => $row['Goal_name'], 'status' => $row['pickup_status']];
         }
         if ($current !== null) $jobs[] = $current;
     }

@@ -140,12 +140,23 @@ if (isset($_POST["login_name"])) {
 function esc(s) {
     return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
+function goalBadge(s){
+    if(!s)return'secondary';
+    s=s.toLowerCase();
+    if(s==='inprogress')return'primary';
+    if(s==='completed')return'success';
+    if(s==='failed'||s==='interrupted')return'danger';
+    if(s==='cancelled')return'warning';
+    return'secondary';
+}
 
 function renderStatus(data) {
     // Robots tábla
     var rHtml = '<table class="blueTable" style="width:100%;margin-bottom:12px;"><thead><tr><th>Robot</th><th>Státusz</th></tr></thead><tbody>';
     data.robots.forEach(function(r) {
-        rHtml += '<tr><td>' + esc(r.name) + '</td><td>' + esc(r.status) + '</td></tr>';
+        var st = r.fm_status || r.status || 'Nincs adat';
+        var av = r.availability ? ' (' + esc(r.availability) + ')' : '';
+        rHtml += '<tr><td>' + esc(r.name) + '</td><td>' + esc(st) + av + '</td></tr>';
     });
     rHtml += '</tbody></table>';
     document.getElementById('status-panel').innerHTML = rHtml;
@@ -162,7 +173,9 @@ function renderStatus(data) {
             + '<button class="button_delete" style="font-size:12px;padding:4px 10px;" onclick="location.href=\'job_del.php?id=' + esc(job.id) + '\'">'
             + esc(job.id) + ' &ndash; Törlés</button>';
         job.goals.forEach(function(g) {
-            jHtml += '<span class="job-goal-pill">' + esc(g) + '</span>';
+            var name = typeof g === 'object' ? g.name : g;
+            var cls  = 'job-goal-pill badge bg-' + goalBadge(typeof g === 'object' ? g.status : null);
+            jHtml += '<span class="' + cls + '">' + esc(name) + '</span>';
         });
         jHtml += '</div>';
     });

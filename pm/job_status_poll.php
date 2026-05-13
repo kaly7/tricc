@@ -15,12 +15,59 @@ $completed   = [];
 if (file_exists($result_file) && (time() - filemtime($result_file)) < 60) {
     $raw  = file_get_contents($result_file);
     $data = json_decode($raw, true);
-    if ($data && isset($data['results'])) {
-        foreach ($data['results'] as $r) {
-            if (in_array($r['status'], ['completed', 'cancelled', 'failed', 'interrupted'])) {
+
+    if ($data) {
+        // Robot állapotok mentése DB-be
+        if (!empty($data['robots'])) {
+            foreach ($data['robots'] as $r) {
+                $name  = $conn->real_escape_string($r['name']);
+                $avail = $conn->real_escape_string($r['availability']);
+                $fmst  = $conn->real_escape_string($r['fm_status']);
+                $conn->query(
+                    "UPDATE Robots SET availability='$avail', fm_status='$fmst',
+                     frissitve=NOW() WHERE Robot_name='$name'"
+                );
+            }
+        }
+
+        // Job pickup státuszok mentése
+        if (!empty($data['results'])) {
+            foreach ($data['results'] as $r) {
                 $jid = $conn->real_escape_string($r['job_id']);
-                $conn->query("UPDATE Button_Goals SET akcio='deleted' WHERE Megjegyzes='$jid'");
-                $completed[] = $r['job_id'];
+
+                // Célpont-szintű frissítés
+                if (!empty($r['pickups'])) {
+                    foreach ($r['pickups'] as $p) {
+                        $pickup_id = $conn->real_escape_string($p['pickup_id']);
+                        $pstatus   = $conn->real_escape_string($p['status']);
+                        $goal      = $conn->real_escape_string($p['goal']);
+                        $robot     = $conn->real_escape_string($p['robot']);
+                        $kezdes    = $conn->real_escape_string($p['kezdes']);
+                        $vegzes    = $conn->real_escape_string($p['vegzes']);
+                        // LIMIT 1: ha ugyanaz a goal kétszer van, sorban frissülnek
+                        $conn->query(
+                            "UPDATE Button_Goals
+                             SET pickup_id='$pickup_id', pickup_status='$pstatus',
+                                 robot_nev='$robot', fm_kezdes='$kezdes', fm_vegzes='$vegzes'
+                             WHERE Megjegyzes='$jid' AND Goal_name='$goal'
+                               AND (pickup_id IS NULL OR pickup_id='$pickup_id')
+                             ORDER BY Index_ LIMIT 1"
+                        );
+                    }
+                }
+
+                // Job törlés csak ha MINDEN célpont befejező állapotban van
+                $done = "('completed','cancelled','failed','interrupted')";
+                $cnt_res = $conn->query(
+                    "SELECT COUNT(*) as cnt FROM Button_Goals
+                     WHERE Megjegyzes='$jid' AND akcio='aktiv'
+                       AND (pickup_status IS NULL OR LOWER(pickup_status) NOT IN $done)"
+                );
+                $cnt_row = $cnt_res ? $cnt_res->fetch_assoc() : null;
+                if ($cnt_row && (int)$cnt_row['cnt'] === 0) {
+                    $conn->query("UPDATE Button_Goals SET akcio='deleted' WHERE Megjegyzes='$jid'");
+                    $completed[] = $r['job_id'];
+                }
             }
         }
     }

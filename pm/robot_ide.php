@@ -12,18 +12,10 @@ if ($conn->connect_error) { die("Connection failed: " . $conn->connect_error); }
 $client_ip = $_SERVER['REMOTE_ADDR'];
 $ip_safe   = $conn->real_escape_string($client_ip);
 
-$res = $conn->query(
-    "SELECT m.*, gc.Goal_name as cel_goal_name, gc.Megjegyzes as cel_megjegyzes,
-            gk.Goal_name as kozbenso_goal_name, gk.Megjegyzes as kozbenso_megjegyzes
-     FROM munkaallomas m
-     JOIN Goals gc ON m.cel_goal_index = gc.Index_
-     LEFT JOIN Goals gk ON m.kozbenso_goal_index = gk.Index_
-     WHERE m.ip = '$ip_safe' LIMIT 1"
-);
+$res = $conn->query("SELECT * FROM munkaallomas WHERE ip = '$ip_safe' LIMIT 1");
 $allomas = ($res && $res->num_rows > 0) ? $res->fetch_assoc() : null;
 
-// Ha robot úton van, ellenőrizzük a job státuszát.
-// Addig "úton", amíg legalább egy aktív (nem deleted) sor létezik a job_id-hoz.
+// Robot végzett ellenőrzés
 $robot_vegzett = false;
 if ($allomas && $allomas['allapot'] === 'uton' && !empty($allomas['aktiv_job_id'])) {
     $jid  = $conn->real_escape_string($allomas['aktiv_job_id']);
@@ -36,10 +28,29 @@ if ($allomas && $allomas['allapot'] === 'uton' && !empty($allomas['aktiv_job_id'
     }
     if ($robot_vegzett) {
         $conn->query("UPDATE munkaallomas SET allapot='szabad', aktiv_job_id=NULL WHERE ip='$ip_safe'");
-        $allomas['allapot']       = 'szabad';
-        $allomas['aktiv_job_id']  = null;
+        $allomas['allapot']      = 'szabad';
+        $allomas['aktiv_job_id'] = null;
     }
 }
+
+// Útvonal pontok
+$route_labels = [];
+if ($allomas) {
+    $rres = $conn->query(
+        "SELECT g.Megjegyzes, g.Goal_name
+         FROM munkaallomas_utvonal u
+         JOIN Goals g ON u.goal_index = g.Index_
+         WHERE u.allomas_id = " . (int)$allomas['id'] . "
+         ORDER BY u.sorrend"
+    );
+    if ($rres) {
+        while ($rrow = $rres->fetch_assoc()) {
+            $route_labels[] = $rrow['Megjegyzes'] ?: $rrow['Goal_name'];
+        }
+    }
+}
+
+$route_str = implode(' → ', array_map('htmlspecialchars', $route_labels));
 
 $job_lathatosag_ri = $allomas ? $allomas['job_lathatosag'] : 'semmi';
 $conn->close();
@@ -88,17 +99,15 @@ $conn->close();
   <div id="allomas-panel">
   <?php if ($allomas['allapot'] === 'uton'): ?>
     <button type="button" class="nagy_gomb gomb_uton" disabled>Robot úton...</button>
-    <p class="allapot_info">Cél: <?php echo htmlspecialchars($allomas['cel_megjegyzes'] ?: $allomas['cel_goal_name']); ?></p>
-    <?php if ($allomas['kozbenso_goal_index'] > 0): ?>
-    <p class="allapot_info" style="font-size:12px;">Közbenső: <?php echo htmlspecialchars($allomas['kozbenso_megjegyzes'] ?: $allomas['kozbenso_goal_name']); ?></p>
+    <?php if ($route_str): ?>
+    <p class="allapot_info">Útvonal: <?php echo $route_str; ?></p>
     <?php endif; ?>
   <?php else: ?>
     <form action="robot_ide_go.php" method="POST">
       <input type="hidden" name="allomas_id" value="<?php echo (int)$allomas['id']; ?>">
       <button type="submit" class="nagy_gomb gomb_ide">Robot hívás</button>
-      <p class="allapot_info">Cél: <?php echo htmlspecialchars($allomas['cel_megjegyzes'] ?: $allomas['cel_goal_name']); ?></p>
-      <?php if ($allomas['kozbenso_goal_index'] > 0): ?>
-      <p class="allapot_info" style="font-size:12px;">Közbenső: <?php echo htmlspecialchars($allomas['kozbenso_megjegyzes'] ?: $allomas['kozbenso_goal_name']); ?></p>
+      <?php if ($route_str): ?>
+      <p class="allapot_info">Útvonal: <?php echo $route_str; ?></p>
       <?php endif; ?>
     </form>
   <?php endif; ?>
@@ -118,18 +127,19 @@ function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').repl
 function renderAllomas(data){
     if(!data||!data.found) return;
     var panel=document.getElementById('allomas-panel');
+    var route='';
+    if(data.route_labels&&data.route_labels.length>0){
+        route='<p class="allapot_info">Útvonal: '+data.route_labels.map(esc).join(' → ')+'</p>';
+    }
     var h='';
     if(data.allapot==='uton'){
-        h='<button type="button" class="nagy_gomb gomb_uton" disabled>Robot úton...</button>'
-         +'<p class="allapot_info">Cél: '+esc(data.cel_label)+'</p>';
-        if(data.kozbenso_label) h+='<p class="allapot_info" style="font-size:12px;">Közbenső: '+esc(data.kozbenso_label)+'</p>';
+        h='<button type="button" class="nagy_gomb gomb_uton" disabled>Robot úton...</button>'+route;
     } else {
         h='<form action="robot_ide_go.php" method="POST">'
          +'<input type="hidden" name="allomas_id" value="'+esc(data.id)+'">'
          +'<button type="submit" class="nagy_gomb gomb_ide">Robot hívás</button>'
-         +'<p class="allapot_info">Cél: '+esc(data.cel_label)+'</p>';
-        if(data.kozbenso_label) h+='<p class="allapot_info" style="font-size:12px;">Közbenső: '+esc(data.kozbenso_label)+'</p>';
-        h+='</form>';
+         +route
+         +'</form>';
     }
     panel.innerHTML=h;
 }
@@ -143,6 +153,15 @@ pollAllomas();
 setInterval(pollAllomas,3000);
 
 <?php if ($job_lathatosag_ri !== 'semmi'): ?>
+function goalBadge(s){
+    if(!s)return'secondary';
+    s=s.toLowerCase();
+    if(s==='inprogress')return'primary';
+    if(s==='completed')return'success';
+    if(s==='failed'||s==='interrupted')return'danger';
+    if(s==='cancelled')return'warning';
+    return'secondary';
+}
 function renderJobs(jobs){
     var p=document.getElementById('jobs-panel');
     if(!jobs||jobs.length===0){p.innerHTML='<p class="no-jobs">Nincs aktív job.</p>';return;}
@@ -150,7 +169,11 @@ function renderJobs(jobs){
     jobs.forEach(function(j){
         h+='<div class="job-row">'
           +'<span style="font-size:11px;color:#888;white-space:nowrap;">'+esc(j.id)+'</span>';
-        j.goals.forEach(function(g){h+='<span class="job-goal-pill">'+esc(g)+'</span>';});
+        j.goals.forEach(function(g){
+            var name=typeof g==='object'?g.name:g;
+            var cls='job-goal-pill badge bg-'+goalBadge(typeof g==='object'?g.status:null);
+            h+='<span class="'+cls+'">'+esc(name)+'</span>';
+        });
         h+='</div>';
     });
     p.innerHTML=h;
