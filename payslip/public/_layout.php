@@ -3,8 +3,9 @@ function h($s){ return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
 
 function page_header(string $title = 'Payslip'): void {
     if (class_exists('Auth')) { Auth::start(); }
-    $loggedIn = isset($_SESSION['user']);
+    $loggedIn = isset($_SESSION['user_id']) || isset($_SESSION['user']);
     $u = $_SESSION['user'] ?? null;
+    $displayName = $_SESSION['full_name'] ?? $u['username'] ?? '';
     $isAdmin = class_exists('Auth') ? Auth::isAdmin() : false;
 
     $host = $_SERVER['HTTP_HOST'] ?? ($_SERVER['SERVER_NAME'] ?? 'localhost');
@@ -35,10 +36,19 @@ function page_header(string $title = 'Payslip'): void {
       <ul class="navbar-nav me-auto mb-2 mb-lg-0">
         <?php if ($loggedIn): ?>
           <li class="nav-item"><a class="nav-link" href="upload.php">Feltöltés</a></li>
-          <li class="nav-item"><a class="nav-link" href="employees.php">Dolgozók</a></li>
-          <li class="nav-item"><a class="nav-link" href="employees_import.php">CSV import</a></li>
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">Dolgozók</a>
+            <ul class="dropdown-menu">
+              <li><a class="dropdown-item" href="employees.php">Nem egyeztetett</a></li>
+              <li><a class="dropdown-item" href="employee_pdfs.php">PDF archívum</a></li>
+              <?php if ($isAdmin): ?>
+                <li><hr class="dropdown-divider"></li>
+                <li><a class="dropdown-item" href="hr_audit.php">HR Email audit</a></li>
+                <li><a class="dropdown-item" href="hr_tax_sync.php">HR Adójel szinkron</a></li>
+              <?php endif; ?>
+            </ul>
+          </li>
           <li class="nav-item"><a class="nav-link" href="log.php">Log/Státusz</a></li>
-          <li class="nav-item"><a class="nav-link" href="employee_pdfs.php">Dolgozó PDF-ek</a></li>
           <?php if ($isAdmin): ?>
             <li class="nav-item"><a class="nav-link" href="divisions.php">Divíziók</a></li>
             <li class="nav-item"><a class="nav-link text-danger" href="reset.php">Reset</a></li>
@@ -48,7 +58,8 @@ function page_header(string $title = 'Payslip'): void {
 
       <div class="d-flex align-items-center gap-2">
         <?php if ($loggedIn): ?>
-          <span class="navbar-text me-2">Bejelentkezve: <?= h($u['username'] ?? '') ?></span>
+          <span class="navbar-text me-2 text-truncate" style="max-width:180px" title="<?= h($displayName) ?>"><?= h($displayName) ?></span>
+          <a class="btn btn-sm btn-outline-info" href="docs/kezikonyv.html" target="_blank" title="Felhasználói kézikönyv">?</a>
           <a class="btn btn-sm btn-outline-primary" href="<?= h($authApps) ?>">Rendszerek</a>
           <a class="btn btn-sm btn-outline-secondary" href="logout.php">Kilépés</a>
         <?php else: ?>

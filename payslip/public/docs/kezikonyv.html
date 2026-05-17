@@ -1,0 +1,438 @@
+<!doctype html>
+<html lang="hu">
+<head>
+  <meta charset="utf-8">
+  <title>Payslip – Felhasználói kézikönyv</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+
+    body {
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 10.5pt;
+      color: #212529;
+      background: #fff;
+      margin: 0;
+      padding: 0;
+      line-height: 1.5;
+    }
+
+    .container {
+      max-width: 820px;
+      margin: 0 auto;
+      padding: 14mm 12mm;
+    }
+
+    .cover {
+      text-align: center;
+      padding: 30px 0 24px;
+      border-bottom: 2px solid #212529;
+      margin-bottom: 28px;
+    }
+    .cover h1 { font-size: 22pt; margin: 0 0 6px; }
+    .cover .sub { font-size: 11pt; color: #6c757d; }
+    .cover .version { font-size: 9pt; color: #adb5bd; margin-top: 8px; }
+
+    .toc { margin-bottom: 28px; }
+    .toc h2 { font-size: 13pt; border-bottom: 1px solid #dee2e6; padding-bottom: 4px; margin-bottom: 10px; }
+    .toc ol { padding-left: 18px; margin: 0; }
+    .toc li { margin: 3px 0; font-size: 10pt; }
+    .toc a { color: #0d6efd; text-decoration: none; }
+    .toc a:hover { text-decoration: underline; }
+
+    h2.ch {
+      font-size: 14pt;
+      margin: 28px 0 10px;
+      padding: 6px 10px;
+      background: #f8f9fa;
+      border-left: 4px solid #0d6efd;
+      border-radius: 0 4px 4px 0;
+      page-break-after: avoid;
+    }
+    h3 { font-size: 11.5pt; margin: 18px 0 7px; color: #343a40; page-break-after: avoid; }
+    h4 { font-size: 10.5pt; margin: 14px 0 5px; color: #495057; page-break-after: avoid; }
+
+    p { margin: 0 0 8px; }
+    ul, ol { margin: 0 0 8px; padding-left: 20px; }
+    li { margin-bottom: 3px; }
+
+    .box {
+      border: 1px solid #dee2e6;
+      border-radius: 5px;
+      padding: 10px 14px;
+      margin: 10px 0;
+    }
+    .box.info  { border-color: #0dcaf0; background: #f0fdff; }
+    .box.warn  { border-color: #ffc107; background: #fffdf0; }
+    .box.tip   { border-color: #198754; background: #f0fff4; }
+    .box.danger{ border-color: #dc3545; background: #fff5f5; }
+    .box-title { font-weight: bold; font-size: 9.5pt; text-transform: uppercase; letter-spacing: .04em; margin-bottom: 4px; }
+    .box.info   .box-title { color: #087990; }
+    .box.warn   .box-title { color: #856404; }
+    .box.tip    .box-title { color: #146c43; }
+    .box.danger .box-title { color: #b02a37; }
+
+    table { width: 100%; border-collapse: collapse; margin: 10px 0; font-size: 9.5pt; }
+    th { background: #f8f9fa; padding: 5px 8px; text-align: left; border: 1px solid #dee2e6; font-weight: bold; }
+    td { padding: 4px 8px; border: 1px solid #e9ecef; vertical-align: top; }
+    tr:nth-child(even) td { background: #fafafa; }
+
+    .badge {
+      display: inline-block;
+      padding: 1px 7px;
+      border-radius: 12px;
+      font-size: 8.5pt;
+      font-weight: bold;
+      white-space: nowrap;
+    }
+    .badge-admin  { background: #dc3545; color: #fff; }
+    .badge-user   { background: #6c757d; color: #fff; }
+    .badge-ok     { background: #198754; color: #fff; }
+    .badge-warn   { background: #ffc107; color: #212529; }
+    .badge-danger { background: #dc3545; color: #fff; }
+    .badge-info   { background: #0dcaf0; color: #212529; }
+    .badge-muted  { background: #6c757d; color: #fff; }
+
+    .steps { counter-reset: step; padding: 0; list-style: none; }
+    .steps li {
+      counter-increment: step;
+      padding: 5px 5px 5px 32px;
+      position: relative;
+      margin-bottom: 4px;
+    }
+    .steps li::before {
+      content: counter(step);
+      position: absolute; left: 0; top: 5px;
+      width: 22px; height: 22px;
+      background: #0d6efd; color: #fff;
+      border-radius: 50%;
+      font-size: 8.5pt; font-weight: bold;
+      display: flex; align-items: center; justify-content: center;
+    }
+
+    hr { border: none; border-top: 1px solid #dee2e6; margin: 20px 0; }
+
+    .screen-only { text-align: center; margin-bottom: 20px; }
+    .print-btn {
+      padding: 8px 22px; font-size: 10.5pt;
+      background: #0d6efd; color: #fff;
+      border: none; border-radius: 5px; cursor: pointer;
+    }
+
+    @page {
+      size: A4 portrait;
+      margin: 14mm 12mm 20mm 12mm;
+      @bottom-right {
+        content: counter(page) ". oldal / " counter(pages);
+        font-size: 8pt; color: #6c757d;
+      }
+      @bottom-left {
+        content: "Payslip – Felhasználói kézikönyv";
+        font-size: 8pt; color: #6c757d;
+      }
+    }
+
+    @media print {
+      .screen-only { display: none !important; }
+      a::after { content: "" !important; }
+      body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      h2.ch, h3, h4 { page-break-after: avoid; }
+      .box, table { page-break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+
+  <div class="screen-only">
+    <button class="print-btn" onclick="window.print()">Nyomtatás / PDF mentés</button>
+  </div>
+
+  <div class="cover">
+    <h1>Payslip</h1>
+    <div class="sub">Bérjegyzék-küldő rendszer – Felhasználói kézikönyv</div>
+    <div class="version">Perfect-Phone 2026 &nbsp;|&nbsp; Belső használatra</div>
+  </div>
+
+  <div class="toc">
+    <h2>Tartalomjegyzék</h2>
+    <ol>
+      <li><a href="#bevezeto">Bevezető</a></li>
+      <li><a href="#szerepkorok">Szerepkörök és jogosultságok</a></li>
+      <li><a href="#feltoltes">PDF feltöltés</a></li>
+      <li><a href="#teszt">Teszt mód és előnézet</a></li>
+      <li><a href="#eles">Éles feldolgozás és email küldés</a></li>
+      <li><a href="#log">Log / Státusz nézet</a></li>
+      <li><a href="#dolgozok">Dolgozók kezelése</a>
+        <ol>
+          <li><a href="#nem_egyeztetett">Nem egyeztetett rekordok</a></li>
+          <li><a href="#pdf_archivum">PDF archívum</a></li>
+        </ol>
+      </li>
+      <li><a href="#hr">HR kapcsolódások</a>
+        <ol>
+          <li><a href="#hr_audit">HR Email audit</a></li>
+          <li><a href="#hr_szinkron">HR Adójel szinkron</a></li>
+        </ol>
+      </li>
+      <li><a href="#diviziok">Divíziók</a></li>
+    </ol>
+  </div>
+
+  <hr>
+
+  <!-- 1. Bevezető -->
+  <h2 class="ch" id="bevezeto">1. Bevezető</h2>
+
+  <p>A <strong>Payslip</strong> modul bérjegyzék PDF-ek automatikus szétosztását végzi. A könyvelés által feltöltött összesített PDF-ből oldalanként kinyeri a dolgozók nevét és adóazonosító jelét, egyezteti a HR-adatbázissal, majd emailen elküldi az érintett dolgozóknak.</p>
+
+  <p>A modul fő funkciói:</p>
+  <ul>
+    <li>Összesített PDF feldolgozása: automatikus oldalszétválasztás, névkinyerés, adójel-azonosítás</li>
+    <li>HR integráció: a HR-adatbázis az elsődleges forrás, a bérjegyzék cache automatikusan frissül</li>
+    <li>Kétlépéses küldés: teszt mód → előnézet → éles futtatás</li>
+    <li>Részletes napló: minden feldolgozás és küldés rögzítve; egyedi újraküldés lehetséges</li>
+  </ul>
+
+  <div class="box info">
+    <div class="box-title">HR integráció</div>
+    A rendszer az email-címet elsősorban a HR-modulból veszi. Ha egy dolgozóhoz <em>Privát</em> bérjegyzék email van beállítva, a privát email-cím kerül felhasználásra a céges helyett.
+  </div>
+
+  <hr>
+
+  <!-- 2. Szerepkörök -->
+  <h2 class="ch" id="szerepkorok">2. Szerepkörök és jogosultságok</h2>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Funkció</th>
+        <th><span class="badge badge-user">Felhasználó</span></th>
+        <th><span class="badge badge-admin">Admin</span></th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr><td>PDF feltöltés (teszt és éles)</td><td>✓</td><td>✓</td></tr>
+      <tr><td>Log / Státusz megtekintése</td><td>✓</td><td>✓</td></tr>
+      <tr><td>Nem egyeztetett dolgozók megtekintése</td><td>✓</td><td>✓</td></tr>
+      <tr><td>PDF archívum megtekintése</td><td>✓</td><td>✓</td></tr>
+      <tr><td>Újraküldés (resend)</td><td>✓</td><td>✓</td></tr>
+      <tr><td>HR Email audit</td><td>—</td><td>✓</td></tr>
+      <tr><td>HR Adójel szinkron</td><td>—</td><td>✓</td></tr>
+      <tr><td>Divíziók kezelése</td><td>—</td><td>✓</td></tr>
+      <tr><td>Reset</td><td>—</td><td>✓</td></tr>
+    </tbody>
+  </table>
+
+  <hr>
+
+  <!-- 3. PDF feltöltés -->
+  <h2 class="ch" id="feltoltes">3. PDF feltöltés</h2>
+
+  <p>A <strong>Feltöltés</strong> menüpontban tölthető fel a könyvelői összesített bérjegyzék-fájl.</p>
+
+  <table>
+    <tr><th style="width:30%">Mező</th><th>Leírás</th></tr>
+    <tr><td><strong>Hónap</strong></td><td><code>YYYY-MM</code> formátum, pl. <code>2025-11</code></td></tr>
+    <tr><td><strong>Divízió</strong></td><td>Melyik szervezeti egység bérjegyzékeit tartalmazza a PDF</td></tr>
+    <tr><td><strong>PDF</strong></td><td>Az összesített fájl – minden oldalon egy dolgozó bérjegyzéke</td></tr>
+    <tr><td><strong>Teszt mód</strong></td><td>Alapértelmezetten bekapcsolt; ha aktív, nem küld emailt és nem ment a DB-be</td></tr>
+  </table>
+
+  <p>A gomb szövege és színe a Teszt mód kapcsolóval együtt változik:</p>
+  <ul>
+    <li><strong>Teszt mód be</strong> → „Feltöltés (teszt)" – kék gomb</li>
+    <li><strong>Teszt mód ki</strong> → „Feltöltés és küldés" – zöld gomb</li>
+  </ul>
+
+  <div class="box danger">
+    <div class="box-title">Figyelem – Éles mód</div>
+    Ha a Teszt mód ki van kapcsolva és feltöltöd a PDF-et, az email küldés azonnal megkezdődik. Először mindig futtasd teszt módban!
+  </div>
+
+  <div class="box warn">
+    <div class="box-title">Felülírás</div>
+    Ugyanarra a hónap + divízió kombinációra történő újrafeltöltés felülírja a tárolt PDF-et. A korábbi feldolgozás naplói megmaradnak.
+  </div>
+
+  <hr>
+
+  <!-- 4. Teszt mód -->
+  <h2 class="ch" id="teszt">4. Teszt mód és előnézet</h2>
+
+  <p>Teszt módban a rendszer végigfutja a teljes feldolgozást – adójel-kinyerés, HR-egyeztetés, email-keresés – de <strong>nem küld emailt és nem ment semmit az adatbázisba</strong>. Az eredmény az előnézeti nézetben látható.</p>
+
+  <h3>Az előnézeti tábla</h3>
+  <table>
+    <tr><th>#</th><th>Az oldal sorszáma a PDF-ben</th></tr>
+    <tr><td><strong>Név (PDF-ből)</strong></td><td>A PDF-ből kinyert dolgozó neve</td></tr>
+    <tr><td><strong>Adójel</strong></td><td>A kinyert 10 jegyű adóazonosító jel</td></tr>
+    <tr><td><strong>HR</strong></td><td><span class="badge badge-ok">HR</span> = megtalálva; <span class="badge badge-warn">Nincs</span> = nem szerepel a HR-ben</td></tr>
+    <tr><td><strong>Email</strong></td><td>Az effektív email-cím (piros szín = hiányzik)</td></tr>
+    <tr><td><strong>Eredmény</strong></td><td>Az oldal állapota (ld. lentebb)</td></tr>
+  </table>
+
+  <h3>Lehetséges állapotok</h3>
+  <table>
+    <tr><th>Állapot</th><th>Magyarázat</th><th>Teendő</th></tr>
+    <tr>
+      <td><span class="badge badge-ok">Küldhető</span></td>
+      <td>Minden adat megvan</td>
+      <td>Nincs teendő</td>
+    </tr>
+    <tr>
+      <td><span class="badge badge-info">Csak cache</span></td>
+      <td>Nincs HR-rekord, de a helyi cache-ben van email</td>
+      <td>Érdemes HR-be felvenni a dolgozót</td>
+    </tr>
+    <tr>
+      <td><span class="badge badge-warn">Nincs HR rekord</span></td>
+      <td>Az adójel sem HR-ben, sem cache-ben nem szerepel</td>
+      <td>Vedd fel a dolgozót a HR-modulba</td>
+    </tr>
+    <tr>
+      <td><span class="badge badge-danger">Nincs email</span></td>
+      <td>HR-ben megvan, de nincs effektív email-cím</td>
+      <td>Töltsd ki az email-mezőt a HR-modulban</td>
+    </tr>
+    <tr>
+      <td><span class="badge badge-muted">Nincs adójel</span></td>
+      <td>Az oldalból nem sikerült adóazonosítót kinyerni</td>
+      <td>Ellenőrizd a PDF formátumát</td>
+    </tr>
+    <tr>
+      <td><span class="badge badge-danger">Nincs név</span></td>
+      <td>Névmező sem olvasható ki az oldalból</td>
+      <td>Ellenőrizd a PDF formátumát</td>
+    </tr>
+  </table>
+
+  <div class="box tip">
+    <div class="box-title">Javasolt munkafolyamat</div>
+    Mindig futtasd először teszt módban. Ha vannak <em>Nincs email</em> vagy <em>Nincs HR rekord</em> állapotú sorok, javítsd a HR-adatokat, töltsd fel újra a PDF-et, és futtasd le ismét – csak ezután indítsd az éles küldést.
+  </div>
+
+  <p>Ha az előnézet kész és minden rendben, az <strong>▶ Éles futtatás</strong> gombra kattintva azonnal indítható az éles feldolgozás.</p>
+
+  <hr>
+
+  <!-- 5. Éles feldolgozás -->
+  <h2 class="ch" id="eles">5. Éles feldolgozás és email küldés</h2>
+
+  <p>Az éles feldolgozás a háttérben fut, a böngészőablak bezárható közben. Az állapot a <strong>Log/Státusz</strong> nézetben követhető.</p>
+
+  <h3>A feldolgozás lépései</h3>
+  <ol class="steps">
+    <li>A PDF szétválasztása oldalanként (qpdf)</li>
+    <li>Szövegkinyerés (pdftotext) – adóazonosító jel és név azonosítása</li>
+    <li>HR-lookup az adójel alapján; szinkronizálás a bérjegyzék cache-be</li>
+    <li>Az effektív email meghatározása (céges vagy privát, a HR beállítás alapján)</li>
+    <li>Egyedi bérjegyzék PDF másolása és email küldés</li>
+    <li>Minden oldal eredménye rögzítve a naplóban</li>
+  </ol>
+
+  <div class="box info">
+    <div class="box-title">Háttér feldolgozás</div>
+    A PHP worker a szerver háttérben fut. Ha a lapot bezárod, a feldolgozás folytatódik – legközelebb a Log nézetben látható az eredmény.
+  </div>
+
+  <hr>
+
+  <!-- 6. Log / Státusz -->
+  <h2 class="ch" id="log">6. Log / Státusz nézet</h2>
+
+  <p>A <strong>Log/Státusz</strong> oldal áttekintést ad az összes feltöltésről és az egyes oldalak feldolgozási eredményéről. Egy feltöltésre kattintva kinyílik a részletes oldallista.</p>
+
+  <h3>Oldal-szintű állapotok</h3>
+  <table>
+    <tr><th>Jelzés</th><th>Jelentés</th></tr>
+    <tr><td><span class="badge badge-ok">SENT</span></td><td>Email sikeresen elküldve</td></tr>
+    <tr><td><span class="badge badge-warn">SAVED</span></td><td>Megtalált dolgozó, mentve, de email nem ment (nincs cím)</td></tr>
+    <tr><td><span class="badge badge-muted">NO_MATCH</span></td><td>Az adójel nem egyezett meg egyetlen rekordhoz sem</td></tr>
+    <tr><td><span class="badge badge-danger">ERROR</span></td><td>Hiba lépett fel a feldolgozás vagy a küldés során</td></tr>
+  </table>
+
+  <p>Ha egy <span class="badge badge-warn">SAVED</span> bejegyzésnél „Nincs email" figyelmeztetés jelenik meg, a dolgozóhoz nem sikerült email-cím meghatározni a feldolgozás idején.</p>
+
+  <h3>Újraküldés</h3>
+  <p>A Log nézetből egyedi oldalak ismét elküldhetők az újraküldés gombbal. Hasznos, ha egy dolgozó email-címe utólag javításra kerül.</p>
+
+  <hr>
+
+  <!-- 7. Dolgozók -->
+  <h2 class="ch" id="dolgozok">7. Dolgozók kezelése</h2>
+
+  <h3 id="nem_egyeztetett">7.1 Nem egyeztetett rekordok</h3>
+  <p>Csak azok a bérjegyzék cache-beli rekordok láthatók itt, amelyekhez nem sikerült HR-egyezést találni (<code>hr_id IS NULL</code>). Tipikusan régi manuális rekordok, vagy olyan dolgozók, akik nem szerepelnek a HR-adatbázisban. A rekordok szerkeszthetők és törölhetők.</p>
+
+  <div class="box info">
+    <div class="box-title">Automatikus szinkronizálás</div>
+    A HR-adatbázisban szereplő dolgozók adatai automatikusan kerülnek a cache-be feldolgozáskor – nem szükséges kézi adatbevitel. Csak akkor keletkezik manuális rekord, ha az adójel nem szerepel a HR-ben.
+  </div>
+
+  <h3 id="pdf_archivum">7.2 PDF archívum</h3>
+  <p>Minden elküldött egyedi bérjegyzék PDF elérhető itt, dolgozónként és hónap szerint szűrve. Innen tölthető le egy adott bérjegyzék, illetve ellenőrizhető, hogy az adott hónapban kinek ment ki a levél.</p>
+
+  <hr>
+
+  <!-- 8. HR kapcsolódások -->
+  <h2 class="ch" id="hr">8. HR kapcsolódások</h2>
+
+  <p>Mindkét eszköz <span class="badge badge-admin">Admin</span> jogosultságot igényel, és a <strong>Dolgozók</strong> legördülő menü aljából érhető el.</p>
+
+  <h3 id="hr_audit">8.1 HR Email audit</h3>
+  <p>Az oldal két szekciót tartalmaz:</p>
+  <ol>
+    <li>
+      <strong>Nem egyeztetett bérjegyzék-rekordok</strong> – azok a cache-beli dolgozók, akiknek <code>hr_id</code> értéke üres. Soronként látható, hogy miért:
+      <ul>
+        <li><span class="badge badge-info">HR-ben van, szinkron nem futott</span> – az adójel alapján megtalálható a HR-ben, de a rekord régi (a szinkronizálás előttről maradt)</li>
+        <li><span class="badge badge-muted">Nincs adójel</span> – automatikus egyeztetés nem lehetséges</li>
+        <li><span class="badge badge-warn">Nincs HR rekord</span> – valóban nem szerepel a HR-ben</li>
+      </ul>
+      Az <strong>„HR szinkron futtatása"</strong> gombra kattintva az első kategória összes rekordja automatikusan szinkronizálható.
+    </li>
+    <li>
+      <strong>HR aktív dolgozók effektív email nélkül</strong> – azon HR-rekordok, amelyekhez nem meghatározható az effektív email-cím. Ezek a dolgozók nem kapnak bérjegyzéket.
+    </li>
+  </ol>
+
+  <h3 id="hr_szinkron">8.2 HR Adójel szinkron</h3>
+  <p>Segít azoknak a régi cache-rekordoknak az egyeztetésében, amelyeknek adójele hiányzik, de névalapon megtalálható a párjuk a HR-ben.</p>
+  <ol class="steps">
+    <li>A rendszer normalizált névhasonlítással megkeresi az egyező párokat</li>
+    <li>Az egyezések táblázatban jelennek meg (bérjegyzék név ↔ HR név)</li>
+    <li>Jelölőnégyzetekkel kiválaszthatók az elfogadandó egyezések</li>
+    <li>A „Szinkronizálás" gomb megnyomásával a kiválasztott rekordok megkapják a HR-ből az adójelet és a <code>hr_id</code> hivatkozást</li>
+  </ol>
+
+  <div class="box warn">
+    <div class="box-title">Ellenőrizd az egyezéseket!</div>
+    A névhasonlítás automatikus, de nem hibabiztos. Mindig nézd át az ajánlott párokat, mielőtt elfogadod – különösen hasonló nevű dolgozóknál.
+  </div>
+
+  <hr>
+
+  <!-- 9. Divíziók -->
+  <h2 class="ch" id="diviziok">9. Divíziók</h2>
+
+  <p><span class="badge badge-admin">Admin</span> Minden feltöltéshez kötelező divíziót megadni – ez megakadályozza az azonos hónapra feltöltött különböző divíziók összekeverését.</p>
+
+  <table>
+    <tr><th>Mező</th><th>Leírás</th></tr>
+    <tr><td><strong>Név</strong></td><td>A divízió megjelenítési neve (pl. „Gyártás")</td></tr>
+    <tr><td><strong>Slug</strong></td><td>URL-barát azonosító, a tárhelystruktúrában is megjelenik (pl. <code>gyartas</code>)</td></tr>
+    <tr><td><strong>Aktív</strong></td><td>Inaktív divízió nem jelenik meg a feltöltési űrlapon</td></tr>
+  </table>
+
+  <div class="box danger">
+    <div class="box-title">Reset funkció</div>
+    A <strong>Reset</strong> menüpont visszavonhatatlanul törli az adott feltöltés összes feldolgozási adatát. Kizárólag tesztelési célra használandó, éles adatokon soha!
+  </div>
+
+  <hr>
+  <p style="text-align:center; color:#adb5bd; font-size:8.5pt;">Perfect-Phone 2026 &nbsp;|&nbsp; Payslip kézikönyv v1.0</p>
+
+</div>
+</body>
+</html>
