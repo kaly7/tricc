@@ -205,7 +205,18 @@ if (!empty($_SESSION['_flash_form']) && is_array($_SESSION['_flash_form'])) {
   unset($_SESSION['_flash_form']);
 }
 
-$users = $pdo->query("SELECT id, username, email, full_name, is_active, last_login_at, hr_employee_id FROM users ORDER BY id DESC")->fetchAll();
+// Rendezés (session-ben tároljuk, hogy POST redirect után is megmaradjon)
+$allowedSort = ['id' => 'id', 'username' => 'username', 'full_name' => 'full_name'];
+if (isset($_GET['sort']) && array_key_exists($_GET['sort'], $allowedSort)) {
+  $_SESSION['_users_sort'] = $_GET['sort'];
+}
+if (isset($_GET['dir']) && in_array($_GET['dir'], ['asc', 'desc'], true)) {
+  $_SESSION['_users_dir'] = $_GET['dir'];
+}
+$sortCol = $allowedSort[$_SESSION['_users_sort'] ?? 'id'] ?? 'id';
+$sortDir = (($_SESSION['_users_dir'] ?? 'desc') === 'asc') ? 'ASC' : 'DESC';
+
+$users = $pdo->query("SELECT id, username, email, full_name, is_active, last_login_at, hr_employee_id FROM users ORDER BY {$sortCol} {$sortDir}")->fetchAll();
 
 
 
@@ -218,7 +229,13 @@ require __DIR__ . '/../../app/views/layout/header.php';
 
 <div class="d-flex align-items-center justify-content-between mb-3">
   <h1 class="h4 m-0">Felhasználók</h1>
-  <a class="btn btn-sm btn-outline-secondary" href="/apps.php">Rendszerek</a>
+  <div class="d-flex gap-2">
+    <a class="btn btn-sm btn-outline-primary" href="/admin/import_hr_users.php">HR Import</a>
+    <a class="btn btn-sm btn-outline-secondary" href="/admin/import_log.php">Import napló</a>
+    <a class="btn btn-sm btn-outline-info" href="/admin/sip.php">SIP Admin</a>
+    <a class="btn btn-sm btn-outline-warning" href="/admin/easter_eggs.php">🥚 Easter Eggs</a>
+    <a class="btn btn-sm btn-outline-secondary" href="/apps.php">Rendszerek</a>
+  </div>
 </div>
 
 <?php if ($msg): ?><div class="alert alert-success"><?= h($msg) ?></div><?php endif; ?>
@@ -264,11 +281,20 @@ require __DIR__ . '/../../app/views/layout/header.php';
     <div class="table-responsive">
       <table class="table table-hover align-middle">
         <thead>
+          <?php
+            $currentSort = $_SESSION['_users_sort'] ?? 'id';
+            $currentDir  = $_SESSION['_users_dir']  ?? 'desc';
+            function sortTh(string $col, string $label, string $cs, string $cd): string {
+              $nextDir = ($cs === $col && $cd === 'asc') ? 'desc' : 'asc';
+              $arrow = ($cs === $col) ? ($cd === 'asc' ? ' ↑' : ' ↓') : '';
+              return '<th><a href="?sort=' . $col . '&amp;dir=' . $nextDir . '" class="text-decoration-none text-reset fw-semibold">' . htmlspecialchars($label) . $arrow . '</a></th>';
+            }
+          ?>
           <tr>
             <th>ID</th>
-            <th>Username</th>
+            <?= sortTh('username', 'Username', $currentSort, $currentDir) ?>
             <th>Email</th>
-            <th>Név</th>
+            <?= sortTh('full_name', 'Név', $currentSort, $currentDir) ?>
             <th>HR munkatárs</th>
             <th>Aktív</th>
             <th>Utolsó login</th>
