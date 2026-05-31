@@ -33,9 +33,13 @@ if (!$conn->connect_error) {
             }
             if ($current === null || $current['id'] !== $jid) {
                 if ($current !== null) $jobs[] = $current;
-                $current = ['id' => $jid, 'goals' => []];
+                $current = ['id' => $jid, 'can_delete' => true, 'goals' => []];
             }
-            $current['goals'][] = ['name' => $row['Goal_name'], 'status' => $row['fm_status']];
+            $current['goals'][] = [
+                'name'   => $row['Goal_name'],
+                'status' => $row['fm_status'],
+                'robot'  => $row['fm_robot'],
+            ];
         }
         if ($current !== null) $jobs[] = $current;
     }

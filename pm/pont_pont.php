@@ -130,12 +130,21 @@ function renderJobs(jobs){
     if(!jobs || jobs.length === 0){ p.innerHTML = '<p class="no-jobs">Nincs aktív job.</p>'; return; }
     var h = '';
     jobs.forEach(function(j){
-        h += '<div class="job-row">'
-           + '<span style="font-size:11px;color:#888;white-space:nowrap;">' + esc(j.id) + '</span>';
+        h += '<div class="job-row">';
+        if(j.can_delete){
+            h += '<button class="button_delete" style="font-size:12px;padding:4px 10px;"'
+               + ' onclick="location.href=\'job_del.php?id=' + esc(j.id) + '\'">'
+               + esc(j.id) + ' &ndash; Törlés</button>';
+        } else {
+            h += '<span style="font-size:11px;color:#888;white-space:nowrap;">' + esc(j.id) + '</span>';
+        }
         j.goals.forEach(function(g){
-            var name = typeof g === 'object' ? g.name : g;
-            var cls  = 'job-goal-pill badge bg-' + goalBadge(typeof g === 'object' ? g.status : null);
-            h += '<span class="' + cls + '">' + esc(name) + '</span>';
+            var name   = typeof g === 'object' ? g.name   : g;
+            var status = typeof g === 'object' ? g.status : null;
+            var robot  = typeof g === 'object' && g.robot ? ' (' + esc(g.robot) + ')' : '';
+            var cls    = 'job-goal-pill badge bg-' + goalBadge(status);
+            h += '<span class="' + cls + '" title="' + esc(status || '') + robot + '">'
+               + esc(name) + '</span>';
         });
         h += '</div>';
     });
