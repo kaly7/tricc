@@ -527,7 +527,6 @@ body.login-page {
     border-left: 3px solid #EE3124;
 }
 .job-goal-pill {
-    background: #007BC2;
     color: #fff;
     font-size: 12px;
     font-weight: 600;
@@ -535,6 +534,12 @@ body.login-page {
     border-radius: 20px;
     white-space: nowrap;
 }
+.badge            { display:inline-block; padding:.3em .65em; font-size:12px; font-weight:700; line-height:1; text-align:center; white-space:nowrap; vertical-align:baseline; border-radius:10px; }
+.bg-success       { background:#198754 !important; color:#fff !important; }
+.bg-primary       { background:#007BC2 !important; color:#fff !important; }
+.bg-danger        { background:#dc3545 !important; color:#fff !important; }
+.bg-warning       { background:#ffc107 !important; color:#333 !important; }
+.bg-secondary     { background:#6c757d !important; color:#fff !important; }
 .no-jobs { color: #bbb; font-size: 13px; font-style: italic; }
 
 /* ------------------------------------------------------------

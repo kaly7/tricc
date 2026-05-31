@@ -169,14 +169,8 @@ function renderJobs(jobs){
     jobs.forEach(function(j){
         var jobRobot=null;
         j.goals.forEach(function(g){if(g&&g.robot&&!jobRobot)jobRobot=g.robot;});
-        h+='<div class="job-row">';
-        if(j.can_delete){
-            h+='<button class="button_delete" style="font-size:12px;padding:4px 10px;"'
-              +' onclick="location.href=\'job_del.php?id='+esc(j.id)+'\'">'
-              +esc(j.id)+' &ndash; Törlés</button>';
-        } else {
-            h+='<span style="font-size:11px;color:#888;white-space:nowrap;">'+esc(j.id)+'</span>';
-        }
+        h+='<div class="job-row">'
+          +'<span style="font-size:11px;color:#888;white-space:nowrap;">'+esc(j.id)+'</span>';
         if(jobRobot){
             h+='<span style="font-size:11px;color:#007BC2;margin:0 4px;">&#x25B6; '+esc(jobRobot)+'</span>';
         }
