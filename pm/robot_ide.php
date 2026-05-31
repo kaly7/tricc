@@ -167,6 +167,8 @@ function renderJobs(jobs){
     if(!jobs||jobs.length===0){p.innerHTML='<p class="no-jobs">Nincs aktív job.</p>';return;}
     var h='';
     jobs.forEach(function(j){
+        var jobRobot=null;
+        j.goals.forEach(function(g){if(g&&g.robot&&!jobRobot)jobRobot=g.robot;});
         h+='<div class="job-row">';
         if(j.can_delete){
             h+='<button class="button_delete" style="font-size:12px;padding:4px 10px;"'
@@ -174,6 +176,9 @@ function renderJobs(jobs){
               +esc(j.id)+' &ndash; Törlés</button>';
         } else {
             h+='<span style="font-size:11px;color:#888;white-space:nowrap;">'+esc(j.id)+'</span>';
+        }
+        if(jobRobot){
+            h+='<span style="font-size:11px;color:#007BC2;margin:0 4px;">&#x25B6; '+esc(jobRobot)+'</span>';
         }
         j.goals.forEach(function(g){
             var name=typeof g==='object'?g.name:g;

@@ -77,6 +77,12 @@ if (isset($_POST["login_name"])) {
 #status-panel table.blueTable th {
     font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
 }
+.badge { display:inline-block; padding:.3em .65em; font-size:12px; font-weight:700; line-height:1; text-align:center; white-space:nowrap; vertical-align:baseline; border-radius:10px; }
+.bg-success   { background:#198754 !important; color:#fff; }
+.bg-primary   { background:#007BC2 !important; color:#fff; }
+.bg-danger    { background:#dc3545 !important; color:#fff; }
+.bg-warning   { background:#ffc107 !important; color:#333; }
+.bg-secondary { background:#6c757d !important; color:#fff; }
 </style>
 </head>
 <body>
@@ -150,13 +156,24 @@ function goalBadge(s){
     return'secondary';
 }
 
+function robotBadge(s) {
+    if (!s) return 'secondary';
+    s = s.toLowerCase();
+    if (s.indexOf('available') !== -1 && s.indexOf('unavailable') === -1) return 'success';
+    if (s.indexOf('inprogress') !== -1 || s.indexOf('driving') !== -1) return 'primary';
+    if (s.indexOf('unavailable') !== -1) return 'danger';
+    return 'secondary';
+}
 function renderStatus(data) {
-    // Robots tábla
+    if (!data || !Array.isArray(data.robots)) return;
+    // Robot státusz tábla
     var rHtml = '<table class="blueTable" style="width:100%;margin-bottom:12px;"><thead><tr><th>Robot</th><th>Státusz</th></tr></thead><tbody>';
     data.robots.forEach(function(r) {
-        var st = r.fm_status || r.status || 'Nincs adat';
-        var av = r.availability ? ' (' + esc(r.availability) + ')' : '';
-        rHtml += '<tr><td>' + esc(r.name) + '</td><td>' + esc(st) + av + '</td></tr>';
+        var raw   = r.status || null;
+        var badge = 'badge bg-' + robotBadge(raw);
+        var label = raw ? esc(raw) : '<span style="color:#999">Nincs adat</span>';
+        rHtml += '<tr><td><strong>' + esc(r.name) + '</strong></td>'
+               + '<td><span class="' + badge + '">' + label + '</span></td></tr>';
     });
     rHtml += '</tbody></table>';
     document.getElementById('status-panel').innerHTML = rHtml;
@@ -169,13 +186,27 @@ function renderStatus(data) {
     }
     var jHtml = '<div style="font-size:11px;font-weight:700;color:#aaa;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;">Aktív jobok</div>';
     data.jobs.forEach(function(job) {
-        jHtml += '<div class="job-row">'
-            + '<button class="button_delete" style="font-size:12px;padding:4px 10px;" onclick="location.href=\'job_del.php?id=' + esc(job.id) + '\'">'
-            + esc(job.id) + ' &ndash; Törlés</button>';
+        var jobRobot = null;
+        job.goals.forEach(function(g) { if (g && g.robot && !jobRobot) jobRobot = g.robot; });
+        jHtml += '<div class="job-row">';
+        if (job.can_delete) {
+            jHtml += '<button class="button_delete" style="font-size:12px;padding:4px 10px;"'
+                   + ' onclick="location.href=\'job_del.php?id=' + esc(job.id) + '\'">'
+                   + esc(job.id) + ' &ndash; Törlés</button>';
+        } else {
+            jHtml += '<span style="font-size:12px;font-weight:600;color:#555;padding:4px 6px;">'
+                   + esc(job.id) + '</span>';
+        }
+        if (jobRobot) {
+            jHtml += '<span style="font-size:11px;color:#007BC2;margin:0 4px;">&#x25B6; ' + esc(jobRobot) + '</span>';
+        }
         job.goals.forEach(function(g) {
-            var name = typeof g === 'object' ? g.name : g;
-            var cls  = 'job-goal-pill badge bg-' + goalBadge(typeof g === 'object' ? g.status : null);
-            jHtml += '<span class="' + cls + '">' + esc(name) + '</span>';
+            var name   = typeof g === 'object' ? g.name   : g;
+            var status = typeof g === 'object' ? g.status : null;
+            var robot  = typeof g === 'object' && g.robot ? ' (' + esc(g.robot) + ')' : '';
+            var cls    = 'job-goal-pill badge bg-' + goalBadge(status);
+            jHtml += '<span class="' + cls + '" title="' + esc(status || '') + robot + '">'
+                   + esc(name) + '</span>';
         });
         jHtml += '</div>';
     });
@@ -184,9 +215,12 @@ function renderStatus(data) {
 
 function poll() {
     fetch('status_api.php')
-        .then(function(r) { return r.json(); })
+        .then(function(r) {
+            if (!r.ok) throw new Error('HTTP ' + r.status);
+            return r.json();
+        })
         .then(renderStatus)
-        .catch(function() {});
+        .catch(function(e) { console.error('status_api:', e); });
 }
 
 poll();
