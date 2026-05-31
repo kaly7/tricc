@@ -149,66 +149,74 @@ if (file_exists($result_file) && (time() - filemtime($result_file)) < 60) {
         }
 
         // --- fm_jobs_live szinkron: összes aktív FM pickup ---
+        // fm_responded: csak akkor igaz, ha az FM ténylegesen válaszolt (van robot státusz adat).
+        // Ha az FM nem elérhető, robots=[] → NE zárjuk le a jobokat, és NE töröljük az fm_jobs_live-ot.
+        $fm_responded  = !empty($data['robots']);
         $done_statuses = ['completed', 'cancelled', 'failed', 'interrupted'];
         $current_pickups = [];
 
-        if (isset($data['fm_jobs']) && is_array($data['fm_jobs'])) {
-            $upsert = $conn->prepare(
-                "INSERT INTO fm_jobs_live (pickup_id, job_id, goal, robot, status, fm_kezdes)
-                 VALUES (?, ?, ?, ?, ?, ?)
-                 ON DUPLICATE KEY UPDATE
-                   job_id=VALUES(job_id), goal=VALUES(goal), robot=VALUES(robot),
-                   status=VALUES(status), fm_kezdes=VALUES(fm_kezdes)"
-            );
-            foreach ($data['fm_jobs'] as $p) {
-                if (in_array(strtolower($p['status'] ?? ''), $done_statuses)) continue;
-                $pid    = $p['pickup_id'];
-                $jid    = $p['job_id'];
-                $goal   = $p['goal']   ?? '';
-                $robot  = $p['robot']  ?? '';
-                $status = $p['status'] ?? '';
-                $kezdes = !empty($p['kezdes']) ? $p['kezdes'] : null;
-                $upsert->bind_param('ssssss', $pid, $jid, $goal, $robot, $status, $kezdes);
-                $upsert->execute();
-                $current_pickups[] = $pid;
-                _log($ts, "fm_jobs_live upsert: $pid | $jid | $goal | $robot | $status");
+        if (!$fm_responded) {
+            _log($ts, "FM nem válaszolt (robots üres) – fm_jobs_live szinkron és job-lezárás KIHAGYVA");
+        } else {
+            if (isset($data['fm_jobs']) && is_array($data['fm_jobs'])) {
+                $upsert = $conn->prepare(
+                    "INSERT INTO fm_jobs_live (pickup_id, job_id, goal, robot, status, fm_kezdes)
+                     VALUES (?, ?, ?, ?, ?, ?)
+                     ON DUPLICATE KEY UPDATE
+                       job_id=VALUES(job_id), goal=VALUES(goal), robot=VALUES(robot),
+                       status=VALUES(status), fm_kezdes=VALUES(fm_kezdes)"
+                );
+                foreach ($data['fm_jobs'] as $p) {
+                    if (in_array(strtolower($p['status'] ?? ''), $done_statuses)) continue;
+                    $pid    = $p['pickup_id'];
+                    $jid    = $p['job_id'];
+                    $goal   = $p['goal']   ?? '';
+                    $robot  = $p['robot']  ?? '';
+                    $status = $p['status'] ?? '';
+                    $kezdes = !empty($p['kezdes']) ? $p['kezdes'] : null;
+                    $upsert->bind_param('ssssss', $pid, $jid, $goal, $robot, $status, $kezdes);
+                    $upsert->execute();
+                    $current_pickups[] = $pid;
+                    _log($ts, "fm_jobs_live upsert: $pid | $jid | $goal | $robot | $status");
+                }
+                $upsert->close();
+            } else {
+                _log($ts, "fm_jobs_live: fm_jobs kulcs hiányzik a result JSON-ból");
             }
-            $upsert->close();
-        } else {
-            _log($ts, "fm_jobs_live: fm_jobs kulcs hiányzik a result JSON-ból");
-        }
 
-        // Töröljük azokat a pickupokat, amik már nem aktívak az FM-ben
-        if (!empty($current_pickups)) {
-            $ph  = implode(',', array_fill(0, count($current_pickups), '?'));
-            $del = $conn->prepare("DELETE FROM fm_jobs_live WHERE pickup_id NOT IN ($ph)");
-            $del->bind_param(str_repeat('s', count($current_pickups)), ...$current_pickups);
-            $del->execute();
-            $deleted = $del->affected_rows;
-            $del->close();
-            if ($deleted > 0) _log($ts, "fm_jobs_live: $deleted elavult pickup törölve");
-        } else {
-            // Ha queueShow üres → az FM queue is üres
-            $chk = $conn->query("SELECT COUNT(*) AS cnt FROM fm_jobs_live");
-            $cnt = $chk ? (int)$chk->fetch_assoc()['cnt'] : 0;
-            $conn->query("DELETE FROM fm_jobs_live");
-            if ($cnt > 0) _log($ts, "fm_jobs_live: FM queue üres, $cnt pickup törölve");
-        }
+            // Töröljük azokat a pickupokat, amik már nem aktívak az FM-ben
+            if (!empty($current_pickups)) {
+                $ph  = implode(',', array_fill(0, count($current_pickups), '?'));
+                $del = $conn->prepare("DELETE FROM fm_jobs_live WHERE pickup_id NOT IN ($ph)");
+                $del->bind_param(str_repeat('s', count($current_pickups)), ...$current_pickups);
+                $del->execute();
+                $deleted = $del->affected_rows;
+                $del->close();
+                if ($deleted > 0) _log($ts, "fm_jobs_live: $deleted elavult pickup törölve");
+            } else {
+                // FM válaszolt, de queueShow üres → az FM queue valóban üres
+                $chk = $conn->query("SELECT COUNT(*) AS cnt FROM fm_jobs_live");
+                $cnt = $chk ? (int)$chk->fetch_assoc()['cnt'] : 0;
+                $conn->query("DELETE FROM fm_jobs_live");
+                if ($cnt > 0) _log($ts, "fm_jobs_live: FM queue üres, $cnt pickup törölve");
+            }
 
-        // Általunk indított jobok lezárása: ha eltűnt az FM queue-ból
-        $our_res = $conn->query("SELECT DISTINCT Megjegyzes FROM Button_Goals WHERE akcio='aktiv'");
-        if ($our_res) {
-            while ($our_row = $our_res->fetch_assoc()) {
-                $jid = $conn->real_escape_string($our_row['Megjegyzes']);
-                $chk = $conn->query("SELECT COUNT(*) AS cnt FROM fm_jobs_live WHERE job_id='$jid'");
-                if ($chk && (int)$chk->fetch_assoc()['cnt'] === 0) {
-                    $conn->query("UPDATE Button_Goals SET akcio='deleted' WHERE Megjegyzes='$jid'");
-                    _log($ts, "Job lezárva (eltűnt FM-ből): " . $our_row['Megjegyzes']);
+            // Általunk indított jobok lezárása: ha eltűnt az FM queue-ból
+            // (csak ha az FM válaszolt – különben nem tudhatjuk, hogy valóban eltűnt-e)
+            $our_res = $conn->query("SELECT DISTINCT Megjegyzes FROM Button_Goals WHERE akcio='aktiv'");
+            if ($our_res) {
+                while ($our_row = $our_res->fetch_assoc()) {
+                    $jid = $conn->real_escape_string($our_row['Megjegyzes']);
+                    $chk = $conn->query("SELECT COUNT(*) AS cnt FROM fm_jobs_live WHERE job_id='$jid'");
+                    if ($chk && (int)$chk->fetch_assoc()['cnt'] === 0) {
+                        $conn->query("UPDATE Button_Goals SET akcio='deleted' WHERE Megjegyzes='$jid'");
+                        _log($ts, "Job lezárva (eltűnt FM-ből): " . $our_row['Megjegyzes']);
+                    }
                 }
             }
-        }
 
-        _log($ts, "fm_jobs_live szinkron kész: " . count($current_pickups) . " aktív pickup");
+            _log($ts, "fm_jobs_live szinkron kész: " . count($current_pickups) . " aktív pickup");
+        }
     }
     unlink($result_file);
 } else {
