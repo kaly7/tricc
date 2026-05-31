@@ -1,9 +1,9 @@
 #!/usr/bin/perl
 use strict;
 use warnings;
+use DBI;
 
 my @job_ids = @ARGV;
-exit 0 unless @job_ids;
 
 my $lock_file   = "/var/www/html/pm/tmp/query.lock";
 my $fleet_file  = "/var/www/html/pm/tmp/talk_query.fleet";
@@ -52,15 +52,22 @@ print $out "expect {\n";
 print $out "    \"EndQueueShowRobot\" {}\n";
 print $out "    timeout {}\n";
 print $out "}\n";
+print $out "send \"queueShow \\r\"\n";
+print $out "expect {\n";
+print $out "    \"EndQueueShow\" {}\n";
+print $out "    timeout {}\n";
+print $out "}\n";
 print $out "close\n";
 close($out);
 
 system("expect $fleet_file");
 
 # Log parse – job pickup-ok és robot állapotok kinyerése
-my @job_map;    # job_id => { status, pickups => [...] }
-my %job_index;  # job_id => index in @job_map
-my @robot_parts;
+my @job_map;      # job_id => { status, pickups => [...] }
+my %job_index;    # job_id => index in @job_map
+my @robot_parts;  # JSON stringek
+my @robots_db;    # hash ref-ek DB update-hez
+my @fm_jobs_list; # queueShow összes aktív pickup
 my $raw = '';
 my @fm_lines;
 
@@ -69,7 +76,7 @@ if (open(my $log_fh, "<", $raw_log)) {
         chomp $line;
         $raw .= $line . "\n";
 
-        if ($line =~ /QueueQuery:|EndQueueQuery|QueueRobot:|EndQueueShowRobot|QueueError|Connection refused|telnet:|Enter password/i) {
+        if ($line =~ /QueueQuery:|EndQueueQuery|QueueShow:|EndQueueShow|QueueRobot:|EndQueueShowRobot|QueueError|Connection refused|telnet:|Enter password/i) {
             push @fm_lines, $line;
         }
 
@@ -113,10 +120,26 @@ if (open(my $log_fh, "<", $raw_log)) {
             };
         }
 
+        # queueShow: összes aktív pickup az FM-ben
+        # Formátum: QueueShow: PICKUP123 JOB_001 1 InProgress None Goal "GOAL" "Kiss_Gyuri" 05/20/2026 10:00:00 ...
+        if ($line =~ /QueueShow:\s+(\S+)\s+(\S+)\s+\d+\s+(\S+)\s+\S+\s+\S+\s+"([^"]*)"\s+"([^"]*)"\s+(\d+\/\d+\/\d+)\s+(\d+:\d+:\d+)/) {
+            my ($pickup_id, $job_id, $status, $goal, $robot, $date, $time)
+                = ($1, $2, $3, $4, $5, $6, $7);
+            push @fm_jobs_list, {
+                pickup_id => $pickup_id,
+                job_id    => $job_id,
+                status    => $status,
+                goal      => $goal,
+                robot     => $robot,
+                kezdes    => _conv_date($date, $time),
+            };
+        }
+
         # Robot állapot parse
         # Formátum: QueueRobot: "Kiss_Gyuri" Available Parked ""
-        if ($line =~ /QueueRobot:\s+"([^"]+)"\s+(\w+)\s+(\w+)/) {
+        if ($line =~ /QueueRobot:\s+"([^"]+)"\s+(\S+)\s+(\S+)/) {
             my ($name, $avail, $fmstat) = ($1, $2, $3);
+            push @robots_db, { name => $name, avail => $avail, fmstat => $fmstat };
             (my $s_name  = $name)   =~ s/"/\\"/g;
             (my $s_avail = $avail)  =~ s/"/\\"/g;
             (my $s_fmst  = $fmstat) =~ s/"/\\"/g;
@@ -159,26 +182,53 @@ foreach my $entry (@job_map) {
 
 my $robots_json  = '[' . join(',', @robot_parts) . ']';
 my $results_json = '[' . join(',', @result_parts) . ']';
-my $json = "{\"results\":$results_json,\"robots\":$robots_json}";
+
+my @fm_jobs_json_parts;
+for my $p (@fm_jobs_list) {
+    (my $s_pid = $p->{pickup_id}) =~ s/"/\\"/g;
+    (my $s_jid = $p->{job_id})   =~ s/"/\\"/g;
+    (my $s_st  = $p->{status})   =~ s/"/\\"/g;
+    (my $s_g   = $p->{goal})     =~ s/"/\\"/g;
+    (my $s_r   = $p->{robot})    =~ s/"/\\"/g;
+    push @fm_jobs_json_parts, sprintf(
+        '{"pickup_id":"%s","job_id":"%s","status":"%s","goal":"%s","robot":"%s","kezdes":"%s"}',
+        $s_pid, $s_jid, $s_st, $s_g, $s_r, $p->{kezdes}
+    );
+}
+my $fm_jobs_json = '[' . join(',', @fm_jobs_json_parts) . ']';
+my $json = "{\"results\":$results_json,\"robots\":$robots_json,\"fm_jobs\":$fm_jobs_json}";
 
 open(my $res_fh, ">", $result_file) or do { unlink $lock_file; exit 1; };
 print $res_fh $json;
 close($res_fh);
 
-# Kommunikációs napló
-my $log_entry = "[$ts] Lekérdezés\n";
-$log_entry   .= "  Job ID-k: " . join(", ", @job_ids) . "\n";
-$log_entry   .= "  Teljes FM session:\n";
-for my $line (split /\n/, $raw) {
-    $log_entry .= "    $line\n" if $line =~ /\S/;
+# Kommunikációs napló – csak érdemi sorok (teljes raw → query_raw.log, help lista nem kerül ide)
+my $cmd_list = "queueShowRobot, queueShow";
+if (@job_ids) {
+    $cmd_list = "queueQuery×" . scalar(@job_ids) . ", " . $cmd_list;
+}
+my $log_entry = "[$ts] " . (@job_ids ? "Lekérdezés" : "Robot státusz") . " [$cmd_list]\n";
+$log_entry   .= "  Job ID-k: " . (@job_ids ? join(", ", @job_ids) : "(nincs aktív job)") . "\n";
+if (@fm_lines) {
+    $log_entry .= "  FM válasz:\n";
+    for my $line (@fm_lines) {
+        $log_entry .= "    $line\n" if $line =~ /\S/;
+    }
+} else {
+    $log_entry .= "  FM válasz: (üres – kapcsolati hiba?)\n";
 }
 if (@summary) {
     $log_entry .= "  Eredmény: " . join(", ", @summary) . "\n";
 } else {
     $log_entry .= "  Eredmény: nincs befejezett job\n";
 }
+$log_entry .= "  fm_jobs_live: " . scalar(@fm_jobs_list) . " aktív pickup az FM-ben\n";
 if (@robot_parts) {
-    $log_entry .= "  Robotok: " . scalar(@robot_parts) . " db frissítve\n";
+    $log_entry .= "  Robotok: " . scalar(@robot_parts) . " db frissítve";
+    for my $r (@robots_db) {
+        $log_entry .= " | $r->{name}: $r->{avail} $r->{fmstat}";
+    }
+    $log_entry .= "\n";
 }
 $log_entry .= "\n";
 
@@ -199,6 +249,45 @@ if (-e $comm_log && (stat($comm_log))[7] > $max_log_bytes) {
 open(my $comm_fh, ">>", $comm_log) or do { unlink $lock_file; exit 0; };
 print $comm_fh $log_entry;
 close($comm_fh);
+
+# Robots tábla direkt frissítése DBI-val + státuszfájlok írása
+if (@robots_db) {
+    my $tmp_dir = '/var/www/html/pm/tmp';
+
+    # DB frissítés
+    eval {
+        my $dbh = DBI->connect('DBI:mysql:Robot:localhost', 'robot', 'abrakadabra',
+            { PrintError => 0, RaiseError => 1, AutoCommit => 1 });
+        my $sth = $dbh->prepare(
+            'UPDATE Robots SET availability=?, fm_status=?, frissitve=NOW() WHERE Robot_name=?'
+        );
+        for my $r (@robots_db) {
+            $sth->execute($r->{avail}, $r->{fmstat}, $r->{name});
+            my $rows = $sth->rows;
+            if ($rows == 0) {
+                if (open(my $el, '>>', $comm_log)) {
+                    print $el "  [DB FIGYELEM] '$r->{name}' – 0 sor frissült (Robot_name nem egyezik?)\n";
+                    close($el);
+                }
+            }
+        }
+        $dbh->disconnect();
+    };
+    if ($@) {
+        if (open(my $el, '>>', $comm_log)) { print $el "  [DB hiba] $@\n"; close($el); }
+    }
+
+    # Státuszfájlok írása: Kiss_Gyuri → tmp/GYURI, Kiss_Marci → tmp/MARCI
+    # A cron_poll.php ezekből szinkronizál ha a DBI nem érhető el
+    for my $r (@robots_db) {
+        my $last = (split /_/, $r->{name})[-1];
+        my $fpath = "$tmp_dir/" . uc($last);
+        if (open(my $sfh, '>', $fpath)) {
+            print $sfh $r->{avail} . ' ' . $r->{fmstat};
+            close($sfh);
+        }
+    }
+}
 
 unlink $lock_file;
 

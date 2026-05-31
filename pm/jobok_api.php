@@ -13,7 +13,16 @@ if ($lathatosag === 'semmi') {
 $conn = new mysqli('localhost', 'robot', 'abrakadabra', 'Robot');
 $jobs = [];
 if (!$conn->connect_error) {
-    $res = $conn->query("SELECT Goal_name, Megjegyzes, pickup_status FROM Button_Goals WHERE akcio='aktiv' ORDER BY Megjegyzes, Index_");
+    // Státusz az fm_jobs_live-ból jön (pickup_status a Button_Goals-ban nem frissül megbízhatóan)
+    $res = $conn->query("
+        SELECT bg.Goal_name, bg.Megjegyzes,
+               f.status AS fm_status, f.robot AS fm_robot,
+               bg.Index_
+        FROM Button_Goals bg
+        LEFT JOIN fm_jobs_live f ON f.job_id = bg.Megjegyzes AND f.goal = bg.Goal_name
+        WHERE bg.akcio = 'aktiv'
+        ORDER BY bg.Megjegyzes, bg.Index_
+    ");
     $current = null;
     if ($res) {
         while ($row = $res->fetch_assoc()) {
@@ -26,7 +35,7 @@ if (!$conn->connect_error) {
                 if ($current !== null) $jobs[] = $current;
                 $current = ['id' => $jid, 'goals' => []];
             }
-            $current['goals'][] = ['name' => $row['Goal_name'], 'status' => $row['pickup_status']];
+            $current['goals'][] = ['name' => $row['Goal_name'], 'status' => $row['fm_status']];
         }
         if ($current !== null) $jobs[] = $current;
     }
