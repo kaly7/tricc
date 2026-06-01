@@ -82,6 +82,43 @@ function vehicle_label(array $v): string {
   return implode(' ', $parts) ?: 'Ismeretlen jármű';
 }
 
+// Összes divízió a projectmgr DB-ből
+function get_all_divisions(): array {
+  try {
+    return db_pm()->query("SELECT id, name FROM vehicle_divisions WHERE is_active=1 ORDER BY name")->fetchAll();
+  } catch (Throwable $e) { return []; }
+}
+
+// Felhasználói preferencia lekérése
+function pref_get(int $userId, string $key): ?string {
+  try {
+    $st = db()->prepare("SELECT pref_value FROM user_preferences WHERE user_id=? AND pref_key=? LIMIT 1");
+    $st->execute([$userId, $key]);
+    $v = $st->fetchColumn();
+    return $v !== false ? (string)$v : null;
+  } catch (Throwable $e) { return null; }
+}
+
+// Felhasználói preferencia mentése
+function pref_set(int $userId, string $key, string $value): void {
+  try {
+    db()->prepare("INSERT INTO user_preferences (user_id, pref_key, pref_value) VALUES (?,?,?) ON DUPLICATE KEY UPDATE pref_value=VALUES(pref_value), updated_at=NOW()")
+       ->execute([$userId, $key, $value]);
+  } catch (Throwable $e) {}
+}
+
+// Összes aktív jármű divízió szűrővel
+function get_all_vehicles_filtered(bool $includeArchived = false, array $divisionIds = []): array {
+  try {
+    $where = $includeArchived ? '1' : 'v.archived=0';
+    if (!empty($divisionIds)) {
+      $in = implode(',', array_map('intval', $divisionIds));
+      $where .= " AND (v.division_id IN ($in))";
+    }
+    return db_pm()->query("SELECT v.id, v.vehicle_identifier, v.license_plate, v.make, v.model, v.fuel_type, v.odometer_km, v.archived, v.division_id, d.name AS division_name FROM vehicles v LEFT JOIN vehicle_divisions d ON d.id=v.division_id WHERE $where ORDER BY v.license_plate")->fetchAll();
+  } catch (Throwable $e) { return []; }
+}
+
 // Aktuális hozzárendelés egy járműhöz
 function get_active_assignment(int $vehicleId): ?array {
   try {

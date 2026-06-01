@@ -71,6 +71,8 @@ if ($isAdmin) {
             <li><a class="dropdown-item" href="<?= e(base_url('admin_missing_checklists.php')) ?>">Hiányzó checklistek</a></li>
             <li><hr class="dropdown-divider"></li>
             <li><a class="dropdown-item" href="<?= e(base_url('admin_log.php')) ?>">Napló</a></li>
+            <li><hr class="dropdown-divider"></li>
+            <li><a class="dropdown-item" href="<?= e(base_url('admin_divisions.php')) ?>">Divíziók</a></li>
           </ul>
         </li>
         <?php endif; ?>
@@ -87,7 +89,7 @@ if ($isAdmin) {
     </div>
   </div>
 </nav>
-
+<?php if (!empty($_SESSION['user_id'])) require_once '/var/www/html/_common/easter/easter_init.php'; ?>
 <div class="container pb-5">
 <?php
 $_ok  = flash_get('ok');
