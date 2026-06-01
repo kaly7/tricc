@@ -644,6 +644,58 @@ input[type=datetime-local]:focus, select:focus {
 .agv-nav-link:hover { color: #fff; text-decoration: none; border-bottom-color: #EE3124; }
 .agv-nav-link.active { color: #fff; border-bottom-color: #EE3124; }
 
+/* Rendszer dropdown */
+.agv-nav-dropdown {
+    position: relative;
+    display: inline-flex;
+    align-items: stretch;
+}
+.agv-nav-dropdown-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    white-space: nowrap;
+}
+.agv-nav-caret {
+    font-size: 10px;
+    opacity: .7;
+    transition: transform .15s;
+}
+.agv-nav-dropdown:hover .agv-nav-caret,
+.agv-nav-dropdown:focus-within .agv-nav-caret { transform: rotate(180deg); }
+
+.agv-nav-dropdown-menu {
+    display: none;
+    position: absolute;
+    top: 100%;
+    right: 0;
+    min-width: 170px;
+    background: #1a1a1a;
+    border: 1px solid #333;
+    border-top: 2px solid #EE3124;
+    border-radius: 0 0 4px 4px;
+    z-index: 200;
+    box-shadow: 0 4px 12px rgba(0,0,0,.5);
+}
+.agv-nav-dropdown:hover .agv-nav-dropdown-menu,
+.agv-nav-dropdown:focus-within .agv-nav-dropdown-menu { display: block; }
+
+.agv-nav-dropdown-item {
+    display: block;
+    padding: 9px 18px;
+    color: #aaa;
+    font-size: 13px;
+    font-weight: 600;
+    text-decoration: none;
+    letter-spacing: .03em;
+    transition: background .12s, color .12s;
+}
+.agv-nav-dropdown-item:hover { background: #2a2a2a; color: #fff; text-decoration: none; }
+.agv-nav-dropdown-item.active { color: #EE3124; background: #222; }
+
 .agv-content {
     max-width: 1000px;
     margin: 0 auto;

@@ -44,7 +44,7 @@ if ($f_to !== '') {
 $sql_where = implode(' AND ', $where);
 
 $st = $db->prepare("SELECT COUNT(*) FROM agv_events e WHERE $sql_where");
-$st->bind_param(str_repeat('s', count($params)), ...$params);
+if ($params) { $st->bind_param(str_repeat('s', count($params)), ...$params); }
 $st->execute();
 $total = (int)$st->get_result()->fetch_row()[0];
 $pages = max(1, (int)ceil($total / $per_page));
@@ -57,7 +57,7 @@ $st = $db->prepare("
     ORDER BY e.created_at DESC
     LIMIT $per_page OFFSET $offset
 ");
-$st->bind_param(str_repeat('s', count($params)), ...$params);
+if ($params) { $st->bind_param(str_repeat('s', count($params)), ...$params); }
 $st->execute();
 $events = $st->get_result()->fetch_all(MYSQLI_ASSOC);
 

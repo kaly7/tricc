@@ -2,13 +2,18 @@
 $_agv_ver = file_exists(__DIR__ . '/version.txt') ? trim(file_get_contents(__DIR__ . '/version.txt')) : '';
 $_agv_page = $page ?? '';
 $_nav = [
-    'index'  => ['url' => 'index.php',  'label' => 'Dashboard',       'admin' => false],
-    'agvs'   => ['url' => 'agvs.php',   'label' => 'AGV-k',           'admin' => false],
-    'events' => ['url' => 'events.php', 'label' => 'Eseménynapló',    'admin' => false],
-    'omron'  => ['url' => 'omron.php',  'label' => 'Omron átadás',    'admin' => true],
-    'users'  => ['url' => 'users.php',  'label' => 'Felhasználók',    'admin' => true],
-    'admin'  => ['url' => 'admin.php',  'label' => 'Beállítások',     'admin' => true],
+    'index'  => ['url' => 'index.php',  'label' => 'Dashboard',    'admin' => false],
+    'agvs'   => ['url' => 'agvs.php',   'label' => 'AGV-k',        'admin' => false],
+    'map'    => ['url' => 'map.php',    'label' => 'Térkép',       'admin' => false],
+    'events' => ['url' => 'events.php', 'label' => 'Eseménynapló', 'admin' => false],
 ];
+$_nav_admin = [
+    'admin'  => ['url' => 'admin.php',  'label' => 'AGV beállítások'],
+    'omron'  => ['url' => 'omron.php',  'label' => 'Omron átadás'],
+    'users'  => ['url' => 'users.php',  'label' => 'Felhasználók'],
+];
+$_admin_pages = array_keys($_nav_admin);
+$_dropdown_active = in_array($_agv_page, $_admin_pages);
 ?>
 <!DOCTYPE html>
 <html lang="hu">
@@ -39,11 +44,25 @@ $_nav = [
 <?php if (agv_logged_in()): ?>
 <nav class="agv-nav">
   <?php foreach ($_nav as $key => $n): ?>
-    <?php if ($n['admin'] && empty($_SESSION['agv_admin'])) continue; ?>
     <a href="<?= e($n['url']) ?>" class="agv-nav-link <?= $_agv_page === $key ? 'active' : '' ?>">
       <?= e($n['label']) ?>
     </a>
   <?php endforeach; ?>
+
+  <?php if (!empty($_SESSION['agv_admin'])): ?>
+  <div class="agv-nav-dropdown <?= $_dropdown_active ? 'active' : '' ?>">
+    <button class="agv-nav-link agv-nav-dropdown-btn <?= $_dropdown_active ? 'active' : '' ?>">
+      Rendszer <span class="agv-nav-caret">▾</span>
+    </button>
+    <div class="agv-nav-dropdown-menu">
+      <?php foreach ($_nav_admin as $key => $n): ?>
+        <a href="<?= e($n['url']) ?>" class="agv-nav-dropdown-item <?= $_agv_page === $key ? 'active' : '' ?>">
+          <?= e($n['label']) ?>
+        </a>
+      <?php endforeach; ?>
+    </div>
+  </div>
+  <?php endif; ?>
 </nav>
 <?php endif; ?>
 

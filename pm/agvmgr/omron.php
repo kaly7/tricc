@@ -283,8 +283,13 @@ document.getElementById('omron-test-btn').addEventListener('click', function() {
     fetch('omron_test.php')
         .then(function(res) { return res.json(); })
         .then(function(d) {
-            if (d.ok) { r.textContent = '✓ Sikeres kapcsolat'; r.style.color = '#198754'; }
-            else      { r.textContent = '✗ ' + (d.error||'Nem sikerült'); r.style.color = '#dc3545'; }
+            if (d.ok) {
+                r.textContent = '✓ Kapcsolat OK – teszt üzenet elküldve: ' + d.topic + ' (' + d.ts + ')';
+                r.style.color = '#198754';
+            } else {
+                r.textContent = '✗ ' + (d.error||'Nem sikerült');
+                r.style.color = '#dc3545';
+            }
         })
         .catch(function() { r.textContent = '✗ Hálózati hiba'; r.style.color = '#dc3545'; });
 });

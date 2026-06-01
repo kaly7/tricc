@@ -17,7 +17,7 @@ DB_USER="robot"
 DB_PASS="abrakadabra"
 DB_HOST="localhost"
 
-EXPECTED_VER="1.0.0"
+EXPECTED_VER="2.0.0"
 
 OK=0; WARN=0; ERR=0; FIX=0
 
@@ -64,13 +64,14 @@ _head "2. Kötelező fájlok"
 
 PHP_FILES=(
     "index.php" "login.php" "logout.php" "admin.php"
-    "agvs.php" "omron.php"
+    "agvs.php" "omron.php" "events.php" "users.php"
+    "map.php" "map_api.php" "worker_status.php"
     "broker_test.php" "omron_test.php" "coords_api.php"
     "db.php" "auth.php"
     "_header.php" "_footer.php"
     "styles.css" "setup.sql"
 )
-WORKER_FILES=("worker/mqtt_worker.py" "worker/requirements.txt" "worker/install.sh")
+WORKER_FILES=("worker/mqtt_worker.php" "worker/phpMQTT.php")
 ASSET_FILES=("assets/bootstrap/bootstrap.min.css" "assets/bootstrap/bootstrap.bundle.min.js")
 
 ALL_MISSING=0
@@ -263,6 +264,37 @@ CREATE TABLE IF NOT EXISTS omron_forward (
     FOREIGN KEY (agv_id) REFERENCES agv(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;"
 
+create_table_if_missing "agv_events" "
+CREATE TABLE IF NOT EXISTS agv_events (
+    id         BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    agv_id     INT NOT NULL,
+    event_type VARCHAR(30)  NOT NULL,
+    severity   ENUM('info','warning','error') NOT NULL DEFAULT 'info',
+    detail     VARCHAR(255) NOT NULL DEFAULT '',
+    created_at DATETIME(3)  NOT NULL DEFAULT NOW(3),
+    INDEX idx_agv     (agv_id),
+    INDEX idx_created (created_at),
+    INDEX idx_type    (event_type),
+    FOREIGN KEY (agv_id) REFERENCES agv(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;"
+
+create_table_if_missing "agv_coords_history" "
+CREATE TABLE IF NOT EXISTS agv_coords_history (
+    id          BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    agv_id      INT NOT NULL,
+    x           DECIMAL(12,4) NULL,
+    y           DECIMAL(12,4) NULL,
+    theta       DECIMAL(10,6) NULL,
+    map_id      VARCHAR(100)  NOT NULL DEFAULT '',
+    speed       DECIMAL(10,4) NULL,
+    battery     DECIMAL(5,2)  NULL,
+    source      VARCHAR(15)   NOT NULL DEFAULT 'worker',
+    recorded_at DATETIME(3)   NOT NULL DEFAULT NOW(3),
+    INDEX idx_agv  (agv_id),
+    INDEX idx_time (recorded_at),
+    FOREIGN KEY (agv_id) REFERENCES agv(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;"
+
 # ════════════════════════════════════════════════════════════════════
 _head "7. Tábla mezők (upgrade ellenőrzés)"
 
@@ -278,21 +310,22 @@ check_column() {
     fi
 }
 
-check_column "agv"        "type"                "type VARCHAR(100) NOT NULL DEFAULT '' AFTER manufacturer"
-check_column "agv_coords" "theta"               "theta DECIMAL(10,6) NULL AFTER y"
-check_column "agv_coords" "map_id"              "map_id VARCHAR(100) NOT NULL DEFAULT '' AFTER theta"
+check_column "agv"        "type"                 "type VARCHAR(100) NOT NULL DEFAULT '' AFTER manufacturer"
+check_column "agv_coords" "theta"                "theta DECIMAL(10,6) NULL AFTER y"
+check_column "agv_coords" "map_id"               "map_id VARCHAR(100) NOT NULL DEFAULT '' AFTER theta"
 check_column "agv_coords" "position_initialized" "position_initialized TINYINT(1) NULL AFTER map_id"
-check_column "agv_coords" "localization_score"  "localization_score DECIMAL(5,4) NULL AFTER position_initialized"
-check_column "agv_coords" "deviation_range"     "deviation_range DECIMAL(10,4) NULL AFTER localization_score"
-check_column "agv_coords" "vx"                  "vx DECIMAL(10,4) NULL AFTER deviation_range"
-check_column "agv_coords" "vy"                  "vy DECIMAL(10,4) NULL AFTER vx"
-check_column "agv_coords" "omega"               "omega DECIMAL(10,6) NULL AFTER vy"
-check_column "agv_coords" "battery_charge"      "battery_charge DECIMAL(5,2) NULL AFTER omega"
-check_column "agv_coords" "battery_voltage"     "battery_voltage DECIMAL(7,3) NULL AFTER battery_charge"
-check_column "agv_coords" "operating_mode"      "operating_mode VARCHAR(20) NOT NULL DEFAULT '' AFTER battery_voltage"
-check_column "agv_coords" "driving"             "driving TINYINT(1) NULL AFTER operating_mode"
-check_column "agv_coords" "paused"              "paused TINYINT(1) NULL AFTER driving"
-check_column "agv_coords" "source"              "source VARCHAR(15) NOT NULL DEFAULT 'state' AFTER paused"
+check_column "agv_coords" "localization_score"   "localization_score DECIMAL(5,4) NULL AFTER position_initialized"
+check_column "agv_coords" "deviation_range"      "deviation_range DECIMAL(10,4) NULL AFTER localization_score"
+check_column "agv_coords" "vx"                   "vx DECIMAL(10,4) NULL AFTER deviation_range"
+check_column "agv_coords" "vy"                   "vy DECIMAL(10,4) NULL AFTER vx"
+check_column "agv_coords" "omega"                "omega DECIMAL(10,6) NULL AFTER vy"
+check_column "agv_coords" "battery_charge"       "battery_charge DECIMAL(5,2) NULL AFTER omega"
+check_column "agv_coords" "battery_voltage"      "battery_voltage DECIMAL(7,3) NULL AFTER battery_charge"
+check_column "agv_coords" "operating_mode"       "operating_mode VARCHAR(20) NOT NULL DEFAULT '' AFTER battery_voltage"
+check_column "agv_coords" "driving"              "driving TINYINT(1) NULL AFTER operating_mode"
+check_column "agv_coords" "paused"               "paused TINYINT(1) NULL AFTER driving"
+check_column "agv_coords" "source"               "source VARCHAR(15) NOT NULL DEFAULT 'state' AFTER paused"
+check_column "agv_coords" "raw_payload"          "raw_payload MEDIUMTEXT NULL AFTER source"
 
 # ════════════════════════════════════════════════════════════════════
 _head "8. Alapértelmezett sorok (seed)"
@@ -488,7 +521,59 @@ else
 fi
 
 # ════════════════════════════════════════════════════════════════════
-_head "16. Webszerver elérhetőség"
+_head "16. Apache vhost"
+
+PM_VHOST_EXISTS=0
+for conf in /etc/apache2/sites-enabled/*.conf; do
+    if grep -q "/var/www/html/pm" "$conf" 2>/dev/null; then
+        PM_PORT=$(grep -m1 "VirtualHost" "$conf" | grep -oP ':\K[0-9]+')
+        PM_VHOST_EXISTS=1
+        _ok "PM vhost megtalálva: port $PM_PORT ($(basename $conf))"
+        break
+    fi
+done
+
+if [ "$PM_VHOST_EXISTS" -eq 0 ]; then
+    _warn "PM vhost nem található – a pm/agvmgr/ eléréshez Apache vhost szükséges."
+    echo ""
+    read -r -p "  Létrehozzak egy dedikált agvmgr vhost-ot? (port pl. 8791) [i/n]: " MAKE_VHOST
+    if [ "$MAKE_VHOST" = "i" ] || [ "$MAKE_VHOST" = "I" ]; then
+        read -r -p "  Port szám [8791]: " VHOST_PORT
+        VHOST_PORT="${VHOST_PORT:-8791}"
+        VHOST_FILE="/etc/apache2/sites-available/agvmgr-${VHOST_PORT}.conf"
+
+        # Port hozzáadása ha még nincs
+        if ! grep -q "Listen $VHOST_PORT" /etc/apache2/ports.conf 2>/dev/null; then
+            echo "Listen $VHOST_PORT" >> /etc/apache2/ports.conf
+            _fix "ports.conf: Listen $VHOST_PORT hozzáadva"
+        fi
+
+        cat > "$VHOST_FILE" << VHEOF
+<VirtualHost *:${VHOST_PORT}>
+    ServerAdmin webmaster@localhost
+    DocumentRoot $AGVMGR_DIR/../
+    <Directory $AGVMGR_DIR/../>
+        Options FollowSymLinks
+        AllowOverride All
+        Require all granted
+    </Directory>
+    ErrorLog \${APACHE_LOG_DIR}/agvmgr_error.log
+    CustomLog \${APACHE_LOG_DIR}/agvmgr.log combined
+</VirtualHost>
+VHEOF
+        a2ensite "agvmgr-${VHOST_PORT}.conf" > /dev/null 2>&1
+        systemctl reload apache2 > /dev/null 2>&1
+        _fix "Vhost létrehozva: $VHOST_FILE (port: $VHOST_PORT)"
+        _info "→ Elérés: http://$(hostname -I | awk '{print $1}'):${VHOST_PORT}/agvmgr/"
+        PM_PORT="$VHOST_PORT"
+        PM_VHOST_EXISTS=1
+    else
+        _warn "Vhost kihagyva – állítsd be kézzel az Apache-t."
+    fi
+fi
+
+# ════════════════════════════════════════════════════════════════════
+_head "17. Webszerver elérhetőség"
 
 # Megkeressük, melyik Apache porton érhető el a PM modul (és ezzel az agvmgr)
 PM_PORT=""

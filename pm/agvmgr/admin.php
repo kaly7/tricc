@@ -283,7 +283,7 @@ document.getElementById('test-btn').addEventListener('click', function(){
         .then(function(res){ return res.json(); })
         .then(function(d){
             if(d.ok){
-                r.textContent = '✓ Sikeres kapcsolat';
+                r.textContent = '✓ Kapcsolat OK – teszt üzenet elküldve: ' + d.topic + ' (' + d.ts + ')';
                 r.style.color = '#198754';
             } else {
                 r.textContent = '✗ ' + (d.error || 'Nem sikerült');
