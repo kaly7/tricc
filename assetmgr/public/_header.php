@@ -113,7 +113,7 @@ $qrUrl = 'https://'.$host.':9443/qr_demo.php';
     </div>
   </div>
 </nav>
-
+<?php if (!empty($_SESSION['user_id'])) require_once '/var/www/html/_common/easter/easter_init.php'; ?>
 <div class="container">
   <?php if ($m = flash_get('ok')): ?><div class="alert alert-success"><?= e($m) ?></div><?php endif; ?>
   <?php if ($m = flash_get('err')): ?><div class="alert alert-danger"><?= e($m) ?></div><?php endif; ?>
