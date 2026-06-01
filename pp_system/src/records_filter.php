@@ -104,6 +104,8 @@ if (in_array($due, ['overdue','today2','next10'], true)) {
   // Rendezés
   $allowedSort = ['issued_at','due_at','pp_status','eventus','city'];
   if (!in_array($sort, $allowedSort, true)) $sort = 'issued_at';
+  $desc = !empty($A['desc']);
+  $dir  = $desc ? 'DESC' : 'ASC';
 
   // WHERE felépítés
   $params = [];
@@ -151,5 +153,5 @@ if (in_array($due, ['overdue','today2','next10'], true)) {
 
 
 
-  return ['where' => implode(' AND ', $where), 'order' => $orderBy];
+  return ['where' => implode(' AND ', $where), 'order' => "$orderBy $dir"];
 }

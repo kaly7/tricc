@@ -550,13 +550,9 @@ function make_sort_link(string $col, string $label, array $qp, string $curSort, 
     </div>
 
     <div class="col-md-3">
-      <div class="form-check mt-4">
-        <input class="form-check-input" type="checkbox" name="include_arch" id="arch" <?=$include_arch?'checked':''?>>
-        <label class="form-check-label" for="arch">Archív tételekben is keressen</label>
-      </div>
       <?php if (is_admin()): ?>
       <!--
-      <div class="form-check">
+      <div class="form-check mt-4">
         <input class="form-check-input" type="checkbox" name="include_deleted" id="del" <?=$include_deleted?'checked':''?>>
          <label class="form-check-label" for="del">Törölteket is mutassa</label>
       </div>
@@ -578,6 +574,11 @@ function make_sort_link(string $col, string $label, array $qp, string $curSort, 
       <div class="form-check mb-0">
         <input class="form-check-input" type="checkbox" name="desc" id="sortDesc" value="1" <?=$desc?'checked':''?>>
         <label class="form-check-label small" for="sortDesc">Csökkenő</label>
+      </div>
+      <span class="text-muted">|</span>
+      <div class="form-check mb-0">
+        <input class="form-check-input" type="checkbox" name="include_arch" id="arch" <?=$include_arch?'checked':''?>>
+        <label class="form-check-label small" for="arch">Archív</label>
       </div>
       <a class="btn btn-success ms-auto" href="records_new.php">Új tétel</a>
     </div>
@@ -663,10 +664,10 @@ $plus12d = $today2->modify('+12 days');
           <span class="op-note"
                 tabindex="0"
                 data-bs-toggle="popover"
-                data-bs-html="true"
-                data-bs-content="<?=str_replace(["\r\n","\r","\n"], '<br>', htmlspecialchars($__ld, ENT_QUOTES, 'UTF-8'))?>">
+                data-desc-id="<?=(int)$r['id']?>">
              &#9432;
           </span>
+          <template id="pd-<?=(int)$r['id']?>"><?=nl2br(h($__ld))?></template>
           <?=h($r['operation'])?>
         </td>
         <td><?= $r['archived'] ? '✔' : '' ?></td>
@@ -729,7 +730,12 @@ $plus12d = $today2->modify('+12 days');
 document.addEventListener("DOMContentLoaded", function(){
   const popoverTriggerList = document.querySelectorAll('[data-bs-toggle="popover"]');
   [...popoverTriggerList].forEach(el => {
-    const pop = new bootstrap.Popover(el);
+    const descId = el.dataset.descId;
+    const pop = new bootstrap.Popover(el, descId ? {
+      html: true,
+      sanitize: false,
+      content: () => document.getElementById('pd-' + descId).innerHTML
+    } : {});
 
     el.addEventListener('shown.bs.popover', () => {
       el.classList.add('active');

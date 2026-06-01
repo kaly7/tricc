@@ -6,6 +6,12 @@ require_once __DIR__.'/../src/db.php'; require_once __DIR__.'/../src/helpers.php
 $db = db();
 $u = current_user();
 $status = trim((string)($_GET['status'] ?? ''));
+$sort   = in_array($_GET['sort'] ?? '', ['planned','due_at']) ? $_GET['sort'] : 'planned';
+$desc   = !empty($_GET['desc']);
+$dir    = $desc ? 'DESC' : 'ASC';
+$orderBy = $sort === 'due_at'
+    ? "r.due_at $dir, j.id DESC"
+    : "COALESCE(j.planned_date, r.due_at) $dir, j.id DESC";
 
 $params = [];
 if (is_admin()) {
@@ -22,7 +28,7 @@ if (is_admin()) {
             JOIN records r ON r.id=j.record_id
             JOIN cities c ON c.id=r.city_id
             WHERE $where
-            ORDER BY COALESCE(j.planned_date, r.due_at) ASC, j.id DESC";
+            ORDER BY $orderBy";
 } else {
     $where = 'jw.user_id = ?';
     $params[] = $u['id'];
@@ -39,7 +45,7 @@ if (is_admin()) {
             JOIN records r ON r.id=j.record_id
             JOIN cities c ON c.id=r.city_id
             WHERE $where
-            ORDER BY COALESCE(j.planned_date, r.due_at) ASC, j.id DESC";
+            ORDER BY $orderBy";
 }
 $st = $db->prepare($sql);
 $st->execute($params);
@@ -81,7 +87,7 @@ body { background:#f8f9fa; }
       <h1 class="h4 m-0">O&amp;M Munkák</h1>
       <span class="text-muted small"><?=count($jobs)?> db</span>
     </div>
-    <form class="row g-2" method="get">
+    <form class="row g-2 align-items-end" method="get">
       <div class="col-8 col-md-4">
         <select name="status" class="form-select form-select-sm">
           <option value="">Összes státusz</option>
@@ -89,6 +95,16 @@ body { background:#f8f9fa; }
             <option value="<?=h($s['name'])?>" <?=$status===$s['name']?'selected':''?>><?=h($s['name'])?></option>
           <?php endforeach; ?>
         </select>
+      </div>
+      <div class="col-12 col-md-4">
+        <select name="sort" class="form-select form-select-sm">
+          <option value="planned" <?=$sort==='planned'?'selected':''?>>Tervezett dátum</option>
+          <option value="due_at"  <?=$sort==='due_at' ?'selected':''?>>+38 nap (határidő)</option>
+        </select>
+        <div class="form-check mt-1">
+          <input class="form-check-input" type="checkbox" name="desc" id="sortDesc" value="1" <?=$desc?'checked':''?>>
+          <label class="form-check-label small" for="sortDesc">Csökkenő sorrend</label>
+        </div>
       </div>
       <div class="col-4 col-md-2 d-grid">
         <button class="btn btn-sm btn-primary">Szűrés</button>
