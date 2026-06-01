@@ -71,6 +71,37 @@ CREATE TABLE IF NOT EXISTS agv_coords (
     FOREIGN KEY (agv_id) REFERENCES agv(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- Eseménynapló
+CREATE TABLE IF NOT EXISTS agv_events (
+    id         BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    agv_id     INT NOT NULL,
+    event_type VARCHAR(30)  NOT NULL,
+    severity   ENUM('info','warning','error') NOT NULL DEFAULT 'info',
+    detail     VARCHAR(255) NOT NULL DEFAULT '',
+    created_at DATETIME(3)  NOT NULL DEFAULT NOW(3),
+    INDEX idx_agv     (agv_id),
+    INDEX idx_created (created_at),
+    INDEX idx_type    (event_type),
+    FOREIGN KEY (agv_id) REFERENCES agv(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Pozíció előzmények (térkép nézet alapja)
+CREATE TABLE IF NOT EXISTS agv_coords_history (
+    id          BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    agv_id      INT NOT NULL,
+    x           DECIMAL(12,4) NULL,
+    y           DECIMAL(12,4) NULL,
+    theta       DECIMAL(10,6) NULL,
+    map_id      VARCHAR(100)  NOT NULL DEFAULT '',
+    speed       DECIMAL(10,4) NULL,
+    battery     DECIMAL(5,2)  NULL,
+    source      VARCHAR(15)   NOT NULL DEFAULT 'worker',
+    recorded_at DATETIME(3)   NOT NULL DEFAULT NOW(3),
+    INDEX idx_agv  (agv_id),
+    INDEX idx_time (recorded_at),
+    FOREIGN KEY (agv_id) REFERENCES agv(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- Omron MQTT broker (továbbítás célállomása)
 CREATE TABLE IF NOT EXISTS omron_broker (
     id         INT NOT NULL AUTO_INCREMENT PRIMARY KEY,

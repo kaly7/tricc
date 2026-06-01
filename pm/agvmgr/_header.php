@@ -4,6 +4,7 @@ $_agv_page = $page ?? '';
 $_nav = [
     'index'  => ['url' => 'index.php',  'label' => 'Dashboard',       'admin' => false],
     'agvs'   => ['url' => 'agvs.php',   'label' => 'AGV-k',           'admin' => false],
+    'events' => ['url' => 'events.php', 'label' => 'Eseménynapló',    'admin' => false],
     'omron'  => ['url' => 'omron.php',  'label' => 'Omron átadás',    'admin' => true],
     'users'  => ['url' => 'users.php',  'label' => 'Felhasználók',    'admin' => true],
     'admin'  => ['url' => 'admin.php',  'label' => 'Beállítások',     'admin' => true],

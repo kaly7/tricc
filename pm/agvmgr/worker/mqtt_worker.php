@@ -18,13 +18,23 @@ define('LOG_FILE',       '/var/log/agvmgr_worker.log');
 define('CONF_TTL',       300);   // konfig újratöltés másodpercenként
 define('RECONNECT_SEC',  5);     // újracsatlakozás várakozás
 
+// ── Konfiguráció ──────────────────────────────────────────────────────────────
+define('HISTORY_INTERVAL', 10);   // pozíció history mentés másodpercenként
+define('OFFLINE_TIMEOUT',  90);   // ennyi mp után kerül offline esemény
+define('BAT_LOW',          20.0); // %
+define('BAT_CRITICAL',     10.0); // %
+define('BAT_OK',           25.0); // % – visszatöltés küszöb
+
 // ── Globális állapot ──────────────────────────────────────────────────────────
-$pdo       = null;
-$topic_map = [];   // full_topic -> agv_id
-$agv_meta  = [];   // agv_id -> ['name', 'serial_no']
-$omron_fwd = [];   // agv_id -> ['topic', 'fields', 'enabled']
-$omron_cli = null; // PhpMQTT|null
-$running   = true;
+$pdo            = null;
+$topic_map      = [];   // full_topic -> agv_id
+$agv_meta       = [];   // agv_id -> ['name', 'serial_no']
+$omron_fwd      = [];   // agv_id -> ['topic', 'fields', 'enabled']
+$omron_cli      = null; // PhpMQTT|null
+$running        = true;
+$prev_state     = [];   // agv_id -> ['battery','mode','driving','paused','pos_init','offline']
+$last_history   = [];   // agv_id -> timestamp (utolsó history mentés)
+$last_offline_chk = 0;  // timestamp
 
 // ── Signal kezelés ────────────────────────────────────────────────────────────
 if (function_exists('pcntl_signal')) {
@@ -97,6 +107,149 @@ function load_omron_fwd(): void {
 function get_broker(string $table): ?array {
     $rows = db_rows("SELECT ip, port, username, password, enabled FROM $table WHERE id=1");
     return $rows[0] ?? null;
+}
+
+// ── Esemény naplózás ──────────────────────────────────────────────────────────
+function log_event(int $agv_id, string $type, string $severity, string $detail): void {
+    try {
+        $stmt = db()->prepare(
+            "INSERT INTO agv_events (agv_id, event_type, severity, detail) VALUES (?,?,?,?)"
+        );
+        $stmt->execute([$agv_id, $type, $severity, $detail]);
+        wlog('INFO', "Esemény [$severity] agv=$agv_id type=$type: $detail");
+    } catch (Exception $e) {
+        wlog('WARNING', "Esemény mentési hiba: " . $e->getMessage());
+    }
+}
+
+// ── Állapot betöltése induláskor ──────────────────────────────────────────────
+function init_prev_state(): void {
+    global $prev_state;
+    $rows = db_rows("SELECT agv_id, battery_charge, operating_mode, driving, paused, position_initialized
+                     FROM agv_coords");
+    foreach ($rows as $r) {
+        $prev_state[(int)$r['agv_id']] = [
+            'battery'  => $r['battery_charge']       !== null ? (float)$r['battery_charge']  : null,
+            'mode'     => (string)$r['operating_mode'],
+            'driving'  => $r['driving']              !== null ? (int)$r['driving']            : null,
+            'paused'   => $r['paused']               !== null ? (int)$r['paused']             : null,
+            'pos_init' => $r['position_initialized'] !== null ? (int)$r['position_initialized'] : null,
+            'offline'  => false,
+        ];
+    }
+    wlog('INFO', 'Előző állapot betöltve: ' . count($prev_state) . ' AGV');
+}
+
+// ── History mintavétel ─────────────────────────────────────────────────────────
+function maybe_save_history(int $agv_id, array $parsed): void {
+    global $last_history;
+    $now = time();
+    if (isset($last_history[$agv_id]) && $now - $last_history[$agv_id] < HISTORY_INTERVAL) return;
+    $last_history[$agv_id] = $now;
+    try {
+        $stmt = db()->prepare(
+            "INSERT INTO agv_coords_history (agv_id, x, y, theta, map_id, speed, battery, source)
+             VALUES (?,?,?,?,?,?,?,?)"
+        );
+        $stmt->execute([
+            $agv_id,
+            $parsed['x'], $parsed['y'], $parsed['theta'],
+            $parsed['map_id'] ?? '',
+            $parsed['speed'], $parsed['battery'],
+            'worker',
+        ]);
+    } catch (Exception $e) {
+        wlog('WARNING', "History mentési hiba (agv $agv_id): " . $e->getMessage());
+    }
+}
+
+// ── Állapotváltozás detektálás ────────────────────────────────────────────────
+function detect_events(int $agv_id, array $parsed): void {
+    global $prev_state, $agv_meta;
+    $name = $agv_meta[$agv_id]['name'] ?? "AGV#$agv_id";
+
+    $prev = $prev_state[$agv_id] ?? [
+        'battery' => null, 'mode' => '', 'driving' => null,
+        'paused'  => null, 'pos_init' => null, 'offline' => false,
+    ];
+
+    // Online visszatérés (ha offline volt)
+    if (!empty($prev['offline'])) {
+        log_event($agv_id, 'online', 'info', "$name visszatért online");
+    }
+
+    $bat  = $parsed['battery'];
+    $pbat = $prev['battery'];
+
+    // Akku küszöbök
+    if ($bat !== null && $pbat !== null) {
+        if ($bat < BAT_CRITICAL && $pbat >= BAT_CRITICAL) {
+            log_event($agv_id, 'battery_critical', 'error', "$name akkumulátor kritikus: " . round($bat, 1) . '%');
+        } elseif ($bat < BAT_LOW && $pbat >= BAT_LOW) {
+            log_event($agv_id, 'battery_low', 'warning', "$name akkumulátor alacsony: " . round($bat, 1) . '%');
+        } elseif ($bat >= BAT_OK && $pbat < BAT_OK) {
+            log_event($agv_id, 'battery_ok', 'info', "$name akkumulátor feltöltve: " . round($bat, 1) . '%');
+        }
+    }
+
+    // Üzemmód váltás
+    $mode  = $parsed['mode'] ?? '';
+    $pmode = $prev['mode'];
+    if ($mode && $pmode !== null && $mode !== $pmode && $pmode !== '') {
+        log_event($agv_id, 'mode_change', 'info', "$name üzemmód: $pmode → $mode");
+    }
+
+    // Mozgás változás
+    $drv  = $parsed['driving'];
+    $pdrv = $prev['driving'];
+    if ($drv !== null && $pdrv !== null && $drv !== $pdrv) {
+        if ($drv) log_event($agv_id, 'driving_start', 'info', "$name mozgás indult");
+        else      log_event($agv_id, 'driving_stop',  'info', "$name megállt");
+    }
+
+    // Szünet változás
+    $pau  = $parsed['paused'];
+    $ppau = $prev['paused'];
+    if ($pau !== null && $ppau !== null && $pau !== $ppau) {
+        if ($pau) log_event($agv_id, 'paused',   'warning', "$name szünet");
+        else      log_event($agv_id, 'resumed',  'info',    "$name folytat");
+    }
+
+    // Pozíció inicializáltság
+    $pi  = $parsed['pos_init'];
+    $ppi = $prev['pos_init'];
+    if ($pi !== null && $ppi !== null && $pi !== $ppi) {
+        if (!$pi) log_event($agv_id, 'pos_lost', 'warning', "$name pozíció elveszett");
+        else      log_event($agv_id, 'pos_init', 'info',    "$name pozíció inicializálva");
+    }
+
+    // Állapot frissítése
+    $prev_state[$agv_id] = [
+        'battery'  => $bat,
+        'mode'     => $mode ?: $pmode,
+        'driving'  => $drv  ?? $pdrv,
+        'paused'   => $pau  ?? $ppau,
+        'pos_init' => $pi   ?? $ppi,
+        'offline'  => false,
+    ];
+}
+
+// ── Offline detektálás (periodikus) ───────────────────────────────────────────
+function check_offline(): void {
+    global $prev_state, $agv_meta;
+    $rows = db_rows(
+        "SELECT agv_id, TIMESTAMPDIFF(SECOND, updated_at, NOW()) AS age_sec
+         FROM agv_coords WHERE TIMESTAMPDIFF(SECOND, updated_at, NOW()) > " . OFFLINE_TIMEOUT
+    );
+    foreach ($rows as $r) {
+        $id = (int)$r['agv_id'];
+        $already = $prev_state[$id]['offline'] ?? false;
+        if (!$already) {
+            $name = $agv_meta[$id]['name'] ?? "AGV#$id";
+            log_event($id, 'offline', 'warning', "$name offline – utolsó adat " . (int)$r['age_sec'] . " mp-pel ezelőtt");
+            $prev_state[$id]['offline'] = true;
+        }
+    }
 }
 
 // ── Payload mentése DB-be ─────────────────────────────────────────────────────
@@ -279,6 +432,8 @@ if (!$broker || !$broker['ip']) {
 
 setup_omron();
 
+init_prev_state();
+
 $agv_client  = null;
 $last_reload = time();
 $omron_tick  = 0;
@@ -303,6 +458,12 @@ while ($running) {
         $omron_tick = 0;
     }
 
+    // Offline ellenőrzés 60 mp-enként
+    if (time() - $last_offline_chk >= 60) {
+        check_offline();
+        $last_offline_chk = time();
+    }
+
     // AGV broker kapcsolódás / újracsatlakozás
     if (!$agv_client || !$agv_client->isConnected()) {
         if ($agv_client) wlog('WARNING', 'AGV MQTT kapcsolat megszakadt, újracsatlakozás...');
@@ -317,7 +478,11 @@ while ($running) {
             if ($agv_id === null) return;
             $source = (substr($topic, -14) === '/visualization') ? 'visualization' : 'state';
             $parsed = save_position($agv_id, $payload, $source);
-            if ($parsed) forward_to_omron($agv_id, $parsed);
+            if ($parsed) {
+                detect_events($agv_id, $parsed);
+                maybe_save_history($agv_id, $parsed);
+                forward_to_omron($agv_id, $parsed);
+            }
         };
 
         if ($agv_client->connect()) {
