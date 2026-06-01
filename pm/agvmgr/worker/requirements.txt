@@ -1,2 +1,6 @@
-paho-mqtt>=1.6.1
-mysql-connector-python>=8.0
+# A worker PHP-ban fut (mqtt_worker.php + phpMQTT.php)
+# Nincs Python függőség.
+#
+# Szükséges a gépen:
+#   php-cli   (apt install php-cli)
+#   php-mysql (apt install php-mysql)   ← PDO MySQL driver

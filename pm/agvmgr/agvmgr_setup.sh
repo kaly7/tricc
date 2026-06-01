@@ -329,47 +329,36 @@ else
 fi
 
 # ════════════════════════════════════════════════════════════════════
-_head "10. Python függőségek"
+_head "10. PHP CLI és PDO ellenőrzés"
 
-PYTHON=$(command -v python3)
-if [ -z "$PYTHON" ]; then
-    _err "python3 nem található"
+PHP_BIN=$(command -v php || true)
+if [ -z "$PHP_BIN" ]; then
+    _err "php-cli nem található – telepítés: apt install php-cli php-mysql"
 else
-    _ok "python3: $PYTHON ($(python3 --version 2>&1))"
+    _ok "php-cli: $PHP_BIN ($(php --version | head -1))"
 
-    # paho-mqtt
-    if python3 -c "import paho.mqtt.client" > /dev/null 2>&1; then
-        _ok "paho-mqtt telepítve"
+    # PDO MySQL
+    if php -r "new PDO('mysql:host=127.0.0.1', 'x', 'x');" 2>&1 | grep -q "could not find driver"; then
+        _err "php-mysql (PDO) nincs telepítve – telepítés: apt install php-mysql"
     else
-        _fix "paho-mqtt telepítése..."
-        if apt-get install -y python3-paho-mqtt > /dev/null 2>&1; then
-            _ok "paho-mqtt telepítve (apt)"
-        elif pip3 install paho-mqtt --break-system-packages > /dev/null 2>&1; then
-            _ok "paho-mqtt telepítve (pip)"
-        else
-            _err "paho-mqtt telepítése sikertelen – próbáld: apt install python3-paho-mqtt"
-        fi
+        _ok "php-mysql (PDO) elérhető"
     fi
 
-    # mysql-connector-python
-    if python3 -c "import mysql.connector" > /dev/null 2>&1; then
-        _ok "mysql-connector-python telepítve"
-    else
-        _fix "mysql-connector-python telepítése..."
-        if apt-get install -y python3-mysql.connector > /dev/null 2>&1; then
-            _ok "mysql-connector-python telepítve (apt)"
-        elif pip3 install mysql-connector-python --break-system-packages > /dev/null 2>&1; then
-            _ok "mysql-connector-python telepítve (pip)"
+    # Worker fájl
+    if [ -f "$WORKER_DIR/mqtt_worker.php" ]; then
+        if php -l "$WORKER_DIR/mqtt_worker.php" > /dev/null 2>&1; then
+            _ok "mqtt_worker.php szintaxis OK"
         else
-            _err "mysql-connector-python telepítése sikertelen"
+            _err "mqtt_worker.php szintaxis hiba"
         fi
+    else
+        _err "mqtt_worker.php hiányzik: $WORKER_DIR/mqtt_worker.php"
     fi
 
-    # Végső ellenőrzés
-    if python3 -c "import paho.mqtt.client; import mysql.connector" > /dev/null 2>&1; then
-        _ok "Worker Python függőségek: mind OK"
+    if [ -f "$WORKER_DIR/phpMQTT.php" ]; then
+        _ok "phpMQTT.php megtalálva"
     else
-        _err "Egy vagy több Python csomag még hiányzik"
+        _err "phpMQTT.php hiányzik: $WORKER_DIR/phpMQTT.php"
     fi
 fi
 
@@ -395,15 +384,14 @@ chmod +x "$WORKER_DIR/install.sh"    2>/dev/null && _ok "install.sh: futtatható
 chown -R www-data:www-data "$AGVMGR_DIR" > /dev/null 2>&1
 _fix "Tulajdonos beállítva: www-data:www-data → $AGVMGR_DIR"
 find "$AGVMGR_DIR" -name "*.php" -exec chmod 644 {} \; 2>/dev/null
-find "$AGVMGR_DIR" -name "*.py"  -exec chmod 755 {} \; 2>/dev/null
 find "$AGVMGR_DIR" -name "*.sh"  -exec chmod 755 {} \; 2>/dev/null
 find "$AGVMGR_DIR" -type d -exec chmod 755 {} \; 2>/dev/null
-_ok "Fájl jogosultságok beállítva (PHP:644, PY/SH:755, könyvtárak:755)"
+_ok "Fájl jogosultságok beállítva (PHP:644, SH:755, könyvtárak:755)"
 
 # ════════════════════════════════════════════════════════════════════
 _head "13. Systemd service (agvmgr-worker)"
 
-PYTHON_BIN=$(command -v python3)
+PHP_BIN=$(command -v php || echo "/usr/bin/php")
 
 if [ -f "$SERVICE_FILE" ]; then
     _ok "Service fájl létezik: $SERVICE_FILE"
@@ -417,7 +405,7 @@ Wants=network.target
 
 [Service]
 Type=simple
-ExecStart=$PYTHON_BIN $WORKER_DIR/mqtt_worker.py
+ExecStart=$PHP_BIN $WORKER_DIR/mqtt_worker.php
 Restart=always
 RestartSec=10
 User=www-data
@@ -431,10 +419,10 @@ EOF
 fi
 
 # Ellenőrizzük, hogy a worker path helyes a service fájlban
-if grep -q "$WORKER_DIR/mqtt_worker.py" "$SERVICE_FILE"; then
-    _ok "Service: worker path helyes"
+if grep -q "mqtt_worker.php" "$SERVICE_FILE"; then
+    _ok "Service: worker path helyes (PHP)"
 else
-    _warn "Service fájlban a worker path eltér a várttól: $WORKER_DIR/mqtt_worker.py"
+    _warn "Service fájlban a worker path eltér a várttól: $WORKER_DIR/mqtt_worker.php"
     _info "→ Frissítsd a $SERVICE_FILE fájlt kézzel, vagy töröld és futtasd újra ezt a scriptet."
 fi
 

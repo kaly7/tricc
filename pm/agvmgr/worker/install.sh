@@ -9,10 +9,15 @@ SERVICE_FILE="/etc/systemd/system/agvmgr-worker.service"
 echo "=== agvmgr MQTT worker telepítés ==="
 echo "Worker könyvtár: $WORKER_DIR"
 
-# Python csomagok
+# PHP CLI ellenőrzés
 echo ""
-echo ">>> Python függőségek telepítése..."
-pip3 install -r "$WORKER_DIR/requirements.txt" --quiet
+echo ">>> PHP CLI ellenőrzése..."
+PHP_BIN=$(command -v php || true)
+if [ -z "$PHP_BIN" ]; then
+    echo "HIBA: php-cli nem található. Telepítés: sudo apt install php-cli php-mysql"
+    exit 1
+fi
+echo "    OK: $PHP_BIN ($(php --version | head -1))"
 
 # Log fájl jogosultság
 touch /var/log/agvmgr_worker.log
@@ -23,13 +28,13 @@ echo ""
 echo ">>> Systemd service létrehozása: $SERVICE_FILE"
 cat > "$SERVICE_FILE" << EOF
 [Unit]
-Description=agvmgr MQTT Worker – VDA5050 pozíció rögzítő
-After=network.target mysql.service
-Wants=mysql.service
+Description=agvmgr MQTT Worker – VDA5050 pozíció rögzítő és Omron forward
+After=network.target mysql.service mariadb.service
+Wants=mysql.service mariadb.service
 
 [Service]
 Type=simple
-ExecStart=/usr/bin/python3 $WORKER_DIR/mqtt_worker.py
+ExecStart=$PHP_BIN $WORKER_DIR/mqtt_worker.php
 Restart=always
 RestartSec=10
 User=www-data
