@@ -25,6 +25,20 @@ require __DIR__ . '/_header.php';
   </div>
 </div>
 
+<!-- Worker státusz -->
+<div class="card shadow-sm mb-3">
+  <div class="card-header d-flex align-items-center justify-content-between py-2">
+    <span class="fw-semibold">MQTT Worker</span>
+    <span id="worker-badge" class="badge bg-secondary">Ellenőrzés...</span>
+  </div>
+  <div class="card-body py-2 d-flex align-items-center gap-3 flex-wrap">
+    <span class="small text-muted">Utolsó aktivitás:</span>
+    <span class="small font-monospace" id="worker-mtime">–</span>
+    <span class="small text-muted ms-3">Utolsó log:</span>
+    <span class="small text-muted font-monospace text-truncate" id="worker-lastlog" style="max-width:420px">–</span>
+  </div>
+</div>
+
 <!-- Broker státusz -->
 <div class="card shadow-sm mb-4">
   <div class="card-header d-flex align-items-center justify-content-between">
@@ -158,12 +172,54 @@ function checkBroker() {
         });
 }
 
-document.getElementById('refresh-btn').addEventListener('click', function(){ checkBroker(); loadCoords(); });
+function checkWorker() {
+    fetch('worker_status.php')
+        .then(function(r){ return r.json(); })
+        .then(function(d){
+            var badge = document.getElementById('worker-badge');
+            var mtime = document.getElementById('worker-mtime');
+            var llog  = document.getElementById('worker-lastlog');
+
+            if (d.active === 'active') {
+                badge.textContent = 'Fut';
+                badge.className   = 'badge bg-success';
+            } else if (d.active === 'failed') {
+                badge.textContent = 'Hiba';
+                badge.className   = 'badge bg-danger';
+            } else if (d.active === 'inactive') {
+                badge.textContent = 'Leállt';
+                badge.className   = 'badge bg-warning';
+            } else {
+                badge.textContent = 'Ismeretlen';
+                badge.className   = 'badge bg-secondary';
+            }
+
+            if (d.log_mtime) {
+                var age = d.log_age_sec !== null ? parseInt(d.log_age_sec) : 9999;
+                var ageStr = age < 60 ? age + ' mp' : Math.round(age/60) + ' perce';
+                mtime.textContent = d.log_mtime + '  (' + ageStr + ')';
+                mtime.style.color = age > 120 ? '#dc3545' : '#198754';
+            } else {
+                mtime.textContent = 'log nem olvasható';
+                mtime.style.color = '#6c757d';
+            }
+
+            if (llog) llog.textContent = d.last_log || '–';
+        })
+        .catch(function(){
+            var b = document.getElementById('worker-badge');
+            b.textContent = 'Hiba'; b.className = 'badge bg-danger';
+        });
+}
+
+document.getElementById('refresh-btn').addEventListener('click', function(){ checkBroker(); checkWorker(); loadCoords(); });
 
 checkBroker();
+checkWorker();
 loadCoords();
 setInterval(loadCoords,  2000);
 setInterval(checkBroker, 30000);
+setInterval(checkWorker, 15000);
 </script>
 
 <?php require __DIR__ . '/_footer.php'; ?>
