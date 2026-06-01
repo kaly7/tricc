@@ -271,6 +271,135 @@ class DocumentsController
     }
   }
 
+  public function update(): void
+  {
+    $user    = $this->requireLogin();
+    $isAdmin = (($user['role'] ?? '') === 'admin');
+    $perm    = $isAdmin ? null : HrPermission::load($this->db, (int)$user['id']);
+
+    if (!$this->csrf->verify($_POST['_csrf'] ?? null)) {
+      $this->flash->set('error', 'Érvénytelen kérés (CSRF).');
+      header('Location: /documents');
+      exit;
+    }
+
+    $id     = (int)($_POST['doc_id'] ?? 0);
+    $back   = trim((string)($_POST['_back'] ?? ''));
+
+    if ($id <= 0) {
+      $this->flash->set('error', 'Hiányzó dokumentum azonosító.');
+      header('Location: ' . ($back ?: '/documents'));
+      exit;
+    }
+
+    // Meglévő dokumentum betöltése
+    $stmt = $this->db->pdo()->prepare("
+      SELECT d.*, e.division_id
+      FROM employee_documents d
+      JOIN employees e ON e.id = d.employee_id
+      WHERE d.id = :id LIMIT 1
+    ");
+    $stmt->execute(['id' => $id]);
+    $doc = $stmt->fetch();
+
+    if (!$doc) {
+      $this->flash->set('error', 'A dokumentum nem található.');
+      header('Location: ' . ($back ?: '/documents'));
+      exit;
+    }
+
+    if ($perm !== null && !in_array((int)($doc['division_id'] ?? 0), $perm['divisions'], true)) {
+      http_response_code(403);
+      $this->flash->set('error', 'Nincs jogosultságod ehhez a dokumentumhoz.');
+      header('Location: ' . ($back ?: '/documents'));
+      exit;
+    }
+
+    $typeId    = (int)($_POST['document_type_id'] ?? 0);
+    $title     = trim((string)($_POST['title'] ?? '')) ?: null;
+    $hasExpiry = (int)($_POST['has_expiry'] ?? 0) === 1;
+    $expiresAt = $hasExpiry ? trim((string)($_POST['expires_at'] ?? '')) : null;
+
+    if ($typeId <= 0) {
+      $this->flash->set('error', 'Válassz dokumentumtípust.');
+      header('Location: ' . ($back ?: '/documents'));
+      exit;
+    }
+    if ($expiresAt !== null && $expiresAt !== '' && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $expiresAt)) {
+      $this->flash->set('error', 'A lejárat dátum formátuma: ÉÉÉÉ-HH-NN.');
+      header('Location: ' . ($back ?: '/documents'));
+      exit;
+    }
+
+    try {
+      $newFile = null;
+      $fileInput = $_FILES['file'] ?? null;
+      if ($fileInput && isset($fileInput['error']) && $fileInput['error'] !== UPLOAD_ERR_NO_FILE) {
+        $newFile = $this->saveUpload($fileInput);
+      }
+
+      $this->db->pdo()->beginTransaction();
+
+      if ($newFile) {
+        $stmt = $this->db->pdo()->prepare("
+          UPDATE employee_documents
+          SET document_type_id=:type, title=:title, expires_at=:exp,
+              file_path=:fp, original_name=:on, mime=:mime, file_size=:fs
+          WHERE id=:id
+        ");
+        $stmt->execute([
+          'type'  => $typeId,
+          'title' => $title,
+          'exp'   => $expiresAt ?: null,
+          'fp'    => $newFile['file_path'],
+          'on'    => $newFile['original_name'],
+          'mime'  => $newFile['mime'],
+          'fs'    => $newFile['file_size'],
+          'id'    => $id,
+        ]);
+      } else {
+        $stmt = $this->db->pdo()->prepare("
+          UPDATE employee_documents
+          SET document_type_id=:type, title=:title, expires_at=:exp
+          WHERE id=:id
+        ");
+        $stmt->execute([
+          'type'  => $typeId,
+          'title' => $title,
+          'exp'   => $expiresAt ?: null,
+          'id'    => $id,
+        ]);
+      }
+
+      $this->db->pdo()->commit();
+
+      // Régi fájl törlése ha új érkezett
+      if ($newFile) {
+        $old = (string)($doc['file_path'] ?? '');
+        if ($old !== '' && str_starts_with($old, '/uploads/docs/')) {
+          $full = APP_ROOT . '/public' . $old;
+          if (is_file($full)) @unlink($full);
+        }
+      }
+
+      HrPermission::audit($this->db, (int)$user['id'], $user['name'], 'doc_edit', (int)$doc['employee_id'], null, $doc['original_name'] ?? null);
+      $this->flash->set('success', 'Dokumentum módosítva.');
+      header('Location: ' . ($back ?: '/documents'));
+      exit;
+
+    } catch (RuntimeException $e) {
+      if ($this->db->pdo()->inTransaction()) $this->db->pdo()->rollBack();
+      $this->flash->set('error', $e->getMessage());
+      header('Location: ' . ($back ?: '/documents'));
+      exit;
+    } catch (PDOException $e) {
+      if ($this->db->pdo()->inTransaction()) $this->db->pdo()->rollBack();
+      $this->flash->set('error', 'DB hiba: ' . $e->getMessage());
+      header('Location: ' . ($back ?: '/documents'));
+      exit;
+    }
+  }
+
   public function showUpload(): void
   {
     $user    = $this->requireLogin();

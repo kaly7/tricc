@@ -1,0 +1,5 @@
+# Feltöltött dokumentumok – ne kerüljenek verziókezelésbe
+public/uploads/docs/*
+public/uploads/tmp/*
+!public/uploads/docs/.gitkeep
+!public/uploads/tmp/.gitkeep

@@ -78,6 +78,7 @@ $router->get('/documents',        function() use ($docController){ $docControlle
 $router->get('/documents_upload', function() use ($docController){ $docController->showUpload(); });
 $router->post('/documents_upload',function() use ($docController){ $docController->upload(); });
 $router->post('/documents_delete',function() use ($docController){ $docController->delete(); });
+$router->post('/documents_edit',  function() use ($docController){ $docController->update(); });
 
 // Employees
 $empController = new EmployeesController($db, $view, $flash, $csrf, $auth);

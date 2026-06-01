@@ -147,8 +147,20 @@
           <h6 class="text-muted mb-3">Kapcsolat</h6>
           <div class="row g-3">
             <div class="col-md-6">
-              <label class="form-label">Email</label>
+              <label class="form-label">Email (céges)</label>
               <input class="form-control" type="email" name="email" value="<?= h($old['email'] ?? '') ?>">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Email (privát)</label>
+              <input class="form-control" type="email" name="email_private" value="<?= h($old['email_private'] ?? '') ?>">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Bérjegyzék email</label>
+              <select class="form-select" name="payslip_email_target">
+                <option value="ceges" <?= ($old['payslip_email_target'] ?? 'ceges') === 'ceges' ? 'selected' : '' ?>>Céges email</option>
+                <option value="privat" <?= ($old['payslip_email_target'] ?? '') === 'privat' ? 'selected' : '' ?>>Privát email</option>
+              </select>
+              <div class="form-text">Erre a címre küldi a rendszer a havi bérjegyzéket.</div>
             </div>
             <div class="col-md-6">
               <label class="form-label">Telefonszám</label>

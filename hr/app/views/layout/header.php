@@ -50,11 +50,8 @@ $isAdmin = ($u['role'] ?? '') === 'admin';
         <?php if ($loggedIn): ?>
           <a class="btn btn-sm btn-outline-secondary" href="/docs/hr_kezikonyv.html" target="_blank" title="Kézikönyv">?</a>
           <span class="navbar-text">Bejelentkezve: <?= h($u['name'] ?? '') ?></span>
-
-          <form method="post" action="/logout" class="m-0">
-            <input type="hidden" name="_csrf" value="<?= h($_SESSION['_csrf'] ?? '') ?>">
-            <button type="submit" class="btn btn-sm btn-outline-secondary">Kilépés</button>
-          </form>
+          <a class="btn btn-sm btn-outline-secondary" href="<?= h(build_url(90, '/apps.php')) ?>">Rendszerek</a>
+          <a class="btn btn-sm btn-outline-secondary" href="<?= h(build_url(90, '/logout.php')) ?>">Kilépés</a>
         <?php else: ?>
           <a class="btn btn-sm btn-outline-primary" href="/login">Belépés</a>
         <?php endif; ?>
@@ -63,4 +60,5 @@ $isAdmin = ($u['role'] ?? '') === 'admin';
   </div>
 </nav>
 
+<?php if (!empty($_SESSION['user_id'])) require_once '/var/www/html/_common/easter/easter_init.php'; ?>
 <div class="container">

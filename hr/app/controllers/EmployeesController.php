@@ -257,7 +257,9 @@ class EmployeesController
       'addr_city' => trim((string)($_POST['addr_city'] ?? '')) ?: null,
       'addr_line' => trim((string)($_POST['addr_line'] ?? '')) ?: null,
 
-      'email' => trim((string)($_POST['email'] ?? '')) ?: null,
+      'email'                => trim((string)($_POST['email'] ?? '')) ?: null,
+      'email_private'        => trim((string)($_POST['email_private'] ?? '')) ?: null,
+      'payslip_email_target' => in_array($_POST['payslip_email_target'] ?? '', ['ceges', 'privat']) ? $_POST['payslip_email_target'] : 'ceges',
       'phone' => trim((string)($_POST['phone'] ?? '')) ?: null,
       'notes' => trim((string)($_POST['notes'] ?? '')) ?: null,
 
@@ -290,13 +292,13 @@ class EmployeesController
           (full_name, birth_name, mother_name, birth_place, birth_date,
            tax_id, taj, company_emp_no, bank_account, bank_name, division_id,
            addr_zip, addr_city, addr_line,
-           email, phone, notes,
+           email, email_private, payslip_email_target, phone, notes,
            profile_image_path, is_active, hired_on, left_on)
         VALUES
           (:full_name, :birth_name, :mother_name, :birth_place, :birth_date,
            :tax_id, :taj, :company_emp_no, :bank_account, :bank_name, :division_id,
            :addr_zip, :addr_city, :addr_line,
-           :email, :phone, :notes,
+           :email, :email_private, :payslip_email_target, :phone, :notes,
            :profile_image_path, :is_active, :hired_on, :left_on)
       ");
       $stmt->execute(array_merge($data, ['profile_image_path' => $profilePath]));
@@ -393,6 +395,7 @@ class EmployeesController
       'fields'       => $this->getActiveExtraFields(),
       'field_values' => $this->getEmployeeExtraValues((int)$emp['id']),
       'docs'         => $docs ?? [],
+      'docTypes'     => $this->getDocTypes(),
       'csrf'         => $this->csrf->token(),
       'sort'         => $sortKey ?? 'name',
       'dir'          => $dir ?? 'desc',
@@ -537,7 +540,11 @@ class EmployeesController
       'addr_zip'       => $postField('addr_zip'),
       'addr_city'      => $postField('addr_city'),
       'addr_line'      => $postField('addr_line'),
-      'email'          => $postField('email'),
+      'email'                => $postField('email'),
+      'email_private'        => $postField('email_private'),
+      'payslip_email_target' => $canSee('payslip_email_target')
+        ? (in_array($_POST['payslip_email_target'] ?? '', ['ceges', 'privat']) ? $_POST['payslip_email_target'] : 'ceges')
+        : ($current['payslip_email_target'] ?? 'ceges'),
       'phone'          => $postField('phone'),
       'notes'          => $postField('notes'),
       'hired_on'       => $postField('hired_on'),
@@ -585,6 +592,8 @@ class EmployeesController
           addr_city=:addr_city,
           addr_line=:addr_line,
           email=:email,
+          email_private=:email_private,
+          payslip_email_target=:payslip_email_target,
           phone=:phone,
           notes=:notes,
           profile_image_path=:profile_image_path,
@@ -600,7 +609,7 @@ class EmployeesController
         'full_name','birth_name','mother_name','birth_place','birth_date',
         'tax_id','taj','company_emp_no','bank_account','bank_name',
         'division_id','addr_zip','addr_city','addr_line',
-        'email','phone','notes','hired_on','left_on','is_active',
+        'email','email_private','payslip_email_target','phone','notes','hired_on','left_on','is_active',
       ];
       $changed = false;
       foreach ($auditFields as $fk) {

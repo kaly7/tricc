@@ -39,9 +39,11 @@ class HrPermission
       'addr_line' => 'Cím',
     ],
     'Kapcsolat' => [
-      'email' => 'Email',
-      'phone' => 'Telefon',
-      'notes' => 'Megjegyzés',
+      'email'                => 'Email (céges)',
+      'email_private'        => 'Email (privát)',
+      'payslip_email_target' => 'Bérjegyzék email',
+      'phone'                => 'Telefon',
+      'notes'                => 'Megjegyzés',
     ],
   ];
 

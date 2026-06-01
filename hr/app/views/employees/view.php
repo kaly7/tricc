@@ -34,6 +34,85 @@ $showContact   = $canSee('email') || $canSee('phone') || $canSee('notes');
   </div>
 </div>
 
+<!-- Dokumentum szerkesztő modal -->
+<div class="modal fade" id="docEditModal" tabindex="-1" aria-labelledby="docEditModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form method="post" action="/documents_edit" enctype="multipart/form-data">
+        <input type="hidden" name="_csrf" value="<?= h($csrf) ?>">
+        <input type="hidden" name="doc_id" id="docEditId">
+        <input type="hidden" name="_back" value="/employees_view?id=<?= (int)$emp['id'] ?>">
+        <div class="modal-header">
+          <h5 class="modal-title" id="docEditModalLabel">Dokumentum szerkesztése</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label">Típus</label>
+            <select name="document_type_id" id="docEditType" class="form-select" required>
+              <?php foreach ($docTypes as $dt): ?>
+                <option value="<?= (int)$dt['id'] ?>"><?= h($dt['name']) ?></option>
+              <?php endforeach; ?>
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Megnevezés</label>
+            <input type="text" name="title" id="docEditTitle" class="form-control" placeholder="pl. Munkaszerződés 2024">
+          </div>
+          <div class="mb-3">
+            <div class="form-check mb-1">
+              <input class="form-check-input" type="checkbox" name="has_expiry" id="docEditHasExpiry" value="1">
+              <label class="form-check-label" for="docEditHasExpiry">Van lejárati dátum</label>
+            </div>
+            <input type="date" name="expires_at" id="docEditExpires" class="form-control" style="display:none">
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Fájl cseréje <span class="text-muted">(elhagyható — ha nem töltesz fel, a meglévő marad)</span></label>
+            <div class="text-muted small mb-1" id="docEditCurrentFile"></div>
+            <input type="file" name="file" class="form-control">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Mégse</button>
+          <button type="submit" class="btn btn-primary">Mentés</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+const docEditModal = document.getElementById('docEditModal');
+docEditModal.addEventListener('show.bs.modal', function(e) {
+  const btn = e.relatedTarget;
+  document.getElementById('docEditId').value      = btn.dataset.id;
+  document.getElementById('docEditTitle').value   = btn.dataset.title;
+  document.getElementById('docEditCurrentFile').textContent = 'Jelenlegi fájl: ' + btn.dataset.filename;
+
+  const typeSelect = document.getElementById('docEditType');
+  for (const opt of typeSelect.options) opt.selected = (opt.value === btn.dataset.type);
+
+  const expires = btn.dataset.expires;
+  const hasExp  = document.getElementById('docEditHasExpiry');
+  const expInp  = document.getElementById('docEditExpires');
+  if (expires) {
+    hasExp.checked  = true;
+    expInp.style.display = '';
+    expInp.value    = expires;
+  } else {
+    hasExp.checked  = false;
+    expInp.style.display = 'none';
+    expInp.value    = '';
+  }
+});
+
+document.getElementById('docEditHasExpiry').addEventListener('change', function() {
+  const expInp = document.getElementById('docEditExpires');
+  expInp.style.display = this.checked ? '' : 'none';
+  if (!this.checked) expInp.value = '';
+});
+</script>
+
 <div class="row g-3">
 
   <!-- Bal oszlop: adatok -->
@@ -143,7 +222,22 @@ $showContact   = $canSee('email') || $canSee('phone') || $canSee('notes');
       <h6 class="text-muted mb-3">Kapcsolat</h6>
       <div class="row g-2">
         <?php if ($canSee('email')): ?>
-          <div class="col-md-6"><strong>Email:</strong> <?= h($emp['email'] ?? '—') ?></div>
+          <div class="col-md-6"><strong>Email (céges):</strong> <?= h($emp['email'] ?? '—') ?></div>
+        <?php endif; ?>
+        <?php if ($canSee('email_private')): ?>
+          <div class="col-md-6"><strong>Email (privát):</strong> <?= h($emp['email_private'] ?? '—') ?></div>
+        <?php endif; ?>
+        <?php if ($canSee('payslip_email_target')): ?>
+          <div class="col-md-6">
+            <strong>Bérjegyzék email:</strong>
+            <?php if (($emp['payslip_email_target'] ?? 'ceges') === 'privat'): ?>
+              <span class="badge bg-info text-dark">Privát</span>
+              <?= h($emp['email_private'] ?? '—') ?>
+            <?php else: ?>
+              <span class="badge bg-secondary">Céges</span>
+              <?= h($emp['email'] ?? '—') ?>
+            <?php endif; ?>
+          </div>
         <?php endif; ?>
         <?php if ($canSee('phone')): ?>
           <div class="col-md-6"><strong>Telefon:</strong> <?= h($emp['phone'] ?? '—') ?></div>
@@ -217,6 +311,7 @@ $showContact   = $canSee('email') || $canSee('phone') || $canSee('notes');
                 <th>Fájl</th>
                 <th>Lejárat</th>
                 <th>Feltöltve</th>
+                <th></th>
               </tr>
             </thead>
             <tbody>
@@ -242,6 +337,15 @@ $showContact   = $canSee('email') || $canSee('phone') || $canSee('notes');
                   <td><a href="<?= h($d['file_path']) ?>" target="_blank" rel="noopener"><?= h($fileLabel) ?></a></td>
                   <td><?= $badge ?></td>
                   <td><?= h($d['created_at'] ?? '') ?></td>
+                  <td class="text-end text-nowrap">
+                    <button type="button" class="btn btn-sm btn-outline-secondary"
+                      data-bs-toggle="modal" data-bs-target="#docEditModal"
+                      data-id="<?= (int)$d['id'] ?>"
+                      data-type="<?= (int)$d['document_type_id'] ?>"
+                      data-title="<?= h($d['title'] ?? '') ?>"
+                      data-expires="<?= h($d['expires_at'] ?? '') ?>"
+                      data-filename="<?= h($fileLabel) ?>">✏️ Szerkesztés</button>
+                  </td>
                 </tr>
               <?php endforeach; ?>
             </tbody>
