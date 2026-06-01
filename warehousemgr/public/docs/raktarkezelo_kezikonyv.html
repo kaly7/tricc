@@ -179,6 +179,7 @@
           <li><a href="#kulso_atadas">Külső átadás (partnernek)</a></li>
           <li><a href="#elfogadas">Elfogadás és elutasítás</a></li>
           <li><a href="#szallitolevel">Szállítólevelek</a></li>
+          <li><a href="#parkolas">Félbeszakadt szállítólevél – autosave és parkolás</a></li>
         </ol>
       </li>
       <li><a href="#partnerek">Partnerek</a></li>
@@ -478,8 +479,19 @@
 
   <h3 id="szallitolevel">6.4 Szállítólevelek</h3>
 
-  <p>A <strong>Szállítólevelek</strong> oldalon az összes lezárt (elfogadott) átadás listázható és szűrhető raktár vagy keresőszó alapján. Minden sorból megnyitható a PDF dokumentum:</p>
+  <p>A <strong>Szállítólevelek</strong> oldalon az összes lezárt (elfogadott) átadás listázható és szűrhető. A lista egyszerre tartalmaz belső és külső átadásokat is – a külső átadások sorában <strong>„külső"</strong> feliratú jelölés látható.</p>
 
+  <h4>Szűrési lehetőségek</h4>
+  <table>
+    <thead><tr><th>Szűrő</th><th>Leírás</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Típus</strong></td><td>Minden / Csak belső / Csak külső – a lista csak a kiválasztott típusú átadásokat mutatja</td></tr>
+      <tr><td><strong>Raktár</strong></td><td>Az adott raktárt érintő átadások (forrás vagy cél)</td></tr>
+      <tr><td><strong>Keresés</strong></td><td>Szabad szöveges keresés partner, átvevő, anyag vagy referenciaszám alapján</td></tr>
+    </tbody>
+  </table>
+
+  <h4>PDF dokumentumok</h4>
   <table>
     <thead><tr><th>Átadás típusa</th><th>PDF tartalma</th><th>Gombok</th></tr></thead>
     <tbody>
@@ -501,6 +513,44 @@
   <div class="box info">
     <div class="box-title">Megjegyzés</div>
     PDF csak <strong>elfogadott</strong> állapotú átadáshoz generálható. Függőben lévő vagy elutasított átadásnál a gomb nem jelenik meg.
+  </div>
+
+  <h3 id="parkolas">6.5 Félbeszakadt szállítólevél – autosave és parkolás</h3>
+
+  <p>Ha egy szállítólevél kitöltése közben lejár a bejelentkezés, vagy meg kell szakítani a munkát, a rendszer két módon segít megőrizni az addig felvitt adatokat.</p>
+
+  <h4>Automatikus mentés (autosave)</h4>
+  <p>Amint legalább egy anyag és mennyiség fel van véve, a rendszer <strong>automatikusan elmenti</strong> a szállítólevél aktuális állapotát a háttérben. Ez a mentés felhasználónként és átadástípusonként (belső / külső) egy-egy vázlatot tart nyilván.</p>
+  <p>Ha legközelebb megnyitod az Átadások oldalt és van ilyen félbehagyott vázlat, egy <strong>kék sáv</strong> jelenik meg az oldal tetején:</p>
+  <ul>
+    <li><strong>Folytatás</strong> – betölti a félbehagyott adatokat (raktárak, tételek, mennyiségek) és megnyitja az adott formot</li>
+    <li><strong>Elvet</strong> – törli az autosave-t, a sáv eltűnik, a form üresen marad</li>
+  </ul>
+
+  <div class="box warn">
+    <div class="box-title">Figyelem</div>
+    Az autosave az egyedi azonosítókat (vonalkódot, sorszámot) nem menti el – ezeket visszatöltés után újra kell beolvasni. Az anyagok és mennyiségek viszont megmaradnak.
+  </div>
+
+  <h4>Parkolóba helyezés</h4>
+  <p>Ha egy szállítólevelet szándékosan szeretnél félretenni (mert például más munkát kell elvégezned, de később folytatod), a <strong>„Parkolóba"</strong> gombra kattintva elmentheted névvel ellátva. Egyszerre több parkolóban lévő szállítólevél is lehetséges.</p>
+
+  <ol class="steps">
+    <li>Töltsd fel a szállítólevél mezőit és tételeit legalább részben.</li>
+    <li>Kattints a <strong>„Parkolóba"</strong> gombra (a „Átadás indítása" / „Kiadás rögzítése" gomb mellett).</li>
+    <li>A felugró ablakban adj nevet a parkolónak (pl. „Pánki kiadás – hiányzó tétel") – ha üresen hagyod, a dátum/idő kerül rá.</li>
+    <li>A szállítólevél elmentődik és az oldal frissül.</li>
+  </ol>
+
+  <h4>Visszatöltés a parkolóból</h4>
+  <p>A kártya fejlécében megjelenik egy <strong>„Parkolóból"</strong> legördülő gomb (a számlálóval jelzi, hány bejegyzés van). A listából a kívánt szállítólevélre kattintva az adatok visszatöltődnek a formba.</p>
+
+  <h4>Parkolóban lévő szállítólevél törlése</h4>
+  <p>A „Parkolóból" legördülő listában minden sor jobb szélén egy <strong>× (törlés) gomb</strong> található. Rákattintva megerősítés után a bejegyzés véglegesen eltávolítható.</p>
+
+  <div class="box tip">
+    <div class="box-title">Tipp</div>
+    Ha a szállítólevelet sikeresen rögzíted (az „Átadás indítása" / „Kiadás rögzítése" gombbal), az autosave és az esetlegesen betöltött parkolóban lévő bejegyzés automatikusan törlődik – nincs szükség kézi takarításra.
   </div>
 
 

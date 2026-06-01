@@ -45,7 +45,7 @@ $transferJsonResponse = static function (array $payload, int $statusCode = 200):
 // valamint az elfogadás / elutasítás és a szkennelt azonosító segédműveleteket.
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = (string)($_POST['action'] ?? '');
-    $isJsonAction = in_array($action, ['lookup_scanned_identifier', 'relocate_scanned_identifier'], true);
+    $isJsonAction = in_array($action, ['lookup_scanned_identifier', 'relocate_scanned_identifier', 'draft_autosave', 'draft_park', 'draft_discard', 'draft_load'], true);
 
     try {
         if ($action === 'lookup_scanned_identifier') {
@@ -91,6 +91,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 (string)($_POST['reference_no'] ?? ''),
                 (string)($_POST['note'] ?? '')
             );
+            if (warehouse_draft_table_exists($config)) {
+                warehouse_draft_discard_autosave($config, current_auth_user_id(), 'internal');
+                $loadedDraftId = (int)($_POST['loaded_draft_id'] ?? 0);
+                if ($loadedDraftId > 0) {
+                    warehouse_draft_delete($config, $loadedDraftId, current_auth_user_id());
+                }
+            }
             flash_set('msg', 'Átadás létrehozva: ' . warehouse_transfer_reference($transferId));
             header('Location: /transfers.php');
             exit;
@@ -121,6 +128,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 (string)($_POST['external_note'] ?? ''),
                 (string)($_POST['external_signature_data'] ?? '')
             );
+            if (warehouse_draft_table_exists($config)) {
+                warehouse_draft_discard_autosave($config, current_auth_user_id(), 'external');
+                $loadedDraftId = (int)($_POST['loaded_draft_id'] ?? 0);
+                if ($loadedDraftId > 0) {
+                    warehouse_draft_delete($config, $loadedDraftId, current_auth_user_id());
+                }
+            }
             $directionMode = (string)($_POST['external_direction_mode'] ?? 'outbound');
             $flashLabel = $directionMode === 'inbound' ? 'Külső partnertől visszavétel rögzítve: ' : 'Külsős kiadás rögzítve: ';
             flash_set('msg', $flashLabel . warehouse_transfer_reference($transferId));
@@ -161,6 +175,59 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             exit;
         }
 
+        if ($action === 'draft_autosave') {
+            if (!warehouse_draft_table_exists($config)) {
+                $transferJsonResponse(['ok' => false, 'error' => 'A vázlat funkció még nincs telepítve.'], 400);
+            }
+            $transferType = in_array((string)($_POST['transfer_type'] ?? ''), ['internal', 'external'], true) ? (string)$_POST['transfer_type'] : 'internal';
+            $itemsRaw = json_decode((string)($_POST['items_json'] ?? '[]'), true);
+            $items = is_array($itemsRaw) ? $itemsRaw : [];
+            $draftId = warehouse_draft_save($config, 'autosave', $transferType, current_auth_user_id(), $_POST, $items);
+            $transferJsonResponse(['ok' => true, 'draft_id' => $draftId]);
+        }
+
+        if ($action === 'draft_park') {
+            if (!warehouse_draft_table_exists($config)) {
+                $transferJsonResponse(['ok' => false, 'error' => 'A vázlat funkció még nincs telepítve.'], 400);
+            }
+            $transferType = in_array((string)($_POST['transfer_type'] ?? ''), ['internal', 'external'], true) ? (string)$_POST['transfer_type'] : 'internal';
+            $label = trim((string)($_POST['draft_label'] ?? ''));
+            if ($label === '') {
+                $label = date('Y-m-d H:i');
+            }
+            $itemsRaw = json_decode((string)($_POST['items_json'] ?? '[]'), true);
+            $items = is_array($itemsRaw) ? $itemsRaw : [];
+            $fields = array_merge((array)$_POST, ['draft_label' => $label]);
+            $draftId = warehouse_draft_save($config, 'parked', $transferType, current_auth_user_id(), $fields, $items);
+            warehouse_draft_discard_autosave($config, current_auth_user_id(), $transferType);
+            $transferJsonResponse(['ok' => true, 'draft_id' => $draftId, 'label' => $label]);
+        }
+
+        if ($action === 'draft_discard') {
+            if (warehouse_draft_table_exists($config)) {
+                $draftId = (int)($_POST['draft_id'] ?? 0);
+                if ($draftId > 0) {
+                    warehouse_draft_delete($config, $draftId, current_auth_user_id());
+                } else {
+                    $transferType = in_array((string)($_POST['transfer_type'] ?? ''), ['internal', 'external'], true) ? (string)$_POST['transfer_type'] : 'internal';
+                    warehouse_draft_discard_autosave($config, current_auth_user_id(), $transferType);
+                }
+            }
+            $transferJsonResponse(['ok' => true]);
+        }
+
+        if ($action === 'draft_load') {
+            if (!warehouse_draft_table_exists($config)) {
+                $transferJsonResponse(['ok' => false, 'error' => 'A vázlat funkció még nincs telepítve.'], 400);
+            }
+            $draftId = (int)($_POST['draft_id'] ?? 0);
+            $draft = warehouse_draft_load($config, $draftId, current_auth_user_id());
+            if (!$draft) {
+                $transferJsonResponse(['ok' => false, 'error' => 'A vázlat nem található.'], 404);
+            }
+            $transferJsonResponse(['ok' => true, 'draft' => $draft]);
+        }
+
         throw new RuntimeException('Ismeretlen művelet.');
     } catch (Throwable $e) {
         if ($isJsonAction) {
@@ -195,6 +262,14 @@ if (warehouse_module_admin($config)) {
     $filterWarehouses = warehouse_all($config);
 }
 $categoryOptions = warehouse_material_category_options($config, true);
+
+$draftTableReady = warehouse_draft_table_exists($config);
+$currentUserId = current_auth_user_id();
+$internalAutosave = $draftTableReady ? warehouse_draft_get_autosave($config, $currentUserId, 'internal') : null;
+$externalAutosave = $draftTableReady ? warehouse_draft_get_autosave($config, $currentUserId, 'external') : null;
+$parkedDrafts = $draftTableReady ? warehouse_draft_list_parked($config, $currentUserId) : [];
+$internalParkedDrafts = array_values(array_filter($parkedDrafts, static fn(array $d): bool => ($d['transfer_type'] ?? '') === 'internal'));
+$externalParkedDrafts = array_values(array_filter($parkedDrafts, static fn(array $d): bool => ($d['transfer_type'] ?? '') === 'external'));
 
 $queryBase = [
     'scope' => $filters['scope'],
@@ -313,6 +388,16 @@ require __DIR__ . '/../app/views/layout/header.php';
   <div class="alert alert-warning">Az egyedi azonosítós átadásokhoz futtasd a mellékelt SQL-t: <code>database/warehousemgr_update_step13_transfer_item_identifiers.sql</code>.</div>
 <?php endif; ?>
 
+<?php if ($canManageAny && $internalAutosave): ?>
+  <div class="alert alert-info d-flex align-items-center flex-wrap gap-2 mb-2" id="internal-autosave-banner">
+    <div class="flex-grow-1">
+      <strong>Van félbemaradt belső átadásod.</strong>
+      <span class="text-secondary small ms-2">(mentve: <?= h(date('Y-m-d H:i', strtotime((string)($internalAutosave['created_at'] ?? '')))) ?>)</span>
+    </div>
+    <button type="button" class="btn btn-sm btn-primary" id="internal-autosave-restore">Folytatás</button>
+    <button type="button" class="btn btn-sm btn-outline-secondary" id="internal-autosave-discard">Elvet</button>
+  </div>
+<?php endif; ?>
 <?php if ($canManageAny): ?>
   <div class="card shadow-sm mb-4">
     <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-3">
@@ -320,14 +405,35 @@ require __DIR__ . '/../app/views/layout/header.php';
         <div class="fw-semibold">Új átadás indítása</div>
         <div class="text-secondary small">Több anyag is felvehető egy átadásba. A készlet csak elfogadáskor mozdul.</div>
       </div>
-      <button class="btn btn-sm btn-outline-secondary wm-panel-toggle" type="button" data-bs-toggle="collapse" data-bs-target="#transfer-create-panel" data-open-label="Elrejtés" data-closed-label="Megnyitás" aria-expanded="false">
-        <span class="wm-panel-toggle-label">Megnyitás</span>
-      </button>
+      <div class="d-flex gap-2 align-items-center flex-wrap">
+        <?php if ($internalParkedDrafts !== []): ?>
+        <div class="dropdown">
+          <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+            Parkolóból <span class="badge bg-secondary ms-1"><?= count($internalParkedDrafts) ?></span>
+          </button>
+          <ul class="dropdown-menu dropdown-menu-end">
+            <?php foreach ($internalParkedDrafts as $d): ?>
+            <li class="d-flex align-items-center">
+              <a class="dropdown-item flex-grow-1 wm-draft-load" href="#" data-draft-id="<?= (int)$d['id'] ?>" data-draft-type="internal">
+                <?= h((string)($d['draft_label'] ?? 'Névtelen')) ?>
+                <span class="text-secondary small d-block"><?= h(date('Y-m-d H:i', strtotime((string)($d['updated_at'] ?? '')))) ?></span>
+              </a>
+              <button type="button" class="btn btn-link text-danger p-2 wm-draft-delete" data-draft-id="<?= (int)$d['id'] ?>" title="Törlés" style="line-height:1;">&times;</button>
+            </li>
+            <?php endforeach; ?>
+          </ul>
+        </div>
+        <?php endif; ?>
+        <button class="btn btn-sm btn-outline-secondary wm-panel-toggle" type="button" data-bs-toggle="collapse" data-bs-target="#transfer-create-panel" data-open-label="Elrejtés" data-closed-label="Megnyitás" aria-expanded="false">
+          <span class="wm-panel-toggle-label">Megnyitás</span>
+        </button>
+      </div>
     </div>
     <div id="transfer-create-panel" class="collapse" data-wm-panel="1" data-panel-key="transfers-create">
       <div class="card-body">
         <form method="post" class="row g-3" id="transfer-create-form">
           <input type="hidden" name="action" value="create_transfer">
+          <input type="hidden" name="loaded_draft_id" value="">
           <div class="col-12 col-lg-4">
             <label class="form-label">Forrás raktár</label>
             <select class="form-select" name="source_warehouse_id" id="transfer_source_warehouse_id" required>
@@ -393,7 +499,10 @@ require __DIR__ . '/../app/views/layout/header.php';
           <div class="col-12">
             <div class="small text-secondary">Átadás indításakor még nem mozdul a készlet. A tényleges készletcsökkentés és készletnövelés csak akkor történik meg, amikor a cél raktár elfogadja az átadást.</div>
           </div>
-          <div class="col-12 d-flex justify-content-end">
+          <div class="col-12 d-flex justify-content-end gap-2">
+            <?php if ($draftTableReady): ?>
+            <button class="btn btn-outline-secondary" type="button" id="internal-park-btn">Parkolóba</button>
+            <?php endif; ?>
             <button class="btn btn-primary" type="submit">Átadás indítása</button>
           </div>
         </form>
@@ -402,6 +511,16 @@ require __DIR__ . '/../app/views/layout/header.php';
   </div>
 <?php endif; ?>
 
+<?php if ($canManageExternal && $externalAutosave): ?>
+  <div class="alert alert-info d-flex align-items-center flex-wrap gap-2 mb-2" id="external-autosave-banner">
+    <div class="flex-grow-1">
+      <strong>Van félbemaradt külsős átadásod.</strong>
+      <span class="text-secondary small ms-2">(mentve: <?= h(date('Y-m-d H:i', strtotime((string)($externalAutosave['created_at'] ?? '')))) ?>)</span>
+    </div>
+    <button type="button" class="btn btn-sm btn-primary" id="external-autosave-restore">Folytatás</button>
+    <button type="button" class="btn btn-sm btn-outline-secondary" id="external-autosave-discard">Elvet</button>
+  </div>
+<?php endif; ?>
 <?php if ($canManageExternal): ?>
   <div class="card shadow-sm mb-4">
     <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-3">
@@ -409,15 +528,36 @@ require __DIR__ . '/../app/views/layout/header.php';
         <div class="fw-semibold" id="external-transfer-title">Külsős partneres kiadás</div>
         <div class="text-secondary small" id="external-transfer-subtitle">A kiválasztott műveletnek megfelelően azonnali kiadás vagy visszavétel történik, nincs elfogadási kör.</div>
       </div>
-      <button class="btn btn-sm btn-outline-secondary wm-panel-toggle" type="button" data-bs-toggle="collapse" data-bs-target="#external-transfer-create-panel" data-open-label="Elrejtés" data-closed-label="Megnyitás" aria-expanded="false">
-        <span class="wm-panel-toggle-label">Megnyitás</span>
-      </button>
+      <div class="d-flex gap-2 align-items-center flex-wrap">
+        <?php if ($externalParkedDrafts !== []): ?>
+        <div class="dropdown">
+          <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+            Parkolóból <span class="badge bg-secondary ms-1"><?= count($externalParkedDrafts) ?></span>
+          </button>
+          <ul class="dropdown-menu dropdown-menu-end">
+            <?php foreach ($externalParkedDrafts as $d): ?>
+            <li class="d-flex align-items-center">
+              <a class="dropdown-item flex-grow-1 wm-draft-load" href="#" data-draft-id="<?= (int)$d['id'] ?>" data-draft-type="external">
+                <?= h((string)($d['draft_label'] ?? 'Névtelen')) ?>
+                <span class="text-secondary small d-block"><?= h(date('Y-m-d H:i', strtotime((string)($d['updated_at'] ?? '')))) ?></span>
+              </a>
+              <button type="button" class="btn btn-link text-danger p-2 wm-draft-delete" data-draft-id="<?= (int)$d['id'] ?>" title="Törlés" style="line-height:1;">&times;</button>
+            </li>
+            <?php endforeach; ?>
+          </ul>
+        </div>
+        <?php endif; ?>
+        <button class="btn btn-sm btn-outline-secondary wm-panel-toggle" type="button" data-bs-toggle="collapse" data-bs-target="#external-transfer-create-panel" data-open-label="Elrejtés" data-closed-label="Megnyitás" aria-expanded="false">
+          <span class="wm-panel-toggle-label">Megnyitás</span>
+        </button>
+      </div>
     </div>
     <div id="external-transfer-create-panel" class="collapse" data-wm-panel="1" data-panel-key="transfers-external-create">
       <div class="card-body">
         <form method="post" class="row g-3" id="external-transfer-create-form">
           <input type="hidden" name="action" value="create_external_transfer">
           <input type="hidden" name="external_direction_mode" id="external_direction_mode" value="outbound">
+          <input type="hidden" name="loaded_draft_id" value="">
           <div class="col-12">
             <div class="border rounded p-3 bg-danger-subtle border-danger-subtle" id="external-direction-banner">
               <div class="d-flex flex-wrap align-items-center justify-content-between gap-3">
@@ -535,7 +675,10 @@ require __DIR__ . '/../app/views/layout/header.php';
           <div class="col-12">
             <div class="small text-secondary" id="external-transfer-note">A külsős partneres kiadás mentéskor azonnal végbemegy: a belső készlet csökken, a partner raktár készlete nő.</div>
           </div>
-          <div class="col-12 d-flex justify-content-end">
+          <div class="col-12 d-flex justify-content-end gap-2">
+            <?php if ($draftTableReady): ?>
+            <button class="btn btn-outline-secondary" type="button" id="external-park-btn">Parkolóba</button>
+            <?php endif; ?>
             <button class="btn btn-danger" id="external-submit-btn" type="submit">Kiadás rögzítése</button>
           </div>
         </form>
@@ -1399,6 +1542,10 @@ require __DIR__ . '/../app/views/layout/header.php';
       row.querySelector('.transfer-item-select')?.addEventListener('change', () => {
         renderScanResult(row, {});
         refreshRows();
+        if (config.transferType) scheduleAutosave(config.transferType);
+      });
+      row.querySelector('.transfer-item-quantity')?.addEventListener('blur', () => {
+        if (config.transferType) scheduleAutosave(config.transferType);
       });
       row.querySelector('.transfer-item-delete')?.addEventListener('click', () => {
         row.remove();
@@ -1406,6 +1553,7 @@ require __DIR__ . '/../app/views/layout/header.php';
           addRow();
         }
         refreshRows();
+        if (config.transferType) scheduleAutosave(config.transferType);
       });
       row.querySelector('.transfer-item-scan-process')?.addEventListener('click', async () => {
         await processScannedList(row);
@@ -1449,33 +1597,238 @@ require __DIR__ . '/../app/views/layout/header.php';
     sourceSelect?.addEventListener('change', () => {
       rowsContainer.querySelectorAll('.transfer-item-row').forEach((row) => renderScanResult(row, {}));
       refreshRows();
+      if (config.transferType) scheduleAutosave(config.transferType);
     });
     categoryBtn?.addEventListener('click', () => {
       refreshRows();
     });
 
     addRow();
+    return { addRow };
   }
 
-  initTransferBuilder({
+  // --- Draft / autosave logika ---
+
+  const draftFeatureReady = <?= $draftTableReady ? 'true' : 'false' ?>;
+  const internalAutosaveDraftData = <?= json_encode($internalAutosave ? [
+      'id' => (int)$internalAutosave['id'],
+      'source_warehouse_id' => (int)($internalAutosave['source_warehouse_id'] ?? 0),
+      'target_warehouse_id' => (int)($internalAutosave['target_warehouse_id'] ?? 0),
+      'reference_no' => (string)($internalAutosave['reference_no'] ?? ''),
+      'note' => (string)($internalAutosave['note'] ?? ''),
+      'items' => array_map(static fn($i) => ['material_id' => (int)$i['material_id'], 'quantity' => (string)$i['quantity']], $internalAutosave['items']),
+      'draft_meta' => null,
+  ] : null, JSON_UNESCAPED_UNICODE) ?>;
+  const externalAutosaveDraftData = <?= json_encode($externalAutosave ? [
+      'id' => (int)$externalAutosave['id'],
+      'source_warehouse_id' => (int)($externalAutosave['source_warehouse_id'] ?? 0),
+      'target_warehouse_id' => (int)($externalAutosave['target_warehouse_id'] ?? 0),
+      'reference_no' => (string)($externalAutosave['reference_no'] ?? ''),
+      'note' => (string)($externalAutosave['note'] ?? ''),
+      'receiver_name' => (string)($externalAutosave['receiver_name'] ?? ''),
+      'receiver_phone' => (string)($externalAutosave['receiver_phone'] ?? ''),
+      'receiver_email' => (string)($externalAutosave['receiver_email'] ?? ''),
+      'project_no' => (string)($externalAutosave['project_no'] ?? ''),
+      'draft_meta' => (string)($externalAutosave['draft_meta'] ?? ''),
+      'items' => array_map(static fn($i) => ['material_id' => (int)$i['material_id'], 'quantity' => (string)$i['quantity']], $externalAutosave['items']),
+  ] : null, JSON_UNESCAPED_UNICODE) ?>;
+
+  let internalAutosaveTimer = null;
+  let externalAutosaveTimer = null;
+  let internalAddRow = null;
+  let externalAddRow = null;
+
+  function scheduleAutosave(type) {
+    if (!draftFeatureReady) return;
+    if (type === 'internal') {
+      clearTimeout(internalAutosaveTimer);
+      internalAutosaveTimer = setTimeout(() => doAutosave('internal'), 1500);
+    } else {
+      clearTimeout(externalAutosaveTimer);
+      externalAutosaveTimer = setTimeout(() => doAutosave('external'), 1500);
+    }
+  }
+
+  function collectDraftItems(rowsId) {
+    const items = [];
+    document.getElementById(rowsId)?.querySelectorAll('.transfer-item-row').forEach((row) => {
+      const materialId = parseInt(row.querySelector('.transfer-item-select')?.value || '0', 10);
+      const qty = (row.querySelector('.transfer-item-quantity')?.value || '').trim();
+      if (materialId > 0 && qty !== '') {
+        items.push({ material_id: materialId, quantity: qty });
+      }
+    });
+    return items;
+  }
+
+  async function doAutosave(type) {
+    if (!draftFeatureReady) return;
+    const items = collectDraftItems(type === 'internal' ? 'transfer-item-rows' : 'external-transfer-item-rows');
+    if (items.length === 0) return;
+
+    const body = new URLSearchParams();
+    body.append('action', 'draft_autosave');
+    body.append('transfer_type', type);
+    body.append('items_json', JSON.stringify(items));
+
+    if (type === 'internal') {
+      body.append('source_warehouse_id', document.getElementById('transfer_source_warehouse_id')?.value || '');
+      const f = document.getElementById('transfer-create-form');
+      body.append('target_warehouse_id', f?.querySelector('[name="target_warehouse_id"]')?.value || '');
+      body.append('reference_no', f?.querySelector('[name="reference_no"]')?.value || '');
+      body.append('note', f?.querySelector('[name="note"]')?.value || '');
+    } else {
+      body.append('source_warehouse_id', document.getElementById('external_transfer_source_warehouse_id')?.value || '');
+      body.append('target_warehouse_id', document.getElementById('external_transfer_target_warehouse_id')?.value || '');
+      body.append('reference_no', document.getElementById('external_reference_no')?.value || '');
+      const f = document.getElementById('external-transfer-create-form');
+      body.append('note', f?.querySelector('[name="external_note"]')?.value || '');
+      body.append('receiver_name', document.getElementById('external_receiver_name')?.value || '');
+      body.append('receiver_phone', document.getElementById('external_receiver_phone')?.value || '');
+      body.append('receiver_email', document.getElementById('external_receiver_email')?.value || '');
+      body.append('project_no', f?.querySelector('[name="external_project_no"]')?.value || '');
+      body.append('draft_meta', JSON.stringify({ direction_mode: document.getElementById('external_direction_mode')?.value || 'outbound' }));
+    }
+
+    try {
+      await fetch('/transfers.php', { method: 'POST', headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }, body });
+    } catch (_) { /* silent fail */ }
+  }
+
+  async function draftJsonPost(payload) {
+    const body = new URLSearchParams(payload);
+    const resp = await fetch('/transfers.php', { method: 'POST', headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }, body });
+    return resp.json();
+  }
+
+  function openTransferPanel(type) {
+    const panelId = type === 'internal' ? 'transfer-create-panel' : 'external-transfer-create-panel';
+    const panel = document.getElementById(panelId);
+    if (panel && !panel.classList.contains('show') && typeof bootstrap !== 'undefined') {
+      bootstrap.Collapse.getOrCreateInstance(panel).show();
+    }
+  }
+
+  function restoreDraftToForm(draft, type) {
+    const addRowFn = type === 'internal' ? internalAddRow : externalAddRow;
+    if (!addRowFn) return;
+
+    const loadedInput = document.querySelector(
+      type === 'internal' ? '#transfer-create-form [name="loaded_draft_id"]' : '#external-transfer-create-form [name="loaded_draft_id"]'
+    );
+    if (loadedInput) loadedInput.value = String(draft.id || '');
+
+    openTransferPanel(type);
+
+    if (type === 'internal') {
+      const srcSel = document.getElementById('transfer_source_warehouse_id');
+      if (srcSel) { srcSel.value = String(draft.source_warehouse_id || ''); srcSel.dispatchEvent(new Event('change', { bubbles: true })); }
+      const f = document.getElementById('transfer-create-form');
+      const tgt = f?.querySelector('[name="target_warehouse_id"]');
+      if (tgt) tgt.value = String(draft.target_warehouse_id || '');
+      const ref = f?.querySelector('[name="reference_no"]');
+      if (ref) ref.value = draft.reference_no || '';
+      const note = f?.querySelector('[name="note"]');
+      if (note) note.value = draft.note || '';
+    } else {
+      let meta = {};
+      try { meta = JSON.parse(draft.draft_meta || '{}'); } catch (_) {}
+      applyExternalDirection(meta.direction_mode || 'outbound');
+      setTimeout(() => {
+        const srcSel = document.getElementById('external_transfer_source_warehouse_id');
+        if (srcSel) { srcSel.value = String(draft.source_warehouse_id || ''); srcSel.dispatchEvent(new Event('change', { bubbles: true })); }
+        const tgtSel = document.getElementById('external_transfer_target_warehouse_id');
+        if (tgtSel) tgtSel.value = String(draft.target_warehouse_id || '');
+      }, 80);
+      const f = document.getElementById('external-transfer-create-form');
+      if (document.getElementById('external_receiver_name')) document.getElementById('external_receiver_name').value = draft.receiver_name || '';
+      if (document.getElementById('external_receiver_phone')) document.getElementById('external_receiver_phone').value = draft.receiver_phone || '';
+      if (document.getElementById('external_receiver_email')) document.getElementById('external_receiver_email').value = draft.receiver_email || '';
+      const proj = f?.querySelector('[name="external_project_no"]');
+      if (proj) proj.value = draft.project_no || '';
+      const note = f?.querySelector('[name="external_note"]');
+      if (note) note.value = draft.note || '';
+      if (document.getElementById('external_reference_no')) document.getElementById('external_reference_no').value = draft.reference_no || '';
+    }
+
+    const rowsContainerId = type === 'internal' ? 'transfer-item-rows' : 'external-transfer-item-rows';
+    const rowsContainerEl = document.getElementById(rowsContainerId);
+    if (rowsContainerEl) rowsContainerEl.innerHTML = '';
+
+    const items = Array.isArray(draft.items) ? draft.items : [];
+    if (items.length === 0) { addRowFn(); return; }
+
+    items.forEach((item) => {
+      addRowFn();
+      const rowsEl = document.getElementById(rowsContainerId);
+      const row = rowsEl?.lastElementChild;
+      if (!row) return;
+      const sel = row.querySelector('.transfer-item-select');
+      const qty = row.querySelector('.transfer-item-quantity');
+      if (sel && item.material_id) { sel.value = String(item.material_id); sel.dispatchEvent(new Event('change', { bubbles: true })); }
+      if (qty && item.quantity) qty.value = String(item.quantity);
+    });
+  }
+
+  async function parkDraft(type) {
+    const items = collectDraftItems(type === 'internal' ? 'transfer-item-rows' : 'external-transfer-item-rows');
+    if (items.length === 0) { alert('Legalább egy kitöltött tétel szükséges a parkoláshoz.'); return; }
+    const label = prompt('Parkoló neve (üresen hagyva: dátum/idő kerül rá):', '');
+    if (label === null) return;
+    const body = { action: 'draft_park', transfer_type: type, draft_label: label, items_json: JSON.stringify(items) };
+    if (type === 'internal') {
+      const f = document.getElementById('transfer-create-form');
+      body.source_warehouse_id = document.getElementById('transfer_source_warehouse_id')?.value || '';
+      body.target_warehouse_id = f?.querySelector('[name="target_warehouse_id"]')?.value || '';
+      body.reference_no = f?.querySelector('[name="reference_no"]')?.value || '';
+      body.note = f?.querySelector('[name="note"]')?.value || '';
+    } else {
+      const f = document.getElementById('external-transfer-create-form');
+      body.source_warehouse_id = document.getElementById('external_transfer_source_warehouse_id')?.value || '';
+      body.target_warehouse_id = document.getElementById('external_transfer_target_warehouse_id')?.value || '';
+      body.reference_no = document.getElementById('external_reference_no')?.value || '';
+      body.note = f?.querySelector('[name="external_note"]')?.value || '';
+      body.receiver_name = document.getElementById('external_receiver_name')?.value || '';
+      body.receiver_phone = document.getElementById('external_receiver_phone')?.value || '';
+      body.receiver_email = document.getElementById('external_receiver_email')?.value || '';
+      body.project_no = f?.querySelector('[name="external_project_no"]')?.value || '';
+      body.draft_meta = JSON.stringify({ direction_mode: document.getElementById('external_direction_mode')?.value || 'outbound' });
+    }
+    try {
+      const data = await draftJsonPost(body);
+      if (data.ok) {
+        window.location.reload();
+      } else {
+        alert('Parkolás sikertelen: ' + (data.error || 'ismeretlen hiba'));
+      }
+    } catch (_) {
+      alert('Hálózati hiba a parkoláshoz.');
+    }
+  }
+
+  const internalBuilder = initTransferBuilder({
     formId: 'transfer-create-form',
     sourceId: 'transfer_source_warehouse_id',
     rowsId: 'transfer-item-rows',
     addBtnId: 'add-transfer-item-btn',
     categoryFilterId: 'transfer-category-filter',
     categoryBtnId: 'transfer-category-btn',
-    itemNamePrefix: 'items'
+    itemNamePrefix: 'items',
+    transferType: 'internal',
   });
+  internalAddRow = internalBuilder?.addRow ?? null;
 
-  initTransferBuilder({
+  const externalBuilder = initTransferBuilder({
     formId: 'external-transfer-create-form',
     sourceId: 'external_transfer_source_warehouse_id',
     rowsId: 'external-transfer-item-rows',
     addBtnId: 'add-external-transfer-item-btn',
     categoryFilterId: 'external-transfer-category-filter',
     categoryBtnId: 'external-transfer-category-btn',
-    itemNamePrefix: 'external_items'
+    itemNamePrefix: 'external_items',
+    transferType: 'external',
   });
+  externalAddRow = externalBuilder?.addRow ?? null;
 
   const autoRef = document.getElementById('external_auto_reference');
   const refInput = document.getElementById('external_reference_no');
@@ -1795,6 +2148,84 @@ require __DIR__ . '/../app/views/layout/header.php';
         link.removeAttribute('aria-disabled');
         link.textContent = link.dataset.originalText || 'CSV export';
       }, 2500);
+    });
+  });
+
+  // Autosave: forrás/cél változáskor is mentünk
+  document.getElementById('transfer-create-form')?.querySelector('[name="target_warehouse_id"]')?.addEventListener('change', () => scheduleAutosave('internal'));
+  sourceSelectExternal?.addEventListener('change', () => scheduleAutosave('external'));
+  targetSelect?.addEventListener('change', () => scheduleAutosave('external'));
+
+  // Belső autosave banner
+  document.getElementById('internal-autosave-restore')?.addEventListener('click', () => {
+    if (internalAutosaveDraftData) restoreDraftToForm(internalAutosaveDraftData, 'internal');
+    document.getElementById('internal-autosave-banner')?.remove();
+  });
+  document.getElementById('internal-autosave-discard')?.addEventListener('click', async () => {
+    document.getElementById('internal-autosave-banner')?.remove();
+    if (internalAutosaveDraftData?.id) {
+      await draftJsonPost({ action: 'draft_discard', draft_id: String(internalAutosaveDraftData.id) }).catch(() => {});
+    }
+  });
+
+  // Külső autosave banner
+  document.getElementById('external-autosave-restore')?.addEventListener('click', () => {
+    if (externalAutosaveDraftData) restoreDraftToForm(externalAutosaveDraftData, 'external');
+    document.getElementById('external-autosave-banner')?.remove();
+  });
+  document.getElementById('external-autosave-discard')?.addEventListener('click', async () => {
+    document.getElementById('external-autosave-banner')?.remove();
+    if (externalAutosaveDraftData?.id) {
+      await draftJsonPost({ action: 'draft_discard', draft_id: String(externalAutosaveDraftData.id) }).catch(() => {});
+    }
+  });
+
+  // Parkolóba gombok
+  document.getElementById('internal-park-btn')?.addEventListener('click', () => parkDraft('internal'));
+  document.getElementById('external-park-btn')?.addEventListener('click', () => parkDraft('external'));
+
+  // Parkolóból törlés
+  document.querySelectorAll('.wm-draft-delete').forEach((el) => {
+    el.addEventListener('click', async (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (!confirm('Törlöd ezt a parkolóban tárolt szállítólevelet?')) return;
+      const draftId = el.dataset.draftId;
+      try {
+        const data = await draftJsonPost({ action: 'draft_discard', draft_id: draftId });
+        if (data.ok) {
+          const li = el.closest('li');
+          const ul = li?.closest('ul');
+          li?.remove();
+          if (ul && ul.querySelectorAll('li').length === 0) {
+            ul.closest('.dropdown')?.remove();
+          }
+        } else {
+          alert(data.error || 'Törlés sikertelen.');
+        }
+      } catch (_) {
+        alert('Hálózati hiba.');
+      }
+    });
+  });
+
+  // Parkolóból betöltés dropdown
+  document.querySelectorAll('.wm-draft-load').forEach((el) => {
+    el.addEventListener('click', async (e) => {
+      e.preventDefault();
+      const draftId = el.dataset.draftId;
+      const draftType = el.dataset.draftType;
+      if (!draftId || !draftType) return;
+      try {
+        const data = await draftJsonPost({ action: 'draft_load', draft_id: draftId });
+        if (data.ok && data.draft) {
+          restoreDraftToForm(data.draft, draftType);
+        } else {
+          alert(data.error || 'Nem sikerült betölteni a vázlatot.');
+        }
+      } catch (_) {
+        alert('Hálózati hiba.');
+      }
     });
   });
 

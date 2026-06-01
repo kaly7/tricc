@@ -14,6 +14,7 @@ $offset = ($page - 1) * $pageSize;
 
 $rawFilters = array_merge($_GET, ['status' => 'accepted', 'scope' => 'all']);
 $filters = warehouse_transfer_filter_values($rawFilters);
+$transferTypeFilter = $filters['transfer_type'] ?? '';
 
 $total = warehouse_transfer_count($config, $filters);
 $totalPages = max(1, (int)ceil($total / $pageSize));
@@ -24,11 +25,12 @@ if ($page > $totalPages) {
 
 $rows = warehouse_transfer_search($config, $filters, $pageSize, $offset);
 
-$buildQuery = static function (array $overrides = []) use ($filters, $page): string {
+$buildQuery = static function (array $overrides = []) use ($filters, $page, $transferTypeFilter): string {
     $base = [
-        'warehouse_id' => $filters['warehouse_id'] > 0 ? $filters['warehouse_id'] : null,
-        'q'            => $filters['q'] !== '' ? $filters['q'] : null,
-        'page'         => $page > 1 ? $page : null,
+        'warehouse_id'  => $filters['warehouse_id'] > 0 ? $filters['warehouse_id'] : null,
+        'q'             => $filters['q'] !== '' ? $filters['q'] : null,
+        'transfer_type' => $transferTypeFilter !== '' ? $transferTypeFilter : null,
+        'page'          => $page > 1 ? $page : null,
     ];
     return http_build_query(array_filter(array_merge($base, $overrides), static fn($v): bool => $v !== null && $v !== ''));
 };
@@ -42,6 +44,14 @@ require_once __DIR__ . '/../app/views/layout/header.php';
 </div>
 
 <form method="get" class="row g-2 mb-3 align-items-end">
+  <div class="col-12 col-md-3 col-lg-2">
+    <label class="form-label small mb-1">Típus</label>
+    <select class="form-select form-select-sm" name="transfer_type">
+      <option value="" <?= $transferTypeFilter === '' ? 'selected' : '' ?>>— mind —</option>
+      <option value="internal" <?= $transferTypeFilter === 'internal' ? 'selected' : '' ?>>Belső</option>
+      <option value="external" <?= $transferTypeFilter === 'external' ? 'selected' : '' ?>>Külső</option>
+    </select>
+  </div>
   <div class="col-12 col-md-4 col-lg-3">
     <label class="form-label small mb-1">Raktár</label>
     <select class="form-select form-select-sm" name="warehouse_id">
@@ -53,13 +63,13 @@ require_once __DIR__ . '/../app/views/layout/header.php';
       <?php endforeach; ?>
     </select>
   </div>
-  <div class="col-12 col-md-5 col-lg-4">
+  <div class="col-12 col-md-4 col-lg-4">
     <label class="form-label small mb-1">Keresés</label>
     <input class="form-control form-control-sm" type="text" name="q" value="<?= h((string)$filters['q']) ?>" placeholder="partner, átvevő, anyag, referencia…">
   </div>
   <div class="col-auto">
     <button class="btn btn-sm btn-primary" type="submit">Szűrés</button>
-    <?php if ($filters['warehouse_id'] > 0 || $filters['q'] !== ''): ?>
+    <?php if ($filters['warehouse_id'] > 0 || $filters['q'] !== '' || $transferTypeFilter !== ''): ?>
       <a class="btn btn-sm btn-outline-secondary ms-1" href="/transfer_history.php">Törlés</a>
     <?php endif; ?>
   </div>
@@ -93,7 +103,7 @@ require_once __DIR__ . '/../app/views/layout/header.php';
     <tbody>
       <?php foreach ($rows as $row): ?>
         <?php
-          $isExternal = warehouse_type_normalize((string)($row['transfer_type'] ?? 'internal')) === 'external';
+          $isExternal = warehouse_transfer_type_normalize((string)($row['transfer_type'] ?? 'internal')) === 'external';
           $hasSignature = $signatureEnabled && !empty($row['receiver_signature_data']);
           $acceptedAt = !empty($row['accepted_at']) ? date('Y.m.d H:i', strtotime((string)$row['accepted_at'])) : '—';
           $items = $row['items'] ?? [];

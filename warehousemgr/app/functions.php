@@ -3465,12 +3465,18 @@ function warehouse_transfer_filter_values(array $input): array {
         $scope = 'all';
     }
 
+    $transferType = trim((string)($input['transfer_type'] ?? ''));
+    if (!in_array($transferType, ['', 'internal', 'external'], true)) {
+        $transferType = '';
+    }
+
     return [
         'status' => $status,
         'scope' => $scope,
         'warehouse_id' => max(0, (int)($input['warehouse_id'] ?? 0)),
         'category_name' => trim((string)($input['category_name'] ?? '')),
         'q' => trim((string)($input['q'] ?? '')),
+        'transfer_type' => $transferType,
     ];
 }
 
@@ -4272,6 +4278,11 @@ function warehouse_transfer_search_query_parts(array $config, array $filters = [
     if ($filters['status'] !== '') {
         $where[] = 'tr.status = ?';
         $params[] = $filters['status'];
+    }
+
+    if (($filters['transfer_type'] ?? '') !== '') {
+        $where[] = 'tr.transfer_type = ?';
+        $params[] = $filters['transfer_type'];
     }
     if ($filters['scope'] === 'incoming') {
         $manageable = warehouse_manageable_warehouses($config, false);
@@ -5596,6 +5607,120 @@ function warehouse_identifier_staging_discard(array $config, array $entryIds): a
     ];
 }
 
+
+// -----------------------------------------------------------------------------
+// Szállítólevél vázlatok: autosave és parkoló
+// -----------------------------------------------------------------------------
+function warehouse_draft_table_exists(array $config): bool {
+    $pdo = warehouse_pdo($config);
+    $st = $pdo->query("SHOW TABLES LIKE 'transfer_drafts'");
+    return (bool)$st->fetch();
+}
+
+function warehouse_draft_save(array $config, string $draftType, string $transferType, int $userId, array $fields, array $items): int {
+    $pdo = warehouse_pdo($config);
+
+    if ($draftType === 'autosave') {
+        $st = $pdo->prepare("SELECT id FROM transfer_drafts WHERE draft_type = 'autosave' AND transfer_type = ? AND user_id = ?");
+        $st->execute([$transferType, $userId]);
+        $oldIds = $st->fetchAll(PDO::FETCH_COLUMN);
+        if ($oldIds !== []) {
+            $in = implode(',', array_fill(0, count($oldIds), '?'));
+            $pdo->prepare("DELETE FROM transfer_draft_items WHERE draft_id IN ($in)")->execute($oldIds);
+            $pdo->prepare("DELETE FROM transfer_drafts WHERE id IN ($in)")->execute($oldIds);
+        }
+    }
+
+    $st = $pdo->prepare("INSERT INTO transfer_drafts (draft_type, transfer_type, user_id, draft_label, source_warehouse_id, target_warehouse_id, reference_no, note, receiver_name, receiver_phone, receiver_email, project_no, draft_meta) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)");
+    $st->execute([
+        $draftType,
+        $transferType,
+        $userId,
+        ($fields['draft_label'] ?? '') !== '' ? (string)$fields['draft_label'] : null,
+        ($fields['source_warehouse_id'] ?? 0) > 0 ? (int)$fields['source_warehouse_id'] : null,
+        ($fields['target_warehouse_id'] ?? 0) > 0 ? (int)$fields['target_warehouse_id'] : null,
+        ($fields['reference_no'] ?? '') !== '' ? (string)$fields['reference_no'] : null,
+        ($fields['note'] ?? '') !== '' ? (string)$fields['note'] : null,
+        ($fields['receiver_name'] ?? '') !== '' ? (string)$fields['receiver_name'] : null,
+        ($fields['receiver_phone'] ?? '') !== '' ? (string)$fields['receiver_phone'] : null,
+        ($fields['receiver_email'] ?? '') !== '' ? (string)$fields['receiver_email'] : null,
+        ($fields['project_no'] ?? '') !== '' ? (string)$fields['project_no'] : null,
+        ($fields['draft_meta'] ?? '') !== '' ? (string)$fields['draft_meta'] : null,
+    ]);
+    $draftId = (int)$pdo->lastInsertId();
+
+    if ($draftId > 0 && $items !== []) {
+        $itemInsert = $pdo->prepare("INSERT INTO transfer_draft_items (draft_id, material_id, quantity) VALUES (?,?,?)");
+        foreach ($items as $item) {
+            $materialId = (int)($item['material_id'] ?? 0);
+            $quantity = trim((string)($item['quantity'] ?? '0'));
+            if ($materialId > 0) {
+                $itemInsert->execute([$draftId, $materialId, $quantity !== '' ? $quantity : '0']);
+            }
+        }
+    }
+
+    return $draftId;
+}
+
+function warehouse_draft_attach_items(array $config, array $draft): array {
+    $pdo = warehouse_pdo($config);
+    $st = $pdo->prepare("SELECT tdi.material_id, tdi.quantity, mi.sku, mi.name AS material_name, mi.unit FROM transfer_draft_items tdi LEFT JOIN material_items mi ON mi.id = tdi.material_id WHERE tdi.draft_id = ? ORDER BY tdi.id ASC");
+    $st->execute([(int)$draft['id']]);
+    $draft['items'] = $st->fetchAll(PDO::FETCH_ASSOC);
+    foreach ($draft['items'] as &$item) {
+        $item['quantity'] = warehouse_decimal_string($item['quantity'] ?? 0);
+    }
+    unset($item);
+    return $draft;
+}
+
+function warehouse_draft_get_autosave(array $config, int $userId, string $transferType): ?array {
+    $pdo = warehouse_pdo($config);
+    $st = $pdo->prepare("SELECT * FROM transfer_drafts WHERE draft_type = 'autosave' AND transfer_type = ? AND user_id = ? ORDER BY id DESC LIMIT 1");
+    $st->execute([$transferType, $userId]);
+    $row = $st->fetch(PDO::FETCH_ASSOC);
+    if (!$row) {
+        return null;
+    }
+    return warehouse_draft_attach_items($config, $row);
+}
+
+function warehouse_draft_list_parked(array $config, int $userId): array {
+    $pdo = warehouse_pdo($config);
+    $st = $pdo->prepare("SELECT * FROM transfer_drafts WHERE draft_type = 'parked' AND user_id = ? ORDER BY id DESC");
+    $st->execute([$userId]);
+    return $st->fetchAll(PDO::FETCH_ASSOC);
+}
+
+function warehouse_draft_load(array $config, int $draftId, int $userId): ?array {
+    $pdo = warehouse_pdo($config);
+    $st = $pdo->prepare("SELECT * FROM transfer_drafts WHERE id = ? AND user_id = ? LIMIT 1");
+    $st->execute([$draftId, $userId]);
+    $row = $st->fetch(PDO::FETCH_ASSOC);
+    if (!$row) {
+        return null;
+    }
+    return warehouse_draft_attach_items($config, $row);
+}
+
+function warehouse_draft_delete(array $config, int $draftId, int $userId): bool {
+    $pdo = warehouse_pdo($config);
+    $st = $pdo->prepare("DELETE FROM transfer_drafts WHERE id = ? AND user_id = ?");
+    $st->execute([$draftId, $userId]);
+    return $st->rowCount() > 0;
+}
+
+function warehouse_draft_discard_autosave(array $config, int $userId, string $transferType): void {
+    $pdo = warehouse_pdo($config);
+    $st = $pdo->prepare("SELECT id FROM transfer_drafts WHERE draft_type = 'autosave' AND transfer_type = ? AND user_id = ?");
+    $st->execute([$transferType, $userId]);
+    $ids = $st->fetchAll(PDO::FETCH_COLUMN);
+    if ($ids !== []) {
+        $in = implode(',', array_fill(0, count($ids), '?'));
+        $pdo->prepare("DELETE FROM transfer_drafts WHERE id IN ($in)")->execute($ids);
+    }
+}
 
 function warehouse_sql_ident(string $name): string {
     return '`' . str_replace('`', '``', $name) . '`';
