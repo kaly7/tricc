@@ -66,8 +66,8 @@ $hunMonths = ['','január','február','március','április','május','június','
     .k-lastmod-time { font-size: .85rem; font-weight: 600; color: #212529; }
     .k-lastmod-ago  { font-size: .68rem; }
 
-    /* Tábla wrapper – magasságát JS állítja be (böngészőfüggetlen) */
-    .k-wrap  { height: calc(100vh - 50px); overflow: hidden; background: #ced4da; }
+    /* Tábla wrapper – rögzített cellákhoz görgethető */
+    .k-wrap  { height: calc(100vh - 50px); overflow-y: auto; overflow-x: hidden; background: #ced4da; }
 
     /* Tábla: a wrapper magasságát veszi át */
     .k-table { border-collapse: separate; border-spacing: 2px; width: 100%;
@@ -83,8 +83,9 @@ $hunMonths = ['','január','február','március','április','május','június','
     .k-table thead th.k-today { background: #0d6efd; }
     .k-table thead th.k-we    { background: #495057; }
 
-    /* CSS változók – JS állítja be renderelés után */
+    /* CSS változók – JS csak a font-méreteket állítja be, a cell-magasság rögzített */
     :root {
+      --k-cell-h: 90px;
       --k-task-fs: .80rem;
       --k-time-fs: .72rem;
       --k-loc-fs:  .68rem;
@@ -97,13 +98,13 @@ $hunMonths = ['','január','február','március','április','május','június','
     .k-emp  { background: #f8f9fa; font-size: var(--k-emp-fs); font-weight: 600; padding: 4px 10px;
         overflow: hidden; word-break: break-word; line-height: 1.25;
         position: sticky; left: 0; z-index: 1; border-right: 2px solid #adb5bd;
-        vertical-align: middle; height: var(--k-cell-h, 60px); }
+        vertical-align: middle; height: var(--k-cell-h); }
     .k-emp small { display: block; color: #6c757d; font-weight: 400; font-size: var(--k-emp-sub-fs); line-height: 1.2; }
 
-    /* Nap cellák: egyenlő magasság, JS állítja be a --k-cell-h változót */
+    /* Nap cellák: rögzített magasság (--k-cell-h: 90px, CSS :root-ban) */
     .k-cell { background: #fff; vertical-align: top;
         padding: 7px 5px;
-        height: var(--k-cell-h, 60px); }
+        height: var(--k-cell-h); }
     .k-cell.k-today { background: #eff6ff; }
 
     /* Váltakozó sávszínek */
@@ -300,17 +301,8 @@ function fitFonts() {
       Math.max(8, Math.min(r.width / 10, r.height * 0.65, 24)).toFixed(1) + 'px');
   }
 
-  // 2. Cella magasság: a CSS már kiszámolta a wrapper magasságát (calc(100vh-50px)),
-  // mi csak a tényleges thead magasságát mérjük és ebből vonjuk le.
-  // Így elkerüljük a window.innerHeight / clientHeight böngészőnkénti eltérését.
-  const wrapEl  = document.querySelector('.k-wrap');
-  const theadEl = document.querySelector('.k-table thead');
-  const wrapH   = wrapEl  ? wrapEl.clientHeight  : (window.innerHeight - 50);
-  const thH     = theadEl ? theadEl.clientHeight  : 32;
-  const sp      = 2;
-  const avail   = wrapH - thH - (N_EMPS + 1) * sp;
-  const cellH   = Math.max(30, Math.floor(avail / N_EMPS));
-  R.style.setProperty('--k-cell-h', cellH + 'px');
+  // 2. Cella magasság: rögzített CSS változóból olvasva (nem dinamikus)
+  const cellH = parseInt(getComputedStyle(R).getPropertyValue('--k-cell-h')) || 90;
 
   // 3. Feladat sávok: minden téglalaphoz egyedi optimális betűméret
   const cvs = document.createElement('canvas').getContext('2d');

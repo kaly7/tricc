@@ -1,0 +1,600 @@
+<!doctype html>
+<html lang="hu">
+<head>
+  <meta charset="utf-8">
+  <title>Napiterv – Felhasználói kézikönyv</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+
+    body {
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 10.5pt;
+      color: #212529;
+      background: #fff;
+      margin: 0;
+      padding: 0;
+      line-height: 1.5;
+    }
+
+    .container {
+      max-width: 820px;
+      margin: 0 auto;
+      padding: 14mm 12mm;
+    }
+
+    .cover {
+      text-align: center;
+      padding: 30px 0 24px;
+      border-bottom: 2px solid #212529;
+      margin-bottom: 28px;
+    }
+    .cover h1 { font-size: 22pt; margin: 0 0 6px; }
+    .cover .sub { font-size: 11pt; color: #6c757d; }
+    .cover .version { font-size: 9pt; color: #adb5bd; margin-top: 8px; }
+
+    .toc { margin-bottom: 28px; }
+    .toc h2 { font-size: 13pt; border-bottom: 1px solid #dee2e6; padding-bottom: 4px; margin-bottom: 10px; }
+    .toc ol { padding-left: 18px; margin: 0; }
+    .toc li { margin: 3px 0; font-size: 10pt; }
+    .toc a { color: #0d6efd; text-decoration: none; }
+    .toc a:hover { text-decoration: underline; }
+
+    h2.ch {
+      font-size: 14pt;
+      margin: 28px 0 10px;
+      padding: 6px 10px;
+      background: #f8f9fa;
+      border-left: 4px solid #0d6efd;
+      border-radius: 0 4px 4px 0;
+      page-break-after: avoid;
+    }
+    h3 { font-size: 11.5pt; margin: 18px 0 7px; color: #343a40; page-break-after: avoid; }
+    h4 { font-size: 10.5pt; margin: 14px 0 5px; color: #495057; page-break-after: avoid; }
+
+    p { margin: 0 0 8px; }
+    ul, ol { margin: 0 0 8px; padding-left: 20px; }
+    li { margin-bottom: 3px; }
+
+    .box {
+      border: 1px solid #dee2e6;
+      border-radius: 5px;
+      padding: 10px 14px;
+      margin: 10px 0;
+    }
+    .box.info  { border-color: #0dcaf0; background: #f0fdff; }
+    .box.warn  { border-color: #ffc107; background: #fffdf0; }
+    .box.tip   { border-color: #198754; background: #f0fff4; }
+    .box.danger{ border-color: #dc3545; background: #fff5f5; }
+    .box-title { font-weight: bold; font-size: 9.5pt; text-transform: uppercase; letter-spacing: .04em; margin-bottom: 4px; }
+    .box.info   .box-title { color: #087990; }
+    .box.warn   .box-title { color: #856404; }
+    .box.tip    .box-title { color: #146c43; }
+    .box.danger .box-title { color: #b02a37; }
+
+    table { width: 100%; border-collapse: collapse; margin: 10px 0; font-size: 9.5pt; }
+    th { background: #f8f9fa; padding: 5px 8px; text-align: left; border: 1px solid #dee2e6; font-weight: bold; }
+    td { padding: 4px 8px; border: 1px solid #e9ecef; vertical-align: top; }
+    tr:nth-child(even) td { background: #fafafa; }
+
+    .badge {
+      display: inline-block;
+      padding: 1px 7px;
+      border-radius: 12px;
+      font-size: 8.5pt;
+      font-weight: bold;
+      white-space: nowrap;
+    }
+    .badge-admin  { background: #dc3545; color: #fff; }
+    .badge-user   { background: #6c757d; color: #fff; }
+    .badge-ok     { background: #198754; color: #fff; }
+    .badge-warn   { background: #ffc107; color: #212529; }
+    .badge-danger { background: #dc3545; color: #fff; }
+    .badge-info   { background: #0dcaf0; color: #212529; }
+
+    /* Feladatstátusz minták */
+    .task-sample {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 3px 10px; border-radius: 5px; font-size: 8.5pt; font-weight: 600;
+    }
+    .ts-aktiv   { background: #0d6efd; color: #fff; }
+    .ts-passziv {
+      background: #6c757d; color: #fff;
+      background-image: repeating-linear-gradient(-45deg,
+        transparent 0px, transparent 4px,
+        rgba(0,0,0,.25) 4px, rgba(0,0,0,.25) 6px);
+    }
+    .ts-var     {
+      background: #198754; color: #fff;
+      border-left: 10px solid;
+      border-image: repeating-linear-gradient(-45deg,
+        #fbbf24 0px, #fbbf24 5px,
+        #dc2626 5px, #dc2626 10px) 1;
+    }
+    .ts-archiv  { background: #dee2e6; color: #6c757d; text-decoration: line-through; }
+    .ts-vacation{ background: linear-gradient(135deg,#fde68a,#fb923c); color: #7c2d12; }
+    .ts-sick    { background: linear-gradient(135deg,#e2e8f0,#94a3b8); color: #1e293b; }
+
+    .steps { counter-reset: step; padding: 0; list-style: none; }
+    .steps li {
+      counter-increment: step;
+      padding: 5px 5px 5px 32px;
+      position: relative;
+      margin-bottom: 4px;
+    }
+    .steps li::before {
+      content: counter(step);
+      position: absolute; left: 0; top: 5px;
+      width: 22px; height: 22px;
+      background: #0d6efd; color: #fff;
+      border-radius: 50%;
+      font-size: 8.5pt; font-weight: bold;
+      display: flex; align-items: center; justify-content: center;
+    }
+
+    hr { border: none; border-top: 1px solid #dee2e6; margin: 20px 0; }
+
+    .screen-only { text-align: center; margin-bottom: 20px; }
+    .print-btn {
+      padding: 8px 22px; font-size: 10.5pt;
+      background: #0d6efd; color: #fff;
+      border: none; border-radius: 5px; cursor: pointer;
+    }
+
+    @page {
+      size: A4 portrait;
+      margin: 14mm 12mm 20mm 12mm;
+      @bottom-right {
+        content: counter(page) ". oldal / " counter(pages);
+        font-size: 8pt; color: #6c757d;
+      }
+      @bottom-left {
+        content: "Napiterv – Felhasználói kézikönyv";
+        font-size: 8pt; color: #6c757d;
+      }
+    }
+
+    @media print {
+      .screen-only { display: none !important; }
+      a::after { content: "" !important; }
+      body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      h2.ch, h3, h4 { page-break-after: avoid; }
+      .box, table { page-break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+
+  <div class="screen-only">
+    <button class="print-btn" onclick="window.print()">Nyomtatás / PDF mentés</button>
+  </div>
+
+  <div class="cover">
+    <h1>Napiterv</h1>
+    <div class="sub">Felhasználói kézikönyv</div>
+    <div class="version">Perfect-Phone 2026 &nbsp;|&nbsp; Belső használatra</div>
+  </div>
+
+  <div class="toc">
+    <h2>Tartalomjegyzék</h2>
+    <ol>
+      <li><a href="#bevezeto">Bevezető – mire való a Napiterv?</a></li>
+      <li><a href="#szerepkorok">Szerepkörök és jogosultságok</a></li>
+      <li><a href="#navigacio">Navigáció</a></li>
+      <li><a href="#heti_terv">Heti munkaterv</a>
+        <ol>
+          <li><a href="#gantt">A Gantt-nézet</a></li>
+          <li><a href="#feladat_rendeles">Feladat hozzárendelése</a></li>
+          <li><a href="#feladat_mozgatas">Feladat mozgatása és másolása</a></li>
+          <li><a href="#feladat_popup">Feladat részletei (buborék)</a></li>
+          <li><a href="#statuszok">Feladatstátuszok és vizuális jelzések</a></li>
+        </ol>
+      </li>
+      <li><a href="#sajat_feladatok">Saját feladataim</a></li>
+      <li><a href="#kiosk">Kiosk nézet</a></li>
+      <li><a href="#admin">Adminisztrátori funkciók</a>
+        <ol>
+          <li><a href="#feladatbank">Feladatbank</a></li>
+          <li><a href="#uj_feladat">Feladat létrehozása és szerkesztése</a></li>
+          <li><a href="#elozmeny">Előzmények</a></li>
+          <li><a href="#dolgozok">Dolgozók a tervben</a></li>
+          <li><a href="#kiosk_beallitas">Kiosk beállítások</a></li>
+        </ol>
+      </li>
+    </ol>
+  </div>
+
+  <hr>
+
+  <!-- 1. Bevezető -->
+  <h2 class="ch" id="bevezeto">1. Bevezető – mire való a Napiterv?</h2>
+
+  <p>A Napiterv modul a dolgozók napi munkafeladatainak tervezésére és megjelenítésére szolgál. Heti Gantt-nézetben mutatja, hogy melyik dolgozóhoz melyik napon milyen feladat van rendelve. A terv élőben megjeleníthető egy kiosk-kijelzőn is (pl. üzemben, recepción), ahol automatikusan frissülő nézetben láthatják a feladatokat.</p>
+
+  <p>A modul fő funkciói:</p>
+  <ul>
+    <li>Heti Gantt-nézet: dolgozók × napok rácsban a feladatokkal</li>
+    <li>Feladatok hozzárendelése kattintással, mozgatása húzással</li>
+    <li>Feladatmásolás más napra vagy más dolgozóhoz</li>
+    <li>Saját feladatok kártyás megjelenítése bejelentkezett felhasználóknak</li>
+    <li>Nagyképernyős kiosk nézet automatikus frissítéssel</li>
+    <li>Feladatbank kezelése (név, szín, státusz)</li>
+    <li>Visszakeresés (ki, mikor, mit dolgozott)</li>
+  </ul>
+
+  <div class="box info">
+    <div class="box-title">Kapcsolat a HR modullal</div>
+    A Napiterv a dolgozóit a HR modulból veszi. Csak azok a dolgozók tervezhetők, akiket egy admin felvett a Napiterv dolgozólistájába.
+  </div>
+
+
+  <!-- 2. Szerepkörök -->
+  <h2 class="ch" id="szerepkorok">2. Szerepkörök és jogosultságok</h2>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Funkció</th>
+        <th><span class="badge badge-user">felhasználó</span></th>
+        <th><span class="badge badge-admin">admin</span></th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr><td>Heti terv megtekintése (saját + hozzárendelt dolgozók)</td><td>✓</td><td>✓</td></tr>
+      <tr><td>Heti terv megtekintése (összes dolgozó)</td><td>—</td><td>✓</td></tr>
+      <tr><td>Feladat hozzárendelése / eltávolítása</td><td>—</td><td>✓</td></tr>
+      <tr><td>Feladat mozgatása, másolása (drag&amp;drop)</td><td>—</td><td>✓</td></tr>
+      <tr><td>Saját feladataim nézet</td><td>✓</td><td>✓</td></tr>
+      <tr><td>Kiosk nézet megnyitása</td><td>✓</td><td>✓</td></tr>
+      <tr><td>Feladatbank kezelése</td><td>—</td><td>✓</td></tr>
+      <tr><td>Előzmények megtekintése</td><td>—</td><td>✓</td></tr>
+      <tr><td>Dolgozók felvétele a tervbe</td><td>—</td><td>✓</td></tr>
+      <tr><td>Kiosk beállítások</td><td>—</td><td>✓</td></tr>
+    </tbody>
+  </table>
+
+  <div class="box info">
+    <div class="box-title">Normál felhasználó látóköre</div>
+    A bejelentkezett felhasználó a Heti tervben csak azokat a sorokat látja, ahol van feladat hozzárendelve, illetve a saját sorát. Az admin minden dolgozó sorát mindig látja.
+  </div>
+
+
+  <!-- 3. Navigáció -->
+  <h2 class="ch" id="navigacio">3. Navigáció</h2>
+
+  <p>A felső menüsávban az alábbi elemek találhatók:</p>
+
+  <table>
+    <thead><tr><th>Menüpont / gomb</th><th>Leírás</th><th>Jogosultság</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Heti terv</strong></td><td>Heti Gantt-nézet az összes dolgozóval és feladattal</td><td>mindenki</td></tr>
+      <tr><td><strong>Saját feladataim</strong></td><td>A bejelentkezett felhasználó feladatainak kártyás nézete</td><td>bejelentkezett felhasználók</td></tr>
+      <tr><td><strong>Admin &gt; Feladatbank</strong></td><td>Feladatok listája, szerkesztése</td><td>admin</td></tr>
+      <tr><td><strong>Admin &gt; + Új feladat</strong></td><td>Új feladat létrehozása</td><td>admin</td></tr>
+      <tr><td><strong>Admin &gt; Előzmények</strong></td><td>Visszakereshető hozzárendelési napló</td><td>admin</td></tr>
+      <tr><td><strong>Admin &gt; Dolgozók kezelése</strong></td><td>Kik jelenjenek meg a tervben</td><td>admin</td></tr>
+      <tr><td><strong>Admin &gt; Kiosk beállítások</strong></td><td>Kiosk konfiguráció és IP whitelist</td><td>admin</td></tr>
+      <tr><td><strong>🖥 Kiosk</strong></td><td>Nagyképernyős nézet megnyitása új lapon</td><td>mindenki</td></tr>
+    </tbody>
+  </table>
+
+
+  <!-- 4. Heti munkaterv -->
+  <h2 class="ch" id="heti_terv">4. Heti munkaterv</h2>
+
+  <h3 id="gantt">4.1 A Gantt-nézet</h3>
+
+  <p>A főoldal egy heti Gantt-táblázatot mutat: a sorok a dolgozók, az oszlopok a munkahét napjai. Minden cellában az adott dolgozóhoz aznap rendelt feladatok jelennek meg.</p>
+
+  <h4>Hetek közötti navigáció</h4>
+  <ul>
+    <li><strong>← Előző</strong> – az előző hétre lép</li>
+    <li><strong>Ma</strong> – az aktuális hétre ugrik</li>
+    <li><strong>Következő →</strong> – a következő hétre lép</li>
+  </ul>
+
+  <h4>Oszlopkiemelések</h4>
+  <table>
+    <thead><tr><th>Kiemelés</th><th>Jelentés</th></tr></thead>
+    <tbody>
+      <tr><td>Kék fejléc-oszlop</td><td>A mai nap</td></tr>
+      <tr><td>Sötétszürke fejléc-oszlop</td><td>Hétvégi nap (szombat/vasárnap)</td></tr>
+      <tr><td>Kék háttérű cella</td><td>A mai nap sorában</td></tr>
+    </tbody>
+  </table>
+
+  <h3 id="feladat_rendeles">4.2 Feladat hozzárendelése</h3>
+
+  <p>Feladat hozzárendelése kizárólag admin jogosultsággal lehetséges.</p>
+
+  <ol class="steps">
+    <li>Kattints az adott dolgozó sorában a kívánt nap cellájára (üres területre).</li>
+    <li>Megjelenik egy felugró lista az aktív feladatokkal.</li>
+    <li>Kattints a kívánt feladatra – a feladat megjelenik a cellában.</li>
+  </ol>
+
+  <div class="box info">
+    <div class="box-title">Több feladat egy napra</div>
+    Egy cellába több feladat is rendelhető. Ha egynél több feladat van, a sávok kisebb betűmérettel jelennek meg, és ha átfedő feladatok kerülnek egymás mellé, sraffos mintával jelöli őket a rendszer.
+  </div>
+
+  <h4>Feladat eltávolítása</h4>
+  <p>Kattints a feladatsávra – megjelenik a részletező buborék, amelyben az <strong>„Eltávolítás"</strong> linkre kattintva a feladat eltávolítható az adott napról és dolgozótól (megerősítés kérés nélkül).</p>
+
+  <h3 id="feladat_mozgatas">4.3 Feladat mozgatása és másolása</h3>
+
+  <p>Admin jogosultsággal a feladatok húzással mozgathatók és másolhatók a táblázatban.</p>
+
+  <h4>Mozgatás (áthelyezés)</h4>
+  <ol class="steps">
+    <li>Fogd meg a feladatsáv <strong>jobb felét</strong> (a kurzor fogó-formára vált).</li>
+    <li>Húzd a kívánt cellára (más napra vagy más dolgozóhoz).</li>
+    <li>Engedd el – a feladat átkerül az új helyre, az eredeti törlődik.</li>
+  </ol>
+
+  <h4>Másolás</h4>
+  <ol class="steps">
+    <li>Fogd meg a feladatsáv <strong>bal felét</strong> (hover-re halvány <strong>+</strong> jel jelenik meg).</li>
+    <li>Húzd a kívánt cellára.</li>
+    <li>Engedd el – az eredeti helyen megmarad, az új helyen is megjelenik a feladat.</li>
+  </ol>
+
+  <div class="box tip">
+    <div class="box-title">Tipp</div>
+    A cél-cella húzás közben kék kerettel emelkedik ki, jelezve, hogy oda ejthető a feladat.
+  </div>
+
+  <h3 id="feladat_popup">4.4 Feladat részletei (buborék)</h3>
+
+  <p>Egy feladatsávra kattintva egy buborék jelenik meg a feladat részleteivel:</p>
+
+  <table>
+    <thead><tr><th>Sor</th><th>Tartalom</th></tr></thead>
+    <tbody>
+      <tr><td>Cím</td><td>A feladat neve</td></tr>
+      <tr><td>📅</td><td>A hozzárendelés dátuma</td></tr>
+      <tr><td>👤</td><td>A dolgozó neve</td></tr>
+      <tr><td>📝</td><td>Megjegyzés (ha van)</td></tr>
+    </tbody>
+  </table>
+
+  <p>A buborékban elérhető műveletek (adminnak):</p>
+  <ul>
+    <li><strong>Szerkesztés</strong> – a feladat adatlapjára ugrik (feladatbank szerkesztés)</li>
+    <li><strong>Eltávolítás</strong> – a feladat eltávolítása erről a napról és dolgozótól</li>
+  </ul>
+
+  <p>A buborék bezárható az <strong>×</strong> gombbal vagy a táblázat más pontjára kattintva.</p>
+
+  <h3 id="statuszok">4.5 Feladatstátuszok és vizuális jelzések</h3>
+
+  <p>Minden feladatnak van egy státusza, amely meghatározza a megjelenését a Gantt-táblázatban és a feladatbankban.</p>
+
+  <table>
+    <thead><tr><th>Státusz</th><th>Megjelenés</th><th>Leírás</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><strong>aktív</strong></td>
+        <td><span class="task-sample ts-aktiv">Példa feladat</span></td>
+        <td>Normál feladat, a hozzárendelési listában szerepel</td>
+      </tr>
+      <tr>
+        <td><strong>passzív</strong></td>
+        <td><span class="task-sample ts-passziv">Példa feladat</span></td>
+        <td>A táblázatban sraffos mintával jelenik meg – pl. nem elsődleges tevékenység</td>
+      </tr>
+      <tr>
+        <td><strong>vár</strong></td>
+        <td><span class="task-sample ts-var" style="border-left:10px solid transparent;background:linear-gradient(90deg,transparent 10px,#198754 10px);position:relative;overflow:hidden"><span style="position:absolute;left:0;top:0;bottom:0;width:10px;background:repeating-linear-gradient(-45deg,#fbbf24 0,#fbbf24 5px,#dc2626 5px,#dc2626 10px)"></span>&nbsp;&nbsp;&nbsp;Példa feladat</span></td>
+        <td>Sárga-piros csíkos bal jelző – várakozó, blokkolt feladat</td>
+      </tr>
+      <tr>
+        <td><strong>archív</strong></td>
+        <td><span class="task-sample ts-archiv">Példa feladat</span></td>
+        <td>Halvány, áthúzott szöveg – kivont feladat, nem rendelhető hozzá</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h4>Rendszer-feladatok</h4>
+  <p>Bizonyos feladatok rendszer-szintűek, ezek nem törölhetők és speciális megjelenésük van:</p>
+
+  <table>
+    <thead><tr><th>Feladat</th><th>Megjelenés</th><th>Leírás</th></tr></thead>
+    <tbody>
+      <tr>
+        <td>🌴 Szabadság</td>
+        <td><span class="task-sample ts-vacation">🌴 Szabadság</span></td>
+        <td>Narancsos gradiens – szabadságon lévő dolgozó</td>
+      </tr>
+      <tr>
+        <td>🤒 Betegszabadság</td>
+        <td><span class="task-sample ts-sick">🤒 Betegszabadság</span></td>
+        <td>Szürkés gradiens – beteg dolgozó</td>
+      </tr>
+    </tbody>
+  </table>
+
+
+  <!-- 5. Saját feladataim -->
+  <h2 class="ch" id="sajat_feladatok">5. Saját feladataim</h2>
+
+  <p>A <strong>Saját feladataim</strong> oldal a bejelentkezett felhasználóhoz rendelt feladatokat mutatja az aktuális hétre, napi kártyás bontásban.</p>
+
+  <ul>
+    <li>Minden naphoz egy kártya tartozik, amelyen a rá rendelt feladatok listája látható.</li>
+    <li>A mai nap kártyája kék kerettel és fejléccel emelkedik ki.</li>
+    <li>A hetek között az <strong>← Előző / Ma / Következő →</strong> gombokkal lehet lépni.</li>
+  </ul>
+
+  <div class="box warn">
+    <div class="box-title">Ha az oldal figyelmeztetést mutat</div>
+    Ha a rendszer azt írja, hogy „A fiókodhoz nincs HR-dolgozó rendelve", akkor a bejelentkezési felhasználónév nincs összekötve egyetlen HR-es dolgozói profillal sem. Kérj segítséget az adminisztrátortól.
+  </div>
+
+
+  <!-- 6. Kiosk nézet -->
+  <h2 class="ch" id="kiosk">6. Kiosk nézet</h2>
+
+  <p>A kiosk nézet egy nagyképernyős, böngészőben futó kijelző, amely az összes dolgozó aktuális és közeli napjainak feladatait mutatja – bejelentkezés nélkül, folyamatos frissítéssel.</p>
+
+  <h4>A kiosk fejléce</h4>
+  <table>
+    <thead><tr><th>Elem</th><th>Leírás</th></tr></thead>
+    <tbody>
+      <tr><td>Bal oldal</td><td>„Napiterv" felirat – az alkalmazás neve</td></tr>
+      <tr><td>Középen</td><td>Élő óra (perc pontossággal frissül)</td></tr>
+      <tr><td>Utolsó módosítás</td><td>Mikor módosítottak utoljára a tervben, és mennyi ideje</td></tr>
+      <tr><td>Jobb oldal</td><td>A mai dátum (nap, hónap, év)</td></tr>
+    </tbody>
+  </table>
+
+  <h4>Elérés</h4>
+  <ul>
+    <li>A <strong>Heti terv</strong> oldalon a <strong>🖥 Kiosk</strong> gombbal nyitható meg új lapon.</li>
+    <li>Ha az adott IP-cím szerepel az engedélyezett listán, a kiosk bejelentkezés nélkül nézhető – így kioszk-gépeken nem szükséges felhasználói fiók.</li>
+    <li>Ha az IP nincs az engedélyezett listán, a rendszer normál bejelentkezést kér.</li>
+  </ul>
+
+  <div class="box tip">
+    <div class="box-title">Kiosk TV-re / monitorra</div>
+    Nyisd meg a kiosk URL-jét teljes képernyős módban (F11), és állítsd be az automatikus frissítést a Kiosk beállítások oldalon. A zoom értékkel a megjelenített tartalom mérete a képernyő felbontásához igazítható.
+  </div>
+
+
+  <!-- 7. Admin -->
+  <h2 class="ch" id="admin">7. Adminisztrátori funkciók</h2>
+
+  <h3 id="feladatbank">7.1 Feladatbank</h3>
+
+  <p>A feladatbank tartalmazza az összes definiált feladatot, amelyek a Gantt-nézetből hozzárendelhetők. A lista szűrhető státusz szerint.</p>
+
+  <table>
+    <thead><tr><th>Oszlop</th><th>Leírás</th></tr></thead>
+    <tbody>
+      <tr><td>Szín</td><td>A feladatsáv háttérszíne (kis négyzet)</td></tr>
+      <tr><td>Feladat neve</td><td>A feladat megnevezése; rendszer-feladatoknál „rendszer" badge jelzi</td></tr>
+      <tr><td>Státusz</td><td>aktív / passzív / vár / archív</td></tr>
+      <tr><td>Megjegyzés</td><td>Rövid leírás (max. 60 karakter látszik a listában)</td></tr>
+    </tbody>
+  </table>
+
+  <p>A sor jobb szélén a <strong>Szerkesztés</strong> gomb visz a feladat adatlapjára.</p>
+
+  <div class="box info">
+    <div class="box-title">Rendszer-feladatok</div>
+    A 🌴 Szabadság és 🤒 Betegszabadság feladatok rendszer-szintűek: szerkeszthetők (szín, megjegyzés), de nem törölhetők, és státuszuk sem változtatható.
+  </div>
+
+  <h3 id="uj_feladat">7.2 Feladat létrehozása és szerkesztése</h3>
+
+  <p>Az <strong>+ Új feladat</strong> gombbal, illetve a feladatbank listájából a Szerkesztés gombbal érhető el az adatlap.</p>
+
+  <table>
+    <thead><tr><th>Mező</th><th>Leírás</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Feladat neve *</strong></td><td>Kötelező; ez jelenik meg a Gantt-sávon és a buborékban</td></tr>
+      <tr><td><strong>Státusz</strong></td><td>aktív / passzív / vár / archív – meghatározza a vizuális megjelenést</td></tr>
+      <tr><td><strong>Szín</strong></td><td>A sáv háttérszíne; a szöveg kontrasztja automatikusan igazodik</td></tr>
+      <tr><td>Megjegyzés</td><td>Opcionális belső megjegyzés; megjelenik a buborékban</td></tr>
+    </tbody>
+  </table>
+
+  <div class="box danger">
+    <div class="box-title">Feladat törlése</div>
+    A feladat törlése visszafordíthatatlan és az összes meglévő hozzárendelést is törli – a múltbeli tervből is eltűnik. Ha egy feladatot ki szeretnél vonni forgalomból, állítsd <strong>archív</strong> státuszra törlés helyett.
+  </div>
+
+  <h3 id="elozmeny">7.3 Előzmények</h3>
+
+  <p>Az Előzmények oldal megmutatja, hogy melyik napon melyik dolgozóhoz milyen feladat volt rendelve. Szűrhető:</p>
+
+  <ul>
+    <li><strong>Időszak</strong> (tól–ig dátumok) – alapértelmezetten az utolsó 30 nap</li>
+    <li><strong>Dolgozó</strong> – legördülő listából</li>
+    <li><strong>Feladat státusza</strong> – aktív / passzív / vár / archív</li>
+    <li><strong>Feladat neve</strong> – legördülő listából</li>
+  </ul>
+
+  <p>Az eredmény napok szerint csoportosítva jelenik meg: dátum + feladatnév → az azon a napon arra a feladatra beosztott dolgozók listája.</p>
+
+  <h3 id="dolgozok">7.4 Dolgozók a tervben</h3>
+
+  <p>Csak azok a dolgozók jelennek meg a Napiterv Gantt-nézetében, akiket egy admin felvett erre az oldalra. A dolgozók a HR modulból tölthetők be.</p>
+
+  <h4>Dolgozó felvétele</h4>
+  <ol class="steps">
+    <li>Nyisd meg az <strong>Admin &gt; Dolgozók kezelése</strong> oldalt.</li>
+    <li>A jobb oldali listából (HR-ből elérhető dolgozók) kattints a <strong>„+"</strong> gombra a kívánt dolg mellett.</li>
+    <li>A dolgozó megjelenik a bal oldali aktív listában.</li>
+  </ol>
+
+  <h4>Dolgozó eltávolítása a tervből</h4>
+  <p>Az aktív listában kattints a <strong>„Eltávolítás"</strong> gombra. Ez csak a Napitervből távolítja el a dolgozót – a HR adatlapja érintetlen marad.</p>
+
+  <h4>Megjelenítési sorrend</h4>
+  <ul>
+    <li><strong>Húzással</strong> (☰ fogópont): tetszőleges sorrendbe rendezhető a lista</li>
+    <li><strong>„Névsorrendbe rendezés"</strong> gomb: automatikusan névsorba rendezi a teljes listát</li>
+    <li>A sorrend mentéséhez kattints a <strong>„Sorrend mentése"</strong> gombra (csak akkor jelenik meg, ha változott a sorrend)</li>
+  </ul>
+
+  <h3 id="kiosk_beallitas">7.5 Kiosk beállítások</h3>
+
+  <p>A kiosk megjelenését és viselkedését az <strong>Admin &gt; Kiosk beállítások</strong> oldalon lehet konfigurálni.</p>
+
+  <table>
+    <thead><tr><th>Beállítás</th><th>Leírás</th><th>Alapértelmezett</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><strong>Megjelenített napok</strong></td>
+        <td>Hány napot mutasson előre a kiosk (1–14)</td>
+        <td>5</td>
+      </tr>
+      <tr>
+        <td><strong>Felbontás / Zoom</strong></td>
+        <td>Szabványos felbontás választható (HD, Full HD, 4K stb.), vagy manuálisan megadható a zoom szorzó (0.50–2.00)</td>
+        <td>1.00 (Full HD)</td>
+      </tr>
+      <tr>
+        <td><strong>Frissítési intervallum</strong></td>
+        <td>Másodpercenként ellenőrzi, hogy változott-e a terv; ha igen, a táblázat AJAX-szal frissül (10–300 mp)</td>
+        <td>30 mp</td>
+      </tr>
+      <tr>
+        <td><strong>Teljes oldal újratöltés</strong></td>
+        <td>Ennyi másodpercenként tölt be újra a böngésző (60–86400 mp)</td>
+        <td>1800 mp (30 perc)</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h4>IP whitelist – jelszó nélküli hozzáférés</h4>
+
+  <p>Ha egy IP-cím szerepel az engedélyezett listán, a kiosk oldal az adott gépről bejelentkezés nélkül megnyitható. Így kiosk-megjelenítőre nem kell felhasználói fiókot konfigurálni.</p>
+
+  <ol class="steps">
+    <li>Az <strong>„Engedélyezett IP-címek"</strong> blokkban gépeld be a kiosk-gép IP-címét (pl. <code>192.168.1.50</code>).</li>
+    <li>Kattints az <strong>„IP hozzáadása"</strong> gombra.</li>
+    <li>Az IP megjelenik a listában.</li>
+  </ol>
+
+  <div class="box tip">
+    <div class="box-title">Tipp – saját IP</div>
+    Az oldal megmutatja az aktuális kliens IP-címét, így könnyű hozzáadni a saját gépet: kattints a <strong>„Saját IP hozzáadása"</strong> gombra.
+  </div>
+
+  <div class="box warn">
+    <div class="box-title">Figyelem</div>
+    Az IP-lista csak hálózati azonosítás – aki ezekről az IP-kről megnyitja a kiosk oldalt, bejelentkezés nélkül láthatja a beosztást. Győződj meg róla, hogy csak megbízható gépek IP-jét veszed fel.
+  </div>
+
+  <hr>
+
+  <p style="color:#6c757d; font-size:9pt; text-align:center;">
+    Perfect-Phone 2026 – Napiterv &nbsp;|&nbsp; Belső használatra &nbsp;|&nbsp; Kézikönyv készült: 2026-05-07
+  </p>
+
+</div>
+</body>
+</html>

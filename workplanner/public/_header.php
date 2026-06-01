@@ -139,6 +139,7 @@ $title   = ($title ?? '') ?: config()['app_name'];
           $appsUrl  = 'http://' . $authHost . ':' . $authPort . '/apps.php';
         ?>
           <span class="text-muted small"><?= e($u['name']) ?></span>
+          <a class="btn btn-sm btn-outline-secondary" href="<?= base_url('docs/napiterv_kezikonyv.html') ?>" target="_blank" title="Kézikönyv">?</a>
           <a class="btn btn-sm btn-outline-secondary" href="<?= e($appsUrl) ?>">Rendszerek</a>
           <a class="btn btn-sm btn-outline-secondary" href="<?= base_url('logout.php') ?>">Kilépés</a>
         <?php endif; ?>
@@ -146,6 +147,7 @@ $title   = ($title ?? '') ?: config()['app_name'];
     </div>
   </div>
 </nav>
+<?php if (!empty($_SESSION['user_id'])) require_once '/var/www/html/_common/easter/easter_init.php'; ?>
 <div class="container-fluid px-3">
 <?php
 $_ok  = flash_get('ok');

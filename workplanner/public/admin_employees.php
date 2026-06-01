@@ -53,22 +53,27 @@ require __DIR__ . '/_header.php';
   <!-- Felvett dolgozók -->
   <div class="col-lg-7">
     <div class="card">
-      <div class="card-header d-flex justify-content-between align-items-center">
+      <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
         <strong>Aktív dolgozók (<?= count($wpEmps) ?>)</strong>
-        <span class="text-muted small">Sorrendet húzással vagy számmal adhatod meg</span>
+        <div class="d-flex gap-2 align-items-center">
+          <button type="button" class="btn btn-sm btn-outline-secondary" id="btn-alpha-sort">Névsorrendbe rendezés</button>
+          <span class="text-muted small">Húzással is rendezhető</span>
+        </div>
       </div>
       <?php if (!$wpEmps): ?>
         <div class="card-body text-muted">Még nincs felvett dolgozó. Adj hozzá a jobb oldali listából.</div>
       <?php else: ?>
-      <form method="post">
+      <form method="post" id="sort-form">
         <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
         <ul class="list-group list-group-flush" id="sort-list">
           <?php foreach ($wpEmps as $i => $we):
             $emp = $hrMap[(int)$we['employee_id']] ?? null;
             if (!$emp) continue;
           ?>
-          <li class="list-group-item d-flex align-items-center gap-2 py-2" data-id="<?= (int)$we['employee_id'] ?>">
-            <span class="text-muted" style="cursor:grab">☰</span>
+          <li class="list-group-item d-flex align-items-center gap-2 py-2"
+              data-id="<?= (int)$we['employee_id'] ?>"
+              data-name="<?= e($emp['full_name']) ?>">
+            <span class="drag-handle text-muted" style="cursor:grab;user-select:none;font-size:1.1rem">☰</span>
             <span class="flex-grow-1">
               <strong><?= e($emp['full_name']) ?></strong>
               <?php if ($emp['company_division']): ?>
@@ -87,7 +92,7 @@ require __DIR__ . '/_header.php';
           <?php endforeach; ?>
         </ul>
         <div class="card-footer">
-          <button class="btn btn-sm btn-outline-primary" type="submit">Sorrend mentése</button>
+          <button class="btn btn-sm btn-outline-primary" type="submit" name="save_sort" value="1">Sorrend mentése</button>
         </div>
       </form>
       <?php endif; ?>
@@ -129,6 +134,7 @@ require __DIR__ . '/_header.php';
 
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
 <script>
 // Szűrő a hozzáadható listán
 document.getElementById('filter-input')?.addEventListener('input', function() {
@@ -136,6 +142,49 @@ document.getElementById('filter-input')?.addEventListener('input', function() {
   document.querySelectorAll('.avail-item').forEach(li => {
     li.style.display = li.textContent.toLowerCase().includes(q) ? '' : 'none';
   });
+});
+
+// Sorrend számok frissítése a lista aktuális sorrendje alapján (10, 20, 30, ...)
+function refreshSortNumbers() {
+  document.querySelectorAll('#sort-list li').forEach((li, idx) => {
+    const eid = li.dataset.id;
+    const inp = li.querySelector('input[name^="sort_order[' + eid + ']"]');
+    if (inp) inp.value = (idx + 1) * 10;
+  });
+}
+
+// Drag-and-drop SortableJS
+const sortList = document.getElementById('sort-list');
+if (sortList) {
+  Sortable.create(sortList, {
+    handle: '.drag-handle',
+    animation: 150,
+    ghostClass: 'bg-light',
+    onEnd: refreshSortNumbers
+  });
+}
+
+// Névsorrendbe rendezés gomb
+document.getElementById('btn-alpha-sort')?.addEventListener('click', function() {
+  const list = document.getElementById('sort-list');
+  if (!list) return;
+  const items = Array.from(list.querySelectorAll('li'));
+  items.sort((a, b) => a.dataset.name.localeCompare(b.dataset.name, 'hu'));
+  items.forEach(li => list.appendChild(li));
+  refreshSortNumbers();
+});
+
+// Szám input változtatásakor vizuálisan rendezi át a listát
+document.getElementById('sort-list')?.addEventListener('change', function(e) {
+  if (!e.target.classList.contains('sort-input')) return;
+  const list = document.getElementById('sort-list');
+  const items = Array.from(list.querySelectorAll('li'));
+  items.sort((a, b) => {
+    const va = parseInt(a.querySelector('.sort-input')?.value || '0', 10);
+    const vb = parseInt(b.querySelector('.sort-input')?.value || '0', 10);
+    return va - vb;
+  });
+  items.forEach(li => list.appendChild(li));
 });
 </script>
 
