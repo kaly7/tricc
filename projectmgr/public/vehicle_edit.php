@@ -4,8 +4,6 @@ require dirname(__DIR__).'/app/Auth.php';
 require dirname(__DIR__).'/app/Middleware.php';
 require dirname(__DIR__).'/app/Csrf.php';
 require dirname(__DIR__).'/app/Helpers.php';
-require dirname(__DIR__).'/views/_layout_top.php';
-require dirname(__DIR__).'/views/_flash.php';
 
 use App\Auth; use App\Middleware; use App\Db; use App\Helpers;
 
@@ -24,8 +22,6 @@ $st->execute([$id]);
 $v = $st->fetch(PDO::FETCH_ASSOC);
 if (!$v) { http_response_code(404); exit('Jármű nem található'); }
 
-$types = $pdo->query("SELECT id, name FROM vehicle_types WHERE is_active=1 ORDER BY sort, name")->fetchAll(PDO::FETCH_ASSOC);
-$divisions = $pdo->query("SELECT id, name, is_active FROM vehicle_divisions ORDER BY is_active DESC, sort_order, name")->fetchAll(PDO::FETCH_ASSOC);
 $ax = $pdo->prepare("SELECT axle_no, wheels_count FROM vehicle_axles WHERE vehicle_id=? ORDER BY axle_no");
 $ax->execute([$id]);
 $axRows = $ax->fetchAll(PDO::FETCH_ASSOC);
@@ -33,52 +29,59 @@ $axRows = $ax->fetchAll(PDO::FETCH_ASSOC);
 $err='';
 if ($_SERVER['REQUEST_METHOD']==='POST') {
     if (!\App\Csrf::check($_POST['csrf_token'] ?? null)) {
-	http_response_code(400);
-	exit('CSRF hiba.');
-    } 
-   $plate = trim((string)($_POST['license_plate'] ?? ''));
-  $make  = trim((string)($_POST['make'] ?? ''));
-  $model = trim((string)($_POST['model'] ?? ''));
-  $fuel  = (string)($_POST['fuel_type'] ?? $v['fuel_type']);
-  $typeId = (int)($_POST['vehicle_type_id'] ?? $v['vehicle_type_id']);
-  $divisionId = ($_POST['division_id'] ?? '')==='' ? null : (int)$_POST['division_id'];
-  $odo = max(0,(int)($_POST['odometer_km'] ?? $v['odometer_km']));
-  $oilInt = max(0,(int)($_POST['oil_interval_km'] ?? $v['oil_interval_km']));
-  $srvKm = ($_POST['service_interval_km'] ?? '')==='' ? null : max(0,(int)$_POST['service_interval_km']);
-  $srvMo = ($_POST['service_interval_months'] ?? '')==='' ? null : max(0,(int)$_POST['service_interval_months']);
-  $archived = isset($_POST['archived']) ? 1 : 0;
-  $multialarm = isset($_POST['multialarm_enabled']) ? 1 : 0;
-
-  $wheelCounts = $_POST['wheels_count'] ?? [];
-  if (!is_array($wheelCounts)) $wheelCounts = [];
-
-  $fuelAllowed = ['petrol','diesel','electric','hybrid'];
-  if (!in_array($fuel, $fuelAllowed, true)) $fuel=$v['fuel_type'];
-  if ($typeId<=0) $err='A fajta kötelező.';
-
-  if (!$err) {
-    try {
-      $pdo->beginTransaction();
-      $up = $pdo->prepare("UPDATE vehicles SET license_plate=?, make=?, model=?, fuel_type=?, vehicle_type_id=?, division_id=?, odometer_km=?, oil_interval_km=?, service_interval_km=?, service_interval_months=?, archived=?, multialarm_enabled=? WHERE id=?");
-      $up->execute([$plate,$make,$model,$fuel,$typeId,$divisionId,$odo,$oilInt,$srvKm,$srvMo,$archived,$multialarm,$id]);
-
-      $axUp = $pdo->prepare("UPDATE vehicle_axles SET wheels_count=? WHERE vehicle_id=? AND axle_no=?");
-      foreach ($axRows as $a) {
-        $no = (int)$a['axle_no'];
-        $wc = (int)($wheelCounts[$no] ?? $a['wheels_count']);
-        if ($wc < 1) $wc = (int)$a['wheels_count'];
-        $axUp->execute([$wc,$id,$no]);
-      }
-
-      $pdo->commit();
-      Helpers::flash('success','Mentve.');
-      header('Location: /vehicle.php?id='.$id); exit;
-    } catch (Throwable $e) {
-      $pdo->rollBack();
-      $err = 'Hiba mentés közben: '.$e->getMessage();
+        http_response_code(400);
+        exit('CSRF hiba.');
     }
-  }
+    $plate = trim((string)($_POST['license_plate'] ?? ''));
+    $plate = $plate !== '' ? $plate : null;
+    $make  = trim((string)($_POST['make'] ?? ''));
+    $model = trim((string)($_POST['model'] ?? ''));
+    $fuel  = (string)($_POST['fuel_type'] ?? $v['fuel_type']);
+    $typeId = (int)($_POST['vehicle_type_id'] ?? $v['vehicle_type_id']);
+    $divisionId = ($_POST['division_id'] ?? '')==='' ? null : (int)$_POST['division_id'];
+    $odo = max(0,(int)($_POST['odometer_km'] ?? $v['odometer_km']));
+    $oilInt = max(0,(int)($_POST['oil_interval_km'] ?? $v['oil_interval_km']));
+    $srvKm = ($_POST['service_interval_km'] ?? '')==='' ? null : max(0,(int)$_POST['service_interval_km']);
+    $srvMo = ($_POST['service_interval_months'] ?? '')==='' ? null : max(0,(int)$_POST['service_interval_months']);
+    $archived = isset($_POST['archived']) ? 1 : 0;
+    $multialarm = isset($_POST['multialarm_enabled']) ? 1 : 0;
+
+    $wheelCounts = $_POST['wheels_count'] ?? [];
+    if (!is_array($wheelCounts)) $wheelCounts = [];
+
+    $fuelAllowed = ['petrol','diesel','electric','hybrid'];
+    if (!in_array($fuel, $fuelAllowed, true)) $fuel=$v['fuel_type'];
+    if ($typeId<=0) $err='A fajta kötelező.';
+
+    if (!$err) {
+        try {
+            $pdo->beginTransaction();
+            $up = $pdo->prepare("UPDATE vehicles SET license_plate=?, make=?, model=?, fuel_type=?, vehicle_type_id=?, division_id=?, odometer_km=?, oil_interval_km=?, service_interval_km=?, service_interval_months=?, archived=?, multialarm_enabled=? WHERE id=?");
+            $up->execute([$plate,$make,$model,$fuel,$typeId,$divisionId,$odo,$oilInt,$srvKm,$srvMo,$archived,$multialarm,$id]);
+
+            $axUp = $pdo->prepare("UPDATE vehicle_axles SET wheels_count=? WHERE vehicle_id=? AND axle_no=?");
+            foreach ($axRows as $a) {
+                $no = (int)$a['axle_no'];
+                $wc = (int)($wheelCounts[$no] ?? $a['wheels_count']);
+                if ($wc < 1) $wc = (int)$a['wheels_count'];
+                $axUp->execute([$wc,$id,$no]);
+            }
+
+            $pdo->commit();
+            Helpers::flash('success','Mentve.');
+            header('Location: /vehicle.php?id='.$id); exit;
+        } catch (Throwable $e) {
+            $pdo->rollBack();
+            $err = 'Hiba mentés közben: '.$e->getMessage();
+        }
+    }
 }
+
+$types = $pdo->query("SELECT id, name FROM vehicle_types WHERE is_active=1 ORDER BY sort, name")->fetchAll(PDO::FETCH_ASSOC);
+$divisions = $pdo->query("SELECT id, name, is_active FROM vehicle_divisions ORDER BY is_active DESC, sort_order, name")->fetchAll(PDO::FETCH_ASSOC);
+
+require dirname(__DIR__).'/views/_layout_top.php';
+require dirname(__DIR__).'/views/_flash.php';
 
 function h($s){ return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
 ?>

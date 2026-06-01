@@ -3,8 +3,6 @@ require dirname(__DIR__).'/app/Db.php';
 require dirname(__DIR__).'/app/Auth.php';
 require dirname(__DIR__).'/app/Middleware.php';
 require dirname(__DIR__).'/app/Csrf.php';
-require dirname(__DIR__).'/views/_layout_top.php';
-require dirname(__DIR__).'/views/_flash.php';
 
 use App\Auth; use App\Middleware; use App\Db; use App\Csrf;
 
@@ -15,7 +13,6 @@ if (!$isAdmin) { http_response_code(403); exit('Nincs jogosultság.'); }
 
 $pdo = Db::pdo();
 $table = 'vehicle_divisions';
-$title = 'Divíziók';
 
 if ($_SERVER['REQUEST_METHOD']==='POST') {
   if (!Csrf::check($_POST['csrf_token'] ?? null)) { http_response_code(400); exit('CSRF hiba'); }
@@ -51,17 +48,21 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
     }
   }
 
-  header('Location: /vehicle_divisions.php');
+  header('Location: /vehicle_divisions.php?module=vehicles');
   exit;
 }
 
 $rows = $pdo->query("SELECT * FROM {$table} ORDER BY is_active DESC, sort_order, name")->fetchAll(PDO::FETCH_ASSOC);
+
+require dirname(__DIR__).'/views/_layout_top.php';
+require dirname(__DIR__).'/views/_flash.php';
+
 function h($s){ return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
 ?>
 
 <div class="d-flex justify-content-between align-items-center mb-3">
-  <h1 class="h5 mb-0"><?= htmlspecialchars($title) ?></h1>
-  <a class="btn btn-outline-secondary" href="/vehicles.php">Vissza</a>
+  <h1 class="h5 mb-0">Divíziók</h1>
+  <a class="btn btn-outline-secondary" href="/vehicles.php?module=vehicles">Vissza</a>
 </div>
 
 <div class="card p-3 mb-3">

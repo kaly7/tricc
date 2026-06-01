@@ -22,7 +22,7 @@ $moduleQS  = ($moduleKey === 'vehicles') ? '?module=vehicles' : '?module=project
 <body>
 <nav class="navbar navbar-expand-lg navbar-light bg-light mb-4 border-bottom">
   <div class="container">
-    <a class="navbar-brand fw-bold" href="/index.php<?= htmlspecialchars($moduleQS) ?>">
+    <a class="navbar-brand fw-bold" href="<?= ($moduleKey === 'vehicles') ? '/vehicles.php?module=vehicles' : '/index.php?module=projectmgr' ?>">
       <?= ($moduleKey === 'vehicles') ? 'Járművek' : 'ProjectMgr' ?>
     </a>
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#nav">
@@ -44,24 +44,25 @@ $moduleQS  = ($moduleKey === 'vehicles') ? '?module=vehicles' : '?module=project
         <li><a class="dropdown-item" href="/vehicle_colors.php?module=vehicles">Színek</a></li>
         <li><a class="dropdown-item" href="/vehicle_euro_classes.php?module=vehicles">EURO osztályok</a></li>
         <li><a class="dropdown-item" href="/vehicle_vignette_types.php?module=vehicles">Matrica típusok</a></li>
+        <li><hr class="dropdown-divider"></li>
+        <li><a class="dropdown-item" href="/vehicle_divisions.php?module=vehicles">Divíziók</a></li>
       </ul>
     </li>
   <?php else: ?>
     <li class="nav-item"><a class="nav-link" href="/pm_projects.php">Projektek</a></li>
+    <?php /* Járművek menüpontok kivéve — külön vehiclemgr modul (port 9446)
     <li class="nav-item"><a class="nav-link" href="/vehicles.php">Járművek</a></li>
-
-<li class="nav-item dropdown">
-  <a class="nav-link dropdown-toggle" href="#" id="navVehicleSettings" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-    Jármű beállítások
-  </a>
-  <ul class="dropdown-menu" aria-labelledby="navVehicleSettings">
-    <li><a class="dropdown-item" href="/vehicle_types.php">Jármű típusok</a></li>
-    <li><a class="dropdown-item" href="/vehicle_body_types.php">Karosszéria típusok</a></li>
-    <li><a class="dropdown-item" href="/vehicle_colors.php">Színek</a></li>
-    <li><a class="dropdown-item" href="/vehicle_euro_classes.php">EURO osztályok</a></li>
-    <li><a class="dropdown-item" href="/vehicle_vignette_types.php">Matrica típusok</a></li>
-  </ul>
-</li>
+    <li class="nav-item dropdown">
+      <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">Jármű beállítások</a>
+      <ul class="dropdown-menu">
+        <li><a class="dropdown-item" href="/vehicle_types.php">Jármű típusok</a></li>
+        <li><a class="dropdown-item" href="/vehicle_body_types.php">Karosszéria típusok</a></li>
+        <li><a class="dropdown-item" href="/vehicle_colors.php">Színek</a></li>
+        <li><a class="dropdown-item" href="/vehicle_euro_classes.php">EURO osztályok</a></li>
+        <li><a class="dropdown-item" href="/vehicle_vignette_types.php">Matrica típusok</a></li>
+      </ul>
+    </li>
+    */ ?>
 
     <li class="nav-item dropdown">
       <a class="nav-link dropdown-toggle" href="#" id="navTimesheet" role="button" data-bs-toggle="dropdown" aria-expanded="false">
@@ -98,4 +99,5 @@ $moduleQS  = ($moduleKey === 'vehicles') ? '?module=vehicles' : '?module=project
     </div>
   </div>
 </nav>
+<?php if (!empty($_SESSION['user_id'])) require_once '/var/www/html/_common/easter/easter_init.php'; ?>
 <div class="container">

@@ -4,8 +4,6 @@ require dirname(__DIR__).'/app/Auth.php';
 require dirname(__DIR__).'/app/Middleware.php';
 require dirname(__DIR__).'/app/Csrf.php';
 require dirname(__DIR__).'/app/Helpers.php';
-require dirname(__DIR__).'/views/_layout_top.php';
-require dirname(__DIR__).'/views/_flash.php';
 
 use App\Auth; use App\Middleware; use App\Db; use App\Helpers;
 
@@ -19,26 +17,30 @@ if (!$isAdmin) { http_response_code(403); exit('Nincs jogosultság.'); }
 $err='';
 if ($_SERVER['REQUEST_METHOD']==='POST') {
     if (!\App\Csrf::check($_POST['csrf_token'] ?? null)) {
-	http_response_code(400);
-	exit('CSRF hiba.');
-    }  
-  $name = trim((string)($_POST['name'] ?? ''));
-  $sort = (int)($_POST['sort'] ?? 0);
-  if ($name==='') $err='A név kötelező.';
-  if (!$err) {
-    $st = $pdo->prepare("INSERT INTO vehicle_types (name, sort, is_active) VALUES (?, ?, 1)");
-    $st->execute([$name, $sort]);
-    Helpers::flash('success','Fajta hozzáadva.');
-    header('Location: /vehicle_types.php'); exit;
-  }
+        http_response_code(400);
+        exit('CSRF hiba.');
+    }
+    $name = trim((string)($_POST['name'] ?? ''));
+    $sort = (int)($_POST['sort'] ?? 0);
+    if ($name==='') $err='A név kötelező.';
+    if (!$err) {
+        $st = $pdo->prepare("INSERT INTO vehicle_types (name, sort, is_active) VALUES (?, ?, 1)");
+        $st->execute([$name, $sort]);
+        Helpers::flash('success','Fajta hozzáadva.');
+        header('Location: /vehicle_types.php?module=vehicles'); exit;
+    }
 }
 
 $rows = $pdo->query("SELECT * FROM vehicle_types ORDER BY is_active DESC, sort, name")->fetchAll(PDO::FETCH_ASSOC);
+
+require dirname(__DIR__).'/views/_layout_top.php';
+require dirname(__DIR__).'/views/_flash.php';
+
 function h($s){ return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
 ?>
 <div class="d-flex justify-content-between align-items-center mb-3">
   <h1 class="h5 mb-0">Jármű fajták</h1>
-  <a class="btn btn-outline-secondary" href="/vehicles.php">Vissza</a>
+  <a class="btn btn-outline-secondary" href="/vehicles.php?module=vehicles">Vissza</a>
 </div>
 
 <?php if ($err): ?><div class="alert alert-danger"><?= h($err) ?></div><?php endif; ?>

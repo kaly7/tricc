@@ -68,9 +68,10 @@ function render_pager_bar($page,$pages,$param,$tab,$total,$perPage){
   echo '</div>';
 }
 
-$st = $pdo->prepare("SELECT v.*, vt.name AS type_name
+$st = $pdo->prepare("SELECT v.*, vt.name AS type_name, d.name AS division_name
                      FROM vehicles v
                      JOIN vehicle_types vt ON vt.id=v.vehicle_type_id
+                     LEFT JOIN vehicle_divisions d ON d.id=v.division_id
                      WHERE v.id=?");
 $st->execute([$id]);
 $v = $st->fetch(PDO::FETCH_ASSOC);
@@ -666,6 +667,9 @@ require dirname(__DIR__).'/views/_flash.php';
   <div>
     <h1 class="h5 mb-0"><?= h($v['license_plate']) ?> — <?= h(trim($v['make'].' '.$v['model'])) ?></h1>
     <div class="text-muted small"><?= h($v['type_name']) ?> • <?= h(fuelLabel($v['fuel_type'])) ?> • Tengely: <?= (int)$v['axle_count'] ?></div>
+    <?php if (!empty($v['division_name'])): ?>
+      <span class="badge mt-1" style="background:#ffc107;color:#000;font-size:.8rem"><?= h($v['division_name']) ?></span>
+    <?php endif; ?>
   </div>
   <div class="d-flex gap-2">
     <a class="btn btn-outline-secondary" href="/vehicles.php">Vissza</a>

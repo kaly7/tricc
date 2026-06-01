@@ -3,8 +3,6 @@ require dirname(__DIR__).'/app/Db.php';
 require dirname(__DIR__).'/app/Auth.php';
 require dirname(__DIR__).'/app/Middleware.php';
 require dirname(__DIR__).'/app/Csrf.php';
-require dirname(__DIR__).'/views/_layout_top.php';
-require dirname(__DIR__).'/views/_flash.php';
 
 use App\Auth; use App\Middleware; use App\Db; use App\Csrf;
 
@@ -15,14 +13,12 @@ if (!$isAdmin) { http_response_code(403); exit('Nincs jogosultság.'); }
 
 $pdo = Db::pdo();
 $table = 'vehicle_vignette_types';
-$title = 'Autópálya matrica típusok';
 
 if ($_SERVER['REQUEST_METHOD']==='POST') {
   if (!Csrf::check($_POST['csrf_token'] ?? null)) { http_response_code(400); exit('CSRF hiba'); }
   $action = $_POST['action'] ?? '';
   if ($action==='create') {
     $name = trim((string)($_POST['name'] ?? ''));
-    
     if ($name!=='') {
       $pdo->prepare("INSERT INTO {$table} (name) VALUES (?)")->execute([$name]);
       $_SESSION['flash_success'] = 'Mentve.';
@@ -34,15 +30,18 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
     $id = (int)($_POST['id'] ?? 0);
     $pdo->prepare("DELETE FROM {$table} WHERE id=?")->execute([$id]);
   }
-  header('Location: /vehicle_vignette_types.php');
+  header('Location: /vehicle_vignette_types.php?module=vehicles');
   exit;
 }
 
 $rows = $pdo->query("SELECT * FROM {$table} ORDER BY sort_order, name")->fetchAll(PDO::FETCH_ASSOC);
+
+require dirname(__DIR__).'/views/_layout_top.php';
+require dirname(__DIR__).'/views/_flash.php';
 ?>
 <div class="d-flex justify-content-between align-items-center mb-3">
-  <h1 class="h5"><?= htmlspecialchars($title) ?></h1>
-  <a class="btn btn-outline-secondary" href="/vehicles.php">Vissza</a>
+  <h1 class="h5">Autópálya matrica típusok</h1>
+  <a class="btn btn-outline-secondary" href="/vehicles.php?module=vehicles">Vissza</a>
 </div>
 
 <div class="card p-3 mb-3">
@@ -53,7 +52,6 @@ $rows = $pdo->query("SELECT * FROM {$table} ORDER BY sort_order, name")->fetchAl
       <label class="form-label">Név</label>
       <input class="form-control" name="name" required>
     </div>
-    
     <div class="col-12">
       <button class="btn btn-primary">Hozzáadás</button>
     </div>
@@ -64,7 +62,6 @@ $rows = $pdo->query("SELECT * FROM {$table} ORDER BY sort_order, name")->fetchAl
   <table class="table table-striped m-0 align-middle">
     <thead><tr>
       <th>Név</th>
-      
       <th>Aktív</th>
       <th>Művelet</th>
     </tr></thead>
@@ -72,7 +69,6 @@ $rows = $pdo->query("SELECT * FROM {$table} ORDER BY sort_order, name")->fetchAl
       <?php foreach($rows as $r): ?>
         <tr>
           <td><?= htmlspecialchars($r['name']) ?></td>
-          
           <td><?= ((int)$r['is_active']===1) ? '<span class="badge bg-success">igen</span>' : '<span class="badge bg-secondary">nem</span>' ?></td>
           <td class="text-nowrap">
             <form method="post" class="d-inline">
@@ -90,7 +86,7 @@ $rows = $pdo->query("SELECT * FROM {$table} ORDER BY sort_order, name")->fetchAl
           </td>
         </tr>
       <?php endforeach; if(!$rows): ?>
-        <tr><td colspan="4" class="text-muted">Nincs adat.</td></tr>
+        <tr><td colspan="3" class="text-muted">Nincs adat.</td></tr>
       <?php endif; ?>
     </tbody>
   </table>

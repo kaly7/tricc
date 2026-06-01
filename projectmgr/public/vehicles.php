@@ -2,8 +2,6 @@
 require dirname(__DIR__).'/app/Db.php';
 require dirname(__DIR__).'/app/Auth.php';
 require dirname(__DIR__).'/app/Middleware.php';
-require dirname(__DIR__).'/views/_layout_top.php';
-require dirname(__DIR__).'/views/_flash.php';
 
 use App\Auth; use App\Middleware; use App\Db;
 
@@ -11,6 +9,33 @@ Auth::start(); Middleware::requireAuth();
 $u = Auth::user();
 $isAdmin = isset($u['role_id']) && (int)$u['role_id']===1;
 $pdo = Db::pdo();
+$uid = (int)($u['id'] ?? 0);
+
+// Divízió preferencia mentése — a layout include ELŐTT, hogy header() működjön
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_div_pref'])) {
+  $divPref = json_encode([
+    'ids'    => array_map('intval', (array)($_POST['div_ids'] ?? [])),
+    'no_div' => isset($_POST['no_div']),
+  ]);
+  $pdo->prepare("INSERT INTO user_preferences (user_id, pref_key, pref_value) VALUES (?,?,?) ON DUPLICATE KEY UPDATE pref_value=VALUES(pref_value), updated_at=NOW()")
+      ->execute([$uid, 'vehicle_div_filter', $divPref]);
+  $qs = http_build_query(array_filter(['q' => $_POST['q'] ?? '', 'archived' => $_POST['archived'] ?? '']));
+  header('Location: /vehicles.php' . ($qs ? '?' . $qs : '')); exit;
+}
+
+require dirname(__DIR__).'/views/_layout_top.php';
+require dirname(__DIR__).'/views/_flash.php';
+
+// Divízió preferencia betöltése
+$savedDivRow = $pdo->prepare("SELECT pref_value FROM user_preferences WHERE user_id=? AND pref_key='vehicle_div_filter' LIMIT 1");
+$savedDivRow->execute([$uid]);
+$savedPref   = json_decode((string)($savedDivRow->fetchColumn() ?: '{}'), true) ?? [];
+// Régi formátum (tömb) visszafelé kompatibilitás
+if (array_is_list($savedPref ?? [])) $savedPref = ['ids' => $savedPref, 'no_div' => false];
+$filterDivIds  = array_map('intval', (array)($savedPref['ids']    ?? []));
+$filterNoDiv   = (bool)($savedPref['no_div'] ?? false);
+
+$allDivisions = $pdo->query("SELECT id, name FROM vehicle_divisions WHERE is_active=1 ORDER BY name")->fetchAll(PDO::FETCH_ASSOC);
 
 $q = trim((string)($_GET['q'] ?? ''));
 $show_archived = isset($_GET['archived']) && $_GET['archived']=='1';
@@ -23,10 +48,20 @@ if ($q !== '') {
   $like = '%'.$q.'%';
   $params[]=$like; $params[]=$like; $params[]=$like; $params[]=$like;
 }
+if (!empty($filterDivIds) && !$filterNoDiv) {
+  $in = implode(',', $filterDivIds);
+  $where .= " AND v.division_id IN ($in) ";
+} elseif ($filterNoDiv && empty($filterDivIds)) {
+  $where .= " AND v.division_id IS NULL ";
+} elseif ($filterNoDiv && !empty($filterDivIds)) {
+  $in = implode(',', $filterDivIds);
+  $where .= " AND (v.division_id IN ($in) OR v.division_id IS NULL) ";
+}
 
-$sql = "SELECT v.*, vt.name AS type_name
+$sql = "SELECT v.*, vt.name AS type_name, d.name AS division_name
         FROM vehicles v
         JOIN vehicle_types vt ON vt.id=v.vehicle_type_id
+        LEFT JOIN vehicle_divisions d ON d.id=v.division_id
         $where
         ORDER BY v.archived ASC, v.license_plate ASC";
 $st = $pdo->prepare($sql);
@@ -111,13 +146,39 @@ function severityIcon(string $sev): string {
 </div>
 
 <div class="card p-3 mb-3">
+  <form method="post">
+    <input type="hidden" name="save_div_pref" value="1">
+    <input type="hidden" name="q" value="<?= h($q) ?>">
+    <input type="hidden" name="archived" value="<?= $show_archived ? '1' : '' ?>">
+    <div class="d-flex flex-wrap align-items-center gap-3 mb-2">
+      <span class="text-muted small fw-semibold">Divízió:</span>
+      <?php foreach ($allDivisions as $div): ?>
+        <div class="form-check form-check-inline mb-0">
+          <input class="form-check-input" type="checkbox" name="div_ids[]"
+            id="vdiv<?= (int)$div['id'] ?>" value="<?= (int)$div['id'] ?>"
+            <?= in_array((int)$div['id'], $filterDivIds, true) ? 'checked' : '' ?>>
+          <label class="form-check-label small" for="vdiv<?= (int)$div['id'] ?>"><?= h($div['name']) ?></label>
+        </div>
+      <?php endforeach; ?>
+      <div class="form-check form-check-inline mb-0">
+        <input class="form-check-input" type="checkbox" name="no_div" id="vdiv_none"
+          <?= $filterNoDiv ? 'checked' : '' ?>>
+        <label class="form-check-label small fst-italic" for="vdiv_none">Nincs divízió</label>
+      </div>
+      <button type="submit" class="btn btn-sm btn-outline-secondary">Mentés</button>
+      <?php if (!empty($filterDivIds) || $filterNoDiv): ?>
+        <span class="badge bg-primary"><?= count($filterDivIds) + ($filterNoDiv ? 1 : 0) ?> szűrő aktív</span>
+      <?php endif; ?>
+    </div>
+  </form>
+  <hr class="my-2">
   <form method="get" class="row g-2 align-items-end">
     <div class="col-md-8">
       <label class="form-label">Keresés (rendszám, gyártmány, típus)</label>
       <input class="form-control" name="q" value="<?= h($q) ?>" placeholder="pl. ABC-123, Ford, Transit">
     </div>
     <div class="col-md-2">
-      <div class="form-check form-switch">
+      <div class="form-check form-switch mt-4">
         <input class="form-check-input" type="checkbox" name="archived" value="1" id="arch" <?= $show_archived?'checked':'' ?>>
         <label class="form-check-label" for="arch">Archiváltak is</label>
       </div>
@@ -135,10 +196,10 @@ function severityIcon(string $sev): string {
         <th>Azonosító</th>
         <th>Gyártmány</th>
         <th>Típus</th>
+        <th>Divízió</th>
         <th>Üzemanyag</th>
         <th>Fajta</th>
-        <th>Tengely</th>
-        <th>Km óra</th>
+        <th class="text-end">Km óra</th>
         <th></th>
       </tr>
     </thead>
@@ -153,10 +214,10 @@ function severityIcon(string $sev): string {
           </td>
           <td><?= h($r['make']) ?></td>
           <td><?= h($r['model']) ?></td>
+          <td class="text-muted small"><?= h($r['division_name'] ?? '–') ?></td>
           <td><?= h(fuelLabel($r['fuel_type'])) ?></td>
           <td><?= h($r['type_name']) ?></td>
-          <td><?= (int)$r['axle_count'] ?></td>
-          <td><?= fmtKm((int)$r['odometer_km']) ?></td>
+          <td class="text-end"><?= fmtKm((int)$r['odometer_km']) ?></td>
           <td class="text-nowrap">
             <a class="btn btn-sm btn-outline-primary" href="/vehicle.php?id=<?= (int)$r['id'] ?>">Megnyit</a>
             <a class="btn btn-sm btn-outline-secondary" href="/vehicle_edit.php?id=<?= (int)$r['id'] ?>">Szerkesztés</a>
