@@ -100,10 +100,11 @@ if ($editId > 0) {
     $edit = $st->fetch();
 }
 
-$sql = "SELECT id, name, email, tax_id FROM employees";
+// Csak HR-ben nem található (unmatched) rekordok
+$sql = "SELECT id, name, email, tax_id FROM employees WHERE hr_id IS NULL";
 $params = [];
 if ($q !== '') {
-    $sql .= " WHERE name LIKE ? OR email LIKE ? OR tax_id LIKE ?";
+    $sql .= " AND (name LIKE ? OR email LIKE ? OR tax_id LIKE ?)";
     $params = ["%$q%", "%$q%", "%".normalize_tax_id($q)."%"];
 }
 $sql .= " ORDER BY name ASC LIMIT 500";
@@ -111,13 +112,13 @@ $st = $pdo->prepare($sql);
 $st->execute($params);
 $rows = $st->fetchAll();
 
-page_header('Dolgozók');
+page_header('Nem egyeztetett dolgozók');
 ?>
 <div class="row g-3">
   <div class="col-lg-5">
     <div class="card p-4">
       <div class="d-flex justify-content-between align-items-center">
-        <h1 class="h5 mb-0">Dolgozó <?= $edit ? 'módosítása' : 'felvitele' ?></h1>
+        <h1 class="h5 mb-0">Nem egyeztetett dolgozó <?= $edit ? 'módosítása' : 'felvitele' ?></h1>
         <?php if ($edit): ?>
           <a class="btn btn-sm btn-outline-secondary" href="employees.php">Új</a>
         <?php endif; ?>
@@ -156,6 +157,10 @@ page_header('Dolgozók');
 
   <div class="col-lg-7">
     <div class="card p-3">
+      <div class="alert alert-info py-2 small mb-3">
+        Csak azok a rekordok látszanak, akik PDF-feldolgozás közben keletkeztek, de <strong>nem találhatók a HR rendszerben</strong>.
+        A HR-ből szinkronizált dolgozók automatikusan kezeltek.
+      </div>
       <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
         <h2 class="h6 mb-0">Lista</h2>
         <form class="d-flex gap-2" method="get">

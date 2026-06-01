@@ -75,12 +75,30 @@ function findEmployeeById(PDO $pdo, int $id): ?array {
 }
 
 /**
- * Fetch employee by tax_id (10 digits).
+ * Fetch employee by tax_id (10 digits) from payslip cache.
  */
 function findEmployeeByTaxId(PDO $pdo, string $taxId): ?array {
     $taxId = preg_replace('/\D+/', '', $taxId);
     if (!preg_match('/^\d{10}$/', $taxId)) return null;
     $st = $pdo->prepare("SELECT id,name,email,tax_id FROM employees WHERE tax_id=? LIMIT 1");
+    $st->execute([$taxId]);
+    $r = $st->fetch(PDO::FETCH_ASSOC);
+    return $r ?: null;
+}
+
+/**
+ * Fetch employee from HR DB by tax_id (cross-DB).
+ * Returns hr.employees row with payslip email fields, or null.
+ */
+function findEmployeeInHr(PDO $pdo, string $taxId): ?array {
+    $taxId = preg_replace('/\D+/', '', $taxId);
+    if (!preg_match('/^\d{10}$/', $taxId)) return null;
+    $st = $pdo->prepare("
+        SELECT id, full_name, tax_id, email, email_private, payslip_email_target
+        FROM hr.employees
+        WHERE tax_id = ? AND is_active = 1
+        LIMIT 1
+    ");
     $st->execute([$taxId]);
     $r = $st->fetch(PDO::FETCH_ASSOC);
     return $r ?: null;
@@ -140,27 +158,43 @@ try {
         $nameNorm = EmployeeService::normalizeName($name);
         $safe = PdfService::safeFileName($name);
 
-        // employee match priority: tax_id first, then name_norm
+        // Lookup sorrend: 1) HR (elsődleges) → 2) payslip cache → 3) name_norm → 4) auto-create
         $emp = null;
         $autoCreateErr = null;
 
         if ($taxId) {
-            $emp = findEmployeeByTaxId($pdo, $taxId);
-            if (!$emp) {
+            $hrEmp = findEmployeeInHr($pdo, $taxId);
+            if ($hrEmp) {
+                // HR-ben megvan → szinkronizál a payslip cache-be
                 try {
-                    $newId = EmployeeUpsert::upsertByTaxId($pdo, $name, $taxId, $nameNorm);
-                    $emp = findEmployeeById($pdo, (int)$newId);
-                    LoggerService::log('INFO', 'EMP_AUTO_CREATE', "Dolgozó automatikusan felvéve tax_id alapján", $uploadId, $jobId, [
-                        'employee_id' => (int)$newId,
-                        'name' => $name,
-                        'tax_id' => $taxId
+                    $newId = EmployeeUpsert::upsertFromHr($pdo, $hrEmp, $nameNorm);
+                    $emp = findEmployeeById($pdo, $newId);
+                    LoggerService::log('INFO', 'EMP_HR_SYNC', "Dolgozó szinkronizálva HR-ből", $uploadId, $jobId, [
+                        'employee_id' => $newId, 'hr_id' => (int)$hrEmp['id'], 'name' => $name, 'tax_id' => $taxId
                     ]);
                 } catch (Throwable $e) {
                     $autoCreateErr = $e->getMessage();
-                    LoggerService::log('ERROR', 'EMP_AUTO_CREATE_FAIL', "Auto felvitel hiba: " . $autoCreateErr, $uploadId, $jobId, [
-                        'name' => $name,
-                        'tax_id' => $taxId
+                    LoggerService::log('ERROR', 'EMP_HR_SYNC_FAIL', "HR szinkron hiba: " . $autoCreateErr, $uploadId, $jobId, [
+                        'name' => $name, 'tax_id' => $taxId
                     ]);
+                }
+            } else {
+                // HR-ben nincs → payslip cache fallback
+                $emp = findEmployeeByTaxId($pdo, $taxId);
+                if (!$emp) {
+                    // Teljesen ismeretlen: auto-create payslip-ban (hr_id=NULL, unmatched)
+                    try {
+                        $newId = EmployeeUpsert::upsertByTaxId($pdo, $name, $taxId, $nameNorm);
+                        $emp = findEmployeeById($pdo, (int)$newId);
+                        LoggerService::log('WARN', 'EMP_UNMATCHED_CREATE', "Dolgozó nincs HR-ben, unmatched rekord létrehozva", $uploadId, $jobId, [
+                            'employee_id' => (int)$newId, 'name' => $name, 'tax_id' => $taxId
+                        ]);
+                    } catch (Throwable $e) {
+                        $autoCreateErr = $e->getMessage();
+                        LoggerService::log('ERROR', 'EMP_AUTO_CREATE_FAIL', "Auto felvitel hiba: " . $autoCreateErr, $uploadId, $jobId, [
+                            'name' => $name, 'tax_id' => $taxId
+                        ]);
+                    }
                 }
             }
         }

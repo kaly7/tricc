@@ -13,11 +13,12 @@ $uploads = $pdo->query("
   SELECT
     u.id, u.month, u.original_filename, u.total_pages, u.uploaded_at,
     d.name AS division_name,
-    COALESCE(s.pending,0)  AS pending,
-    COALESCE(s.saved,0)    AS saved,
-    COALESCE(s.mailed,0)   AS mailed,
-    COALESCE(s.no_match,0) AS no_match,
-    COALESCE(s.error,0)    AS error_cnt
+    COALESCE(s.pending,0)       AS pending,
+    COALESCE(s.saved,0)         AS saved,
+    COALESCE(s.saved_no_email,0) AS saved_no_email,
+    COALESCE(s.mailed,0)        AS mailed,
+    COALESCE(s.no_match,0)      AS no_match,
+    COALESCE(s.error,0)         AS error_cnt
   FROM uploads u
   LEFT JOIN divisions d ON d.id = u.division_id
   LEFT JOIN (
@@ -25,6 +26,7 @@ $uploads = $pdo->query("
       upload_id,
       SUM(status='PENDING')  AS pending,
       SUM(status='SAVED')    AS saved,
+      SUM(status='SAVED' AND (email_to IS NULL OR email_to='')) AS saved_no_email,
       SUM(status='MAILED')   AS mailed,
       SUM(status='NO_MATCH') AS no_match,
       SUM(status='ERROR')    AS error
@@ -36,10 +38,14 @@ $uploads = $pdo->query("
 ")->fetchAll();
 
 $pages = [];
+$noEmailCount = 0;
 if ($uploadId > 0) {
     $st = $pdo->prepare("SELECT * FROM page_jobs WHERE upload_id=? ORDER BY page_no ASC");
     $st->execute([$uploadId]);
     $pages = $st->fetchAll();
+    $noEmailCount = count(array_filter($pages, fn($p) =>
+        ($p['status'] ?? '') === 'SAVED' && empty($p['email_to'])
+    ));
 }
 
 function badgeForStatus(string $status): array {
@@ -93,6 +99,7 @@ thead th{ background-color:#f8f9fa; }
                 <td colspan="6">
                   <?php if ((int)$r['mailed'] > 0): ?><span class="badge bg-success me-1">Küldve: <?= (int)$r['mailed'] ?></span><?php endif; ?>
                   <?php if ((int)$r['saved'] > 0): ?><span class="badge bg-success bg-opacity-25 text-success border border-success me-1">Mentve: <?= (int)$r['saved'] ?></span><?php endif; ?>
+                  <?php if ((int)$r['saved_no_email'] > 0): ?><span class="badge bg-warning text-dark me-1">Nincs email: <?= (int)$r['saved_no_email'] ?></span><?php endif; ?>
                   <?php if ((int)$r['no_match'] > 0): ?><span class="badge bg-warning text-dark me-1">Nincs egyezés: <?= (int)$r['no_match'] ?></span><?php endif; ?>
                   <?php if ((int)$r['error_cnt'] > 0): ?><span class="badge bg-danger me-1">Hiba: <?= (int)$r['error_cnt'] ?></span><?php endif; ?>
                   <?php if ((int)$r['pending'] > 0): ?><span class="badge bg-secondary me-1">Folyamatban: <?= (int)$r['pending'] ?></span><?php endif; ?>
@@ -140,6 +147,12 @@ thead th{ background-color:#f8f9fa; }
         <?php if ($overrideTo): ?>
           <div class="alert alert-warning py-2">MAIL_OVERRIDE_TO aktív: minden levél ide megy: <b><?= h($overrideTo) ?></b></div>
         <?php endif; ?>
+        <?php if ($noEmailCount > 0): ?>
+          <div class="alert alert-warning py-2">
+            <strong><?= $noEmailCount ?> oldal</strong> mentve, de hiányzik az email cím &mdash;
+            <a href="employees.php" class="alert-link">Dolgozók szerkesztése &rarr;</a>
+          </div>
+        <?php endif; ?>
 
         <div class="d-flex gap-2 align-items-center mb-2">
           <span class="badge bg-secondary">upload_id: <?= (int)$uploadId ?></span>
@@ -176,6 +189,9 @@ thead th{ background-color:#f8f9fa; }
                     <span class="badge bg-<?= h($badge) ?> <?= ($status==='SAVED') ? 'bg-opacity-25 text-success border border-success' : '' ?>">
                       <?= h($label) ?>
                     </span>
+                    <?php if ($status === 'SAVED' && $emailTo === ''): ?>
+                      <span class="badge bg-warning text-dark ms-1">Nincs email</span>
+                    <?php endif; ?>
                   </td>
                   <td>
                     <?php if ($hasFile): ?>

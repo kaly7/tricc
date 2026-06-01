@@ -6,6 +6,17 @@ require __DIR__ . '/_layout.php';
 $uploadId = (int)($_GET['upload_id'] ?? 0);
 if ($uploadId <= 0) { header('Location: log.php'); exit; }
 
+$testMode = isset($_GET['test']) && $_GET['test'] === '1';
+
+if ($testMode) {
+    // Teszt worker indítása, átirányítás az előnézetre
+    $cmd = '/usr/bin/php ' . escapeshellarg(APP_ROOT . '/worker/test_upload.php') . ' ' . escapeshellarg((string)$uploadId);
+    exec($cmd . ' > /dev/null 2>&1 &');
+    header('Location: preview.php?upload_id=' . $uploadId);
+    exit;
+}
+
+// Éles feldolgozás
 $cmd = '/usr/bin/php ' . escapeshellarg(APP_ROOT . '/worker/process_upload.php') . ' ' . escapeshellarg((string)$uploadId);
 exec($cmd . ' > /dev/null 2>&1 &');
 

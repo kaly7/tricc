@@ -50,8 +50,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt->execute([$orig, $month, (int)$div['id'], $stored, $pages, $sha, $_SESSION['user']['username'] ?? null]);
             $uploadId = (int)$pdo->lastInsertId();
 
-            LoggerService::log('INFO', 'UPLOAD', "Upload rögzítve: $orig, oldalak: $pages", $uploadId, null, ['sha256'=>$sha,'division'=>$div['slug']]);
-            header("Location: start.php?upload_id=" . $uploadId);
+            $testMode = isset($_POST['test_mode']) && $_POST['test_mode'] === '1';
+            LoggerService::log('INFO', 'UPLOAD', "Upload rögzítve: $orig, oldalak: $pages" . ($testMode ? ' [TESZT]' : ''), $uploadId, null, ['sha256'=>$sha,'division'=>$div['slug'],'test'=>$testMode]);
+            $redirect = $testMode
+                ? 'start.php?upload_id=' . $uploadId . '&test=1'
+                : 'start.php?upload_id=' . $uploadId;
+            header("Location: $redirect");
             exit;
         }
     }
@@ -89,15 +93,44 @@ page_header('PDF feltöltés');
           <input class="form-control" type="file" name="pdf" accept="application/pdf" required>
         </div>
 
+        <div class="mb-3">
+          <div class="form-check form-switch">
+            <input class="form-check-input" type="checkbox" name="test_mode" value="1" id="testMode" checked>
+            <label class="form-check-label fw-semibold" for="testMode">Teszt mód</label>
+          </div>
+          <div class="form-text">
+            Teszt módban a rendszer végigfutja a feldolgozást (névfelismerés, HR egyeztetés, email ellenőrzés),
+            de <strong>nem küld emailt és nem ment semmit</strong>. Az eredményt előnézeti nézetben mutatja.
+            Kapcsold ki az éles küldéshez.
+          </div>
+        </div>
+
         <div class="d-flex gap-2">
-          <button class="btn btn-primary" type="submit">Feltöltés</button>
+          <button class="btn btn-primary" type="submit" id="submitBtn">Feltöltés</button>
           <a class="btn btn-outline-secondary" href="index.php">Vissza</a>
         </div>
       </form>
 
-      <div class="small text-muted mt-3">
-        Feltöltés után automatikusan indul a feldolgozás.
+      <div class="small text-muted mt-3" id="modeHint">
+        Teszt módban az eredmény előnézeti nézetben jelenik meg.
       </div>
+
+      <script>
+      document.getElementById('testMode').addEventListener('change', function() {
+        const btn  = document.getElementById('submitBtn');
+        const hint = document.getElementById('modeHint');
+        if (this.checked) {
+          btn.className  = 'btn btn-primary';
+          btn.textContent = 'Feltöltés (teszt)';
+          hint.textContent = 'Teszt módban az eredmény előnézeti nézetben jelenik meg.';
+        } else {
+          btn.className  = 'btn btn-success';
+          btn.textContent = 'Feltöltés és küldés';
+          hint.textContent = 'ÉLES MÓD: az email küldés azonnal megtörténik.';
+        }
+      });
+      document.getElementById('testMode').dispatchEvent(new Event('change'));
+      </script>
     </div>
   </div>
 </div>
