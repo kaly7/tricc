@@ -5,6 +5,7 @@ $_nav = [
     'index'  => ['url' => 'index.php',  'label' => 'Dashboard',       'admin' => false],
     'agvs'   => ['url' => 'agvs.php',   'label' => 'AGV-k',           'admin' => false],
     'omron'  => ['url' => 'omron.php',  'label' => 'Omron átadás',    'admin' => true],
+    'users'  => ['url' => 'users.php',  'label' => 'Felhasználók',    'admin' => true],
     'admin'  => ['url' => 'admin.php',  'label' => 'Beállítások',     'admin' => true],
 ];
 ?>
@@ -27,6 +28,7 @@ $_nav = [
     <div class="pm-header-user">
       <?php if (agv_logged_in()): ?>
         <span class="user-badge"><?= e($_SESSION['agv_user']) ?></span>
+        <a href="users.php" class="button_mentes" style="font-size:13px;padding:7px 14px;">Jelszó</a>
         <a href="logout.php" class="button_mentes" style="font-size:13px;padding:7px 16px;">Kilépés</a>
       <?php endif; ?>
     </div>
