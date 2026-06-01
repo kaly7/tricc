@@ -1,1 +1,1 @@
-queueCancel jobId 2026_04_27_14_25_03_PP
+queuemulti 6 2  ACT_KANBAN pickup 10  ACT_WASTE pickup 10  PEHA_WH pickup 10  ACT_KANBAN pickup 10  PEHA_WASTE pickup 10  SMT_KANBAN pickup 10 2026_06_01_13_23_23_Admin_RI

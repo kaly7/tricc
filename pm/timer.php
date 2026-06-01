@@ -158,33 +158,53 @@ foreach ($results as $row) {
 
 
 // Egyszeri időzített pont-pont útvonalak feldolgozása
-$sql_pp = "SELECT e.*,
-               gi.Goal_name AS indulo_name,
-               gk.Goal_name AS kozbenso_name,
-               gc.Goal_name AS cel_name
-           FROM egyedi_utemezesek e
-           JOIN Goals gi ON e.indulo_goal_index  = gi.Index_
-           JOIN Goals gk ON e.kozbenso_goal_index = gk.Index_
-           JOIN Goals gc ON e.cel_goal_index      = gc.Index_
-           WHERE e.active = 1 AND e.idopont <= NOW()";
-$stmt_pp = $pdo->prepare($sql_pp);
+$stmt_pp = $pdo->prepare(
+    "SELECT e.id, e.indulo_goal_index, e.cel_goal_index,
+            COALESCE(e.sablon_id, 1) AS sablon_id,
+            gi.Goal_name AS indulo_name,
+            gc.Goal_name AS cel_name
+     FROM egyedi_utemezesek e
+     JOIN Goals gi ON e.indulo_goal_index = gi.Index_
+     JOIN Goals gc ON e.cel_goal_index    = gc.Index_
+     WHERE e.active = 1 AND e.idopont <= NOW()"
+);
 $stmt_pp->execute();
 $results_pp = $stmt_pp->fetchAll(PDO::FETCH_ASSOC);
 
+$stmt_szekcio = $pdo->prepare(
+    "SELECT g.Goal_name FROM pp_utvonal_sablon_pont p
+     JOIN Goals g ON p.goal_index = g.Index_
+     WHERE p.sablon_id = :sid AND p.szekcio = :sz
+     ORDER BY p.sorrend"
+);
+$ins = $pdo->prepare("INSERT INTO Button_Goals(Goal_name, Megjegyzes, akcio) VALUES(:gn, :jid, 'aktiv')");
+$upd = $pdo->prepare("UPDATE egyedi_utemezesek SET active = 0 WHERE id = :id");
+
 foreach ($results_pp as $re) {
+    $sid = (int)$re['sablon_id'];
+
+    $stmt_szekcio->execute([':sid' => $sid, ':sz' => 'elotte']);
+    $elotte = $stmt_szekcio->fetchAll(PDO::FETCH_COLUMN);
+
+    $stmt_szekcio->execute([':sid' => $sid, ':sz' => 'kozben']);
+    $kozben = $stmt_szekcio->fetchAll(PDO::FETCH_COLUMN);
+
+    $stmt_szekcio->execute([':sid' => $sid, ':sz' => 'utana']);
+    $utana = $stmt_szekcio->fetchAll(PDO::FETCH_COLUMN);
+
+    $pontok = array_merge($elotte, [$re['indulo_name']], $kozben, [$re['cel_name']], $utana);
+
     $datum2   = date('Y_m_d_H_i_s');
     $job_id   = $datum2 . "_PP";
+    $n        = count($pontok);
+    $parts    = implode(' pickup 10 ', $pontok);
+    $string   = "queuemulti $n 2 $parts pickup 10 $job_id";
     $filename = '/var/www/html/pm/tmp/timer_pp_' . $re['id'] . '_' . $datum2 . '.fleet';
-    $string   = "queuemulti 3 2 {$re['indulo_name']} pickup 10 {$re['kozbenso_name']} pickup 10 {$re['cel_name']} pickup 10 $job_id";
     file_put_contents($filename, $string);
 
-    // Button_Goals bejegyzések – ugyanúgy mint az azonnali esetben
-    $ins = $pdo->prepare("INSERT INTO Button_Goals(Goal_name, Megjegyzes, akcio) VALUES(:gn, :jid, 'aktiv')");
-    foreach ([$re['indulo_name'], $re['kozbenso_name'], $re['cel_name']] as $gn) {
+    foreach ($pontok as $gn) {
         $ins->execute([':gn' => $gn, ':jid' => $job_id]);
     }
-
-    $upd = $pdo->prepare("UPDATE egyedi_utemezesek SET active = 0 WHERE id = :id");
     $upd->execute([':id' => $re['id']]);
 }
 

@@ -166,15 +166,15 @@ mysqli_close($conn);
 <tr>
 <td><span style="caret-color: #000000; color: #000000; font-family: -webkit-standard; font-size: medium;">&nbsp;St&aacute;tusz&nbsp;</span></td>
 <td>&nbsp; 
-<?php 
-    $myfile = fopen("/var/www/html/pm/tmp/GYURI", "r") or die("Unable to open file!");
-    echo fread($myfile,filesize("/var/www/html/pm/tmp/GYURI"));
+<?php
+    $f = "/var/www/html/pm/tmp/GYURI";
+    echo file_exists($f) ? htmlspecialchars(trim(file_get_contents($f))) : '<span style="color:#999">N/A</span>';
     ?>
 </td>
 <td>&nbsp;
-<?php 
-    $myfile = fopen("/var/www/html/pm/tmp/MARCI", "r") or die("Unable to open file!");
-    echo fread($myfile,filesize("/var/www/html/pm/tmp/MARCI"));
+<?php
+    $f = "/var/www/html/pm/tmp/MARCI";
+    echo file_exists($f) ? htmlspecialchars(trim(file_get_contents($f))) : '<span style="color:#999">N/A</span>';
     ?>
 
 </td>

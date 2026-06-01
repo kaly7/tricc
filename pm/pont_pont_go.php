@@ -9,16 +9,10 @@ session_start();
 $conn = new mysqli($servername, $username_db, $password_db, $dbname);
 if ($conn->connect_error) { die("Connection failed: " . $conn->connect_error); }
 
-$indulo_index  = (int)$_POST["indulo_goal"];
-$cel_index     = (int)$_POST["cel_goal"];
-$tipusa        = $_POST["tipusa"];
-
-// Közbenső goal
-$res_kb = $conn->query("SELECT goal_index FROM kozbenso_goal LIMIT 1");
-if (!$res_kb || $res_kb->num_rows == 0) {
-    die("Hiba: közbenső célpont nincs beállítva! <a href='pont_pont.php'>Vissza</a>");
-}
-$kozbenso_index = (int)$res_kb->fetch_assoc()['goal_index'];
+$indulo_index = (int)$_POST["indulo_goal"];
+$cel_index    = (int)$_POST["cel_goal"];
+$tipusa       = $_POST["tipusa"] ?? 'azonnali';
+$sablon_id    = 1;
 
 // Goal nevek lekérése
 function getGoalName($conn, $index) {
@@ -27,36 +21,58 @@ function getGoalName($conn, $index) {
     return $res->fetch_assoc()['Goal_name'];
 }
 
-$indulo_name   = getGoalName($conn, $indulo_index);
-$cel_name      = getGoalName($conn, $cel_index);
-$kozbenso_name = getGoalName($conn, $kozbenso_index);
+$indulo_name = getGoalName($conn, $indulo_index);
+$cel_name    = getGoalName($conn, $cel_index);
 
-if (!$indulo_name || !$cel_name || !$kozbenso_name) {
+if (!$indulo_name || !$cel_name) {
+    $conn->close();
     die("Hiba: érvénytelen célpont! <a href='pont_pont.php'>Vissza</a>");
 }
 
-// Naplózás segédfüggvény
+// Sablon pontok lekérése egy szekcióhoz
+function getSablonPontok($conn, $sablon_id, $szekcio) {
+    $s   = $conn->real_escape_string($szekcio);
+    $sid = (int)$sablon_id;
+    $res = $conn->query(
+        "SELECT g.Goal_name FROM pp_utvonal_sablon_pont p
+         JOIN Goals g ON p.goal_index = g.Index_
+         WHERE p.sablon_id = $sid AND p.szekcio = '$s'
+         ORDER BY p.sorrend"
+    );
+    $result = [];
+    if ($res) { while ($row = $res->fetch_assoc()) { $result[] = $row['Goal_name']; } }
+    return $result;
+}
+
+$elotte = getSablonPontok($conn, $sablon_id, 'elotte');
+$kozben = getSablonPontok($conn, $sablon_id, 'kozben');
+$utana  = getSablonPontok($conn, $sablon_id, 'utana');
+
+// Teljes útvonal: [elotte] + induló + [kozben] + cél + [utana]
+$all_points = array_merge($elotte, [$indulo_name], $kozben, [$cel_name], $utana);
+
+// Naplózás
 function pp_log($sor) {
     $f = "/var/www/html/pm/tmp/pp_log.txt";
     $ts = date("Y-m-d H:i:s");
     file_put_contents($f, "[$ts] $sor\n", FILE_APPEND | LOCK_EX);
 }
 
-// Ha nem főmenüből jött (nincs bejelentkezve), visszaküldés a pont_pont oldalra
-$redirect_url = (isset($_SESSION["loggedin"]) && $_SESSION["loggedin"] === true)
-    ? "index.php"
-    : "pont_pont.php";
+$caller       = isset($_SESSION["username"]) ? $_SESSION["username"] : str_replace('.', '_', $_SERVER['REMOTE_ADDR']);
+$redirect_url = (isset($_SESSION["loggedin"]) && $_SESSION["loggedin"] === true) ? "index.php" : "pont_pont.php";
 
+// --- AZONNALI ---
 if ($tipusa === "azonnali") {
-    $caller  = isset($_SESSION["username"]) ? $_SESSION["username"] : str_replace('.', '_', $_SERVER['REMOTE_ADDR']);
     $job_id  = date("Y_m_d_H_i_s") . "_" . $caller . "_PP";
-    $parancs = "queuemulti 3 2 $indulo_name pickup 10 $kozbenso_name pickup 10 $cel_name pickup 10 $job_id";
-
-    foreach ([$indulo_name, $kozbenso_name, $cel_name] as $gn) {
-        $gne = $conn->real_escape_string($gn);
-        $jid = $conn->real_escape_string($job_id);
+    $jid     = $conn->real_escape_string($job_id);
+    $n       = count($all_points);
+    $parancs = "queuemulti $n 2";
+    foreach ($all_points as $gn) {
+        $gne     = $conn->real_escape_string($gn);
         $conn->query("INSERT INTO Button_Goals(Goal_name, Megjegyzes, akcio) VALUES('$gne', '$jid', 'aktiv')");
+        $parancs .= " $gn pickup 10";
     }
+    $parancs .= " $job_id";
     $conn->close();
 
     $myfile = fopen("/var/www/html/pm/tmp/newfile.txt", "w");
@@ -64,7 +80,7 @@ if ($tipusa === "azonnali") {
     fclose($myfile);
     exec("/var/www/html/pm/go.pl");
 
-    pp_log("AZONNALI | " . $caller . " | " . $parancs);
+    pp_log("AZONNALI | $caller | $parancs");
     ?>
 <!DOCTYPE html>
 <html lang="hu">
@@ -80,7 +96,7 @@ if ($tipusa === "azonnali") {
 <div class="bg-text" style="max-width:600px; text-align:center;">
 <h2 class="page-title" style="color:#2e7d32;">&#10003; Feladat elküldve a Fleet Managernek</h2>
 <p style="color:#555; font-size:15px; margin:12px 0;">
-  <?php echo htmlspecialchars($indulo_name); ?> &rarr; <?php echo htmlspecialchars($kozbenso_name); ?> &rarr; <?php echo htmlspecialchars($cel_name); ?>
+  <?php echo htmlspecialchars(implode(' → ', $all_points)); ?>
 </p>
 <p style="color:#aaa; font-size:13px; margin-top:16px;">Átirányítás...</p>
 </div>
@@ -90,3 +106,23 @@ if ($tipusa === "azonnali") {
     <?php
     exit;
 }
+
+// --- IDŐZÍTETT ---
+$idopont_raw = trim($_POST["idopont"] ?? '');
+$dt = DateTime::createFromFormat('Y-m-d\TH:i', $idopont_raw);
+if (!$dt) {
+    $conn->close();
+    die("Érvénytelen időpont formátum. <a href='pont_pont.php'>Vissza</a>");
+}
+$idopont_sql   = $dt->format('Y-m-d H:i:00');
+$idopont_safe  = $conn->real_escape_string($idopont_sql);
+
+$conn->query(
+    "INSERT INTO egyedi_utemezesek(indulo_goal_index, cel_goal_index, kozbenso_goal_index, sablon_id, idopont)
+     VALUES($indulo_index, $cel_index, 0, $sablon_id, '$idopont_safe')"
+);
+$conn->close();
+
+pp_log("IDŐZÍTETT | $caller | $idopont_sql | " . implode(' → ', $all_points));
+header("location: pont_pont.php");
+exit;

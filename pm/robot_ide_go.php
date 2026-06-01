@@ -11,55 +11,57 @@ $allomas_id = (int)$_POST["allomas_id"];
 $conn = new mysqli($servername, $username_db, $password_db, $dbname);
 if ($conn->connect_error) { die("Connection failed: " . $conn->connect_error); }
 
-$res = $conn->query(
-    "SELECT m.*, gc.Goal_name as cel_goal_name,
-            gv.Goal_name as vissza_goal_name,
-            gk.Goal_name as kozbenso_goal_name
-     FROM munkaallomas m
-     JOIN Goals gc ON m.cel_goal_index    = gc.Index_
-     JOIN Goals gv ON m.vissza_goal_index = gv.Index_
-     LEFT JOIN Goals gk ON m.kozbenso_goal_index = gk.Index_
-     WHERE m.id = $allomas_id LIMIT 1"
-);
+$res = $conn->query("SELECT * FROM munkaallomas WHERE id = $allomas_id LIMIT 1");
 if (!$res || $res->num_rows == 0) {
-    die("Érvénytelen munkaállomás vagy hiányzó goal konfiguráció. <a href='robot_ide.php'>Vissza</a>");
+    die("Érvénytelen munkaállomás. <a href='robot_ide.php'>Vissza</a>");
 }
 $allomas = $res->fetch_assoc();
 
-// Ha már úton van, ne indítsunk új jobot
 if ($allomas['allapot'] === 'uton') {
     header("location: robot_ide.php");
     exit;
 }
 
-$caller      = isset($_SESSION["username"]) ? $_SESSION["username"] : str_replace('.', '_', $_SERVER['REMOTE_ADDR']);
-$job_id      = date("Y_m_d_H_i_s") . "_" . $caller . "_RI";
-$cel_goal    = $allomas['cel_goal_name'];
-$vissza_goal = $allomas['vissza_goal_name'];
-$kozbenso    = $allomas['kozbenso_goal_name'];
-
-$jid         = $conn->real_escape_string($job_id);
-$gne_cel     = $conn->real_escape_string($cel_goal);
-$gne_vissza  = $conn->real_escape_string($vissza_goal);
-
-if ($kozbenso) {
-    $gne_kozbenso = $conn->real_escape_string($kozbenso);
-    $conn->query("INSERT INTO Button_Goals(Goal_name, Megjegyzes, akcio) VALUES('$gne_cel',     '$jid', 'aktiv')");
-    $conn->query("INSERT INTO Button_Goals(Goal_name, Megjegyzes, akcio) VALUES('$gne_kozbenso','$jid', 'aktiv')");
-    $conn->query("INSERT INTO Button_Goals(Goal_name, Megjegyzes, akcio) VALUES('$gne_vissza',  '$jid', 'aktiv')");
-    $parancs = "queuemulti 3 2 $cel_goal pickup 10 $kozbenso pickup 10 $vissza_goal pickup 10 $job_id";
-} else {
-    $conn->query("INSERT INTO Button_Goals(Goal_name, Megjegyzes, akcio) VALUES('$gne_cel',    '$jid', 'aktiv')");
-    $conn->query("INSERT INTO Button_Goals(Goal_name, Megjegyzes, akcio) VALUES('$gne_vissza', '$jid', 'aktiv')");
-    $parancs = "queuemulti 2 2 $cel_goal pickup 10 $vissza_goal pickup 10 $job_id";
+// Útvonal pontok betöltése sorrendben
+$route_res = $conn->query(
+    "SELECT u.goal_index, g.Goal_name
+     FROM munkaallomas_utvonal u
+     JOIN Goals g ON u.goal_index = g.Index_
+     WHERE u.allomas_id = $allomas_id
+     ORDER BY u.sorrend"
+);
+$route_points = [];
+if ($route_res) {
+    while ($row = $route_res->fetch_assoc()) {
+        $route_points[] = $row;
+    }
 }
+
+if (empty($route_points)) {
+    die("Nincs útvonal konfigurálva ehhez az állomáshoz. <a href='robot_ide.php'>Vissza</a>");
+}
+
+$caller  = isset($_SESSION["username"]) ? $_SESSION["username"] : str_replace('.', '_', $_SERVER['REMOTE_ADDR']);
+$job_id  = date("Y_m_d_H_i_s") . "_" . $caller . "_RI";
+$jid     = $conn->real_escape_string($job_id);
+
+// Button_Goals sorok + queuemulti parancs összeállítása
+$n = count($route_points);
+$parancs = "queuemulti $n 2";
+foreach ($route_points as $p) {
+    $gne = $conn->real_escape_string($p['Goal_name']);
+    $conn->query("INSERT INTO Button_Goals(Goal_name, Megjegyzes, akcio) VALUES('$gne', '$jid', 'aktiv')");
+    $parancs .= " " . $p['Goal_name'] . " pickup 10";
+}
+$parancs .= " $job_id";
 
 $conn->query("UPDATE munkaallomas SET allapot='uton', aktiv_job_id='$jid' WHERE id=$allomas_id");
 $conn->close();
-$myfile  = fopen("/var/www/html/pm/tmp/newfile.txt", "w");
+
+$myfile = fopen("/var/www/html/pm/tmp/newfile.txt", "w");
 fwrite($myfile, $parancs);
 fclose($myfile);
-exec("/var/www/html/pm/go.pl");
+exec("/var/www/html/pm/go.pl > /dev/null 2>&1 &");
 
 header("location: robot_ide.php");
 exit;

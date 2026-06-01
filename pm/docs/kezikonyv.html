@@ -283,7 +283,7 @@
     <h1>Robot Fleet Manager</h1>
     <div class="sub">Felhasználói kézikönyv</div>
     <span class="accent-line"></span>
-    <div class="version">Pannon Mechanika/kaly &nbsp;|&nbsp; v1.0.1 &nbsp;|&nbsp; Belső használatra</div>
+    <div class="version">Pannon Mechanika/kaly &nbsp;|&nbsp; v1.0.2 &nbsp;|&nbsp; Belső használatra</div>
   </div>
 
   <!-- Tartalomjegyzék -->
@@ -438,13 +438,13 @@
   </div>
 
   <h3 id="robot-hivas">4.3 Robot hívás</h3>
-  <p>A <strong>Robot hívás</strong> oldal az adott munkaállomáshoz rendelt gyors hívó gomb. Az oldal automatikusan felismeri, melyik munkaállomásról töltötték be (IP-cím alapján), és a hozzá tartozó konfigurált célpontot és visszatérési pontot használja.</p>
+  <p>A <strong>Robot hívás</strong> oldal az adott munkaállomáshoz rendelt gyors hívó gomb. Az oldal automatikusan felismeri, melyik munkaállomásról töltötték be (IP-cím alapján), és a hozzá tartozó konfigurált útvonalat – tetszőleges számú, sorrendbe rendezett célpontot – küldi el a Fleet Manager-nek.</p>
 
   <h4>Használat</h4>
   <ol class="steps">
     <li>Nyisd meg a <strong>Robot hívás</strong> oldalt a számítógépen, amelyhez a robot-állomás be van állítva.</li>
-    <li>Ha a robot szabad, egy nagy zöld <strong>Robot hívás</strong> gomb látható – kattints rá.</li>
-    <li>A robot elindul: előbb a munkaállomás célpontjára megy, majd visszatér az alaphelyzetébe.</li>
+    <li>Ha a robot szabad, egy nagy zöld <strong>Robot hívás</strong> gomb látható, alatta az állomáshoz beállított útvonal (pl. <em>Raktár bejárat → Összeszerelő sor → Alapállás</em>) – kattints a gombra.</li>
+    <li>A robot elindul és sorban végigjárja az útvonal összes pontját.</li>
     <li>Amíg a robot úton van, a gomb narancssárgára vált (<em>Robot úton...</em>) és nem kattintható.</li>
     <li>Amikor a robot befejezi a feladatot, a gomb automatikusan visszavált zöldre.</li>
   </ol>
@@ -540,12 +540,15 @@
     <tbody>
       <tr><td><strong>IP-cím</strong></td><td>A munkaállomás számítógépének hálózati IP-címe (ez alapján azonosítja be a rendszer)</td></tr>
       <tr><td><strong>Név</strong></td><td>Ember-olvasható megnevezés (pl. „Összeszerelő sor 1")</td></tr>
-      <tr><td><strong>Cél célpont</strong></td><td>Ide megy a robot, amikor a gombra kattintanak</td></tr>
-      <tr><td><strong>Közbenső célpont</strong></td><td>Opcionális közbülső állomás a cél előtt</td></tr>
-      <tr><td><strong>Visszatérési pont</strong></td><td>Ide tér vissza a robot a feladat végeztével</td></tr>
+      <tr><td><strong>Útvonal pontjai</strong></td><td>Tetszőleges számú célpont sorrendben – a robot ezeket látogatja meg egymás után. A lista a szerkesztőfelületen dinamikusan bővíthető, szűkíthető és sorrendbe rendezhető (▲▼ gombokkal). Legalább 1 pont szükséges.</td></tr>
       <tr><td><strong>Job láthatóság</strong></td><td>Az adott munkaállomáson láthatók-e az aktív jobok, és ha igen, csak a sajátok vagy az összes</td></tr>
     </tbody>
   </table>
+
+  <div class="box tip">
+    <div class="box-title">Útvonal összeállítása</div>
+    A szerkesztő alján lévő célpont-választóból bármennyi pontot hozzá lehet adni a listához. A tipikus konfiguráció: <em>munkaállomás célpontja → [opcionális közbülső pontok] → alapállás</em>. Az utolsó pont lesz a robot visszatérési helye.
+  </div>
 
   <h3 id="ido-beallitas">6.5 Szerver dátum / idő beállítás</h3>
   <p>A szerver belső órájának ellenőrzése és beállítása. Az időzített útvonalak pontossága függ a szerver idejétől – ha az eltér, az ütemezés is csúszik.</p>
@@ -576,11 +579,11 @@
     A frissítés felülírja a ZIP-ben szereplő fájlokat. Az adatbázis és a konfigurációs adatok (pl. célpontok, felhasználók) érintetlenek maradnak – ezek az adatbázisban vannak tárolva.
   </div>
 
-  <h3 id="fm-naplo">6.9 Fleet Manager kommunikációs napló</h3>
-  <p>A rendszer minden Fleet Manager felé irányuló státuszlekérdezést naplóz. Ez lehetővé teszi, hogy ellenőrizni lehessen a kommunikáció működését – különösen hasznos az első üzembe helyezéskor vagy ha a job-ok státusza nem frissül megfelelően.</p>
+  <h3 id="fm-naplo">6.9 Fleet Manager kommunikációs naplók</h3>
+  <p>A rendszer két különböző naplót vezet a Fleet Manager felé irányuló Telnet kommunikációról. Mindkettő a komplett Telnet sessiont rögzíti (mi megy ki, milyen válasz jön vissza), így a hibaelhárítás könnyen elvégezhető.</p>
 
-  <h4>Mit tartalmaz a napló?</h4>
-  <p>Minden bejegyzés tartalmazza:</p>
+  <h4>Státuszlekérdezési napló (<code>query_comm.log</code>)</h4>
+  <p>A rendszer ~8 másodpercenként lekérdezi az aktív job-ok státuszát. Ez a napló minden ilyen lekérdezést rögzít:</p>
   <ul>
     <li><strong>Időbélyeg</strong> – mikor futott a lekérdezés</li>
     <li><strong>Lekérdezett job ID-k</strong> – melyik aktív job-okra kérdezett rá</li>
@@ -588,27 +591,35 @@
     <li><strong>Feldolgozott eredmény</strong> – melyik job milyen státuszba került (completed, cancelled, failed)</li>
   </ul>
 
-  <div class="box info">
-    <div class="box-title">Kapcsolati hiba esetén</div>
-    Ha a Fleet Manager nem elérhető, vagy a Telnet kapcsolat meghiúsul, a napló ezt is rögzíti – így a bejegyzésből egyértelműen kiderül, hogy kommunikációs probléma áll-e fenn.
-  </div>
-
-  <h4>A napló elérése</h4>
+  <h4>A státusznapló elérése</h4>
   <ol class="steps">
     <li>Lépj be adminisztrátori fiókkal.</li>
     <li>A főmenüből nyisd meg: <strong>Setup → Rendszer frissítés</strong> oldal.</li>
     <li>Görgess le a <em>Fleet Manager kommunikációs napló</em> szekcióig.</li>
     <li>Az utolsó 60 naplósor azonnal olvasható a képernyőn.</li>
     <li>A <strong>Letöltés</strong> gombbal a teljes napló <code>.log</code> fájlként menthető.</li>
-    <li>A <strong>Napló törlése</strong> gombbal törölhető a napló tartalma (a jövőbeli bejegyzések ettől nem érintődnek).</li>
+    <li>A <strong>Napló törlése</strong> gombbal törölhető a napló tartalma.</li>
   </ol>
 
-  <h4>Méretkorlát</h4>
-  <p>A naplófájl mérete automatikusan kezelt: ha meghaladja a 512 KB-ot, a legrégebbi bejegyzések törlődnek, a legfrissebb 60% megmarad. Manuálisan is törölhető bármikor a <em>Napló törlése</em> gombbal.</p>
+  <h4>Robot hívás parancsnapló (<code>go_comm.log</code>)</h4>
+  <p>Minden egyes „Robot hívás" gombnyomáskor a rendszer egy teljes Telnet sessiont rögzít: a kiadott <code>queuemulti</code> parancsot és a Fleet Manager teljes nyers válaszát. Ez a napló a szerveren található: <code>pm/tmp/go_comm.log</code>.</p>
+  <ul>
+    <li><strong>Időbélyeg</strong> – mikor nyomták meg a gombot</li>
+    <li><strong>Parancs</strong> – a küldött <code>queuemulti</code> parancs szövege</li>
+    <li><strong>Telnet session</strong> – a teljes session nyers output-ja (bejelentkezéstől a záró válaszig)</li>
+  </ul>
+
+  <div class="box info">
+    <div class="box-title">Mikor hasznos?</div>
+    Ha a Robot hívás gomb megnyomása után a robot nem indul el, a <code>go_comm.log</code> megmutatja, hogy a parancs egyáltalán eljutott-e a Fleet Manager-hez, és ha igen, milyen választ adott. Ha a session üres vagy <code>Connection refused</code> látható, hálózati probléma áll fenn.
+  </div>
+
+  <h4>Méretkorlát (mindkét napló)</h4>
+  <p>Ha egy naplófájl mérete meghaladja a 512 KB-ot, a legrégebbi bejegyzések automatikusan törlődnek, a legfrissebb 60% megmarad.</p>
 
   <div class="box tip">
     <div class="box-title">Hibaelhárítási tipp</div>
-    Ha a robot job-ok nem frissülnek automatikusan, a napló az első helyen, ahol ellenőrizni érdemes. Ha a <em>FM válasz</em> sorokban <code>Connection refused</code> vagy üres válasz látható, a Fleet Manager hálózati elérhetőségét kell vizsgálni.
+    Ha a robot job-ok nem frissülnek automatikusan, a <code>query_comm.log</code> az első hely. Ha a Robot hívás után nem indul el a robot, a <code>go_comm.log</code>-ot érdemes megnézni. Ha mindkét naplóban <code>Connection refused</code> szerepel, a Fleet Manager hálózati elérhetőségét kell vizsgálni.
   </div>
 
   <hr>
@@ -670,7 +681,7 @@
   <hr>
 
   <p style="text-align:center; font-size:8.5pt; color:#aaa; margin-top:30px;">
-    Robot Fleet Manager – Felhasználói kézikönyv &nbsp;|&nbsp; v1.0.1 &nbsp;|&nbsp; Pannon Mechanika/kaly &nbsp;|&nbsp; Belső használatra
+    Robot Fleet Manager – Felhasználói kézikönyv &nbsp;|&nbsp; v1.0.2 &nbsp;|&nbsp; Pannon Mechanika/kaly &nbsp;|&nbsp; Belső használatra
   </p>
 
 </div>

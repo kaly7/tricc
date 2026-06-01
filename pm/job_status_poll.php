@@ -86,22 +86,17 @@ $conn->close();
 
 $lock_running = file_exists($lock_file) && (time() - filemtime($lock_file)) < 30;
 
-if (!empty($active_jobs) && !$lock_running) {
+if (!$lock_running) {
     $args = implode(' ', array_map('escapeshellarg', $active_jobs));
     exec("perl /var/www/html/pm/query_multi.pl $args > /dev/null 2>&1 &");
     echo json_encode([
-        'status'    => 'polling',
+        'status'    => !empty($active_jobs) ? 'polling' : 'robot_only',
         'completed' => $completed,
         'jobs'      => $active_jobs,
     ], JSON_UNESCAPED_UNICODE);
-} elseif ($lock_running) {
-    echo json_encode([
-        'status'    => 'busy',
-        'completed' => $completed,
-    ], JSON_UNESCAPED_UNICODE);
 } else {
     echo json_encode([
-        'status'    => 'idle',
+        'status'    => 'busy',
         'completed' => $completed,
     ], JSON_UNESCAPED_UNICODE);
 }
