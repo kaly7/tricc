@@ -8,6 +8,7 @@ import 'package:http/http.dart' as http;
 import 'package:open_filex/open_filex.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
+import '../models/user.dart';
 import '../models/room.dart';
 import '../models/message.dart';
 import '../services/api_service.dart';
