@@ -7,6 +7,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:http/http.dart' as http;
 import 'package:open_filex/open_filex.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:flutter_markdown/flutter_markdown.dart';
 import '../models/room.dart';
 import '../models/message.dart';
 import '../services/api_service.dart';
@@ -376,7 +377,21 @@ class _MessageBubble extends StatelessWidget {
   Widget _buildContent(BuildContext context) {
     switch (message.type) {
       case 'text':
-        return Text(message.content ?? '', style: TextStyle(color: isMine ? Colors.white : Colors.black87));
+        return MarkdownBody(
+          data: message.content ?? '',
+          selectable: true,
+          styleSheet: MarkdownStyleSheet(
+            p: TextStyle(color: isMine ? Colors.white : Colors.black87),
+            strong: TextStyle(color: isMine ? Colors.white : Colors.black87, fontWeight: FontWeight.bold),
+            em: TextStyle(color: isMine ? Colors.white : Colors.black87, fontStyle: FontStyle.italic),
+            del: TextStyle(color: isMine ? Colors.white70 : Colors.black54),
+            code: TextStyle(
+              color: isMine ? Colors.white : Colors.black87,
+              backgroundColor: isMine ? Colors.white24 : Colors.grey.shade200,
+              fontFamily: 'monospace',
+            ),
+          ),
+        );
       case 'image':
         return _ImageBubble(fileUrl: message.fileUrl ?? '', isMine: isMine);
       case 'file':
