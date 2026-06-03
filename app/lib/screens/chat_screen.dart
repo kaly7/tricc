@@ -139,18 +139,24 @@ class _ChatScreenState extends State<ChatScreen> {
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (_) => _RoomInfoSheet(room: _room, onDirectMessage: (userId) async {
-        Navigator.pop(context);
-        try {
-          final roomId = await ApiService().createDirectRoom(userId);
-          final room = await ApiService().getRoom(roomId);
-          if (mounted) {
-            Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => ChatScreen(room: room)));
+      isScrollControlled: true,
+      builder: (_) => _RoomInfoSheet(
+        room: _room,
+        onDirectMessage: (userId) async {
+          Navigator.pop(context);
+          try {
+            final roomId = await ApiService().createDirectRoom(userId);
+            final room = await ApiService().getRoom(roomId);
+            if (mounted) Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => ChatScreen(room: room)));
+          } catch (e) {
+            if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
           }
-        } catch (e) {
-          if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
-        }
-      }),
+        },
+        onLeave: () {
+          if (mounted) Navigator.pop(context); // chat screen bezárása
+        },
+        onMembersChanged: () => _loadRoom(),
+      ),
     );
   }
 
@@ -262,10 +268,91 @@ class _PinnedBar extends StatelessWidget {
 }
 
 // Szoba info (tagok)
-class _RoomInfoSheet extends StatelessWidget {
+class _RoomInfoSheet extends StatefulWidget {
   final Room room;
   final void Function(int userId) onDirectMessage;
-  const _RoomInfoSheet({required this.room, required this.onDirectMessage});
+  final VoidCallback onLeave;
+  final VoidCallback onMembersChanged;
+  const _RoomInfoSheet({required this.room, required this.onDirectMessage, required this.onLeave, required this.onMembersChanged});
+
+  @override
+  State<_RoomInfoSheet> createState() => _RoomInfoSheetState();
+}
+
+class _RoomInfoSheetState extends State<_RoomInfoSheet> {
+  List<User> _allUsers = [];
+  bool _loadingUsers = false;
+
+  void _showAddMember() async {
+    setState(() => _loadingUsers = true);
+    final memberIds = widget.room.members.map((m) => m.id).toSet();
+    try {
+      final users = await ApiService().getUsers();
+      final candidates = users.where((u) => !memberIds.contains(u.id)).toList();
+      if (!mounted) return;
+      setState(() { _allUsers = candidates; _loadingUsers = false; });
+      showModalBottomSheet(
+        context: context,
+        shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+        builder: (_) => Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Tag hozzáadása', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 8),
+              if (candidates.isEmpty)
+                const Padding(padding: EdgeInsets.all(16), child: Text('Nincs más felhasználó.'))
+              else
+                ...candidates.map((u) => ListTile(
+                  leading: CircleAvatar(backgroundColor: kBlue, child: Text(u.name[0].toUpperCase(), style: const TextStyle(color: Colors.white))),
+                  title: Text(u.name),
+                  onTap: () async {
+                    Navigator.pop(context);
+                    try {
+                      await ApiService().addMember(widget.room.id, u.id);
+                      widget.onMembersChanged();
+                      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${u.name} hozzáadva.')));
+                    } catch (e) {
+                      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+                    }
+                  },
+                )),
+            ],
+          ),
+        ),
+      );
+    } catch (_) {
+      setState(() => _loadingUsers = false);
+    }
+  }
+
+  void _confirmLeave() {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Kilépés'),
+        content: const Text('Biztosan ki szeretnél lépni ebből a csoportból?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Mégsem')),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(context); // dialog
+              Navigator.pop(context); // info sheet
+              try {
+                await ApiService().leaveRoom(widget.room.id);
+                widget.onLeave();
+              } catch (e) {
+                if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+              }
+            },
+            child: const Text('Kilépés', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -276,27 +363,39 @@ class _RoomInfoSheet extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(room.name.isNotEmpty ? room.name : 'Csoport', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 4),
-          Text('${room.members.length} tag', style: const TextStyle(color: Colors.grey, fontSize: 13)),
+          Row(
+            children: [
+              Expanded(child: Text(widget.room.name.isNotEmpty ? widget.room.name : 'Csoport', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold))),
+              TextButton.icon(
+                onPressed: _loadingUsers ? null : _showAddMember,
+                icon: const Icon(Icons.person_add_outlined, size: 18),
+                label: const Text('Tag hozzáadása'),
+              ),
+            ],
+          ),
+          Text('${widget.room.members.length} tag', style: const TextStyle(color: Colors.grey, fontSize: 13)),
           const Divider(height: 20),
-          ...room.members.map((u) => ListTile(
+          ...widget.room.members.map((u) => ListTile(
             contentPadding: EdgeInsets.zero,
             leading: CircleAvatar(
               backgroundColor: kBlue,
-              child: Text(u.name.isNotEmpty ? u.name[0].toUpperCase() : '?',
-                  style: const TextStyle(color: Colors.white)),
+              child: Text(u.name.isNotEmpty ? u.name[0].toUpperCase() : '?', style: const TextStyle(color: Colors.white)),
             ),
             title: Text(u.name),
             trailing: u.id != me
                 ? IconButton(
                     icon: const Icon(Icons.message_outlined, color: kBlue),
                     tooltip: 'Üzenet küldése',
-                    onPressed: () => onDirectMessage(u.id),
+                    onPressed: () => widget.onDirectMessage(u.id),
                   )
                 : const Text('(én)', style: TextStyle(color: Colors.grey, fontSize: 12)),
           )),
-          const SizedBox(height: 8),
+          const Divider(height: 20),
+          TextButton.icon(
+            onPressed: _confirmLeave,
+            icon: const Icon(Icons.exit_to_app, color: Colors.red),
+            label: const Text('Kilépés a csoportból', style: TextStyle(color: Colors.red)),
+          ),
         ],
       ),
     );

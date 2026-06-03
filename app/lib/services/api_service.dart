@@ -101,6 +101,9 @@ class ApiService {
   Future<void> removeMember(int roomId, int userId) =>
       _delete('/rooms/$roomId/members/$userId');
 
+  Future<void> leaveRoom(int roomId) =>
+      removeMember(roomId, AuthService().userId!);
+
   // Messages
   Future<List<Message>> getMessages(int roomId, {int? before, int limit = 50}) async {
     var path = '/rooms/$roomId/messages?limit=$limit';
