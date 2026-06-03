@@ -120,7 +120,7 @@ class RoomController {
 
     public static function pin(int $room_id): never {
         $auth = Auth::require();
-        self::assertAdmin($room_id, $auth['user_id']);
+        self::assertMember($room_id, $auth['user_id']);
         $body = json_decode(file_get_contents('php://input'), true) ?? [];
         $msg_id = (int)($body['message_id'] ?? 0);
         if (!$msg_id) Response::abort(400, 'message_id megadása kötelező.');
@@ -136,7 +136,7 @@ class RoomController {
 
     public static function unpin(int $room_id): never {
         $auth = Auth::require();
-        self::assertAdmin($room_id, $auth['user_id']);
+        self::assertMember($room_id, $auth['user_id']);
         DB::get()->prepare("UPDATE rooms SET pinned_message_id=NULL WHERE id=?")->execute([$room_id]);
         Response::ok();
     }
