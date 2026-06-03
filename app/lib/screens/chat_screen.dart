@@ -75,12 +75,8 @@ class _ChatScreenState extends State<ChatScreen> {
     try {
       final msgs = await ApiService().getMessages(widget.room.id, before: before);
       setState(() {
-        if (older) {
-          _messages.addAll(msgs);
-        } else {
-          _messages.clear();
-          _messages.addAll(msgs);
-        }
+        if (!older) _messages.clear();
+        _messages.addAll(msgs.reversed);
         _hasMore = msgs.length >= 50;
         _loading = false;
       });
