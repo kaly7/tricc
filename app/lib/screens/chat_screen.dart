@@ -174,7 +174,7 @@ class _ChatScreenState extends State<ChatScreen> {
           if (_room.pinnedMessage != null)
             _PinnedBar(
               message: _room.pinnedMessage!,
-              canUnpin: !_room.isDirect && _isAdmin,
+              canUnpin: !_room.isDirect,
               onUnpin: () async {
                 try {
                   await ApiService().unpinMessage(_room.id);
@@ -200,7 +200,7 @@ class _ChatScreenState extends State<ChatScreen> {
                         message: _messages[i],
                         isMine: _messages[i].userId == AuthService().userId,
                         isGroup: !_room.isDirect,
-                        canPin: !_room.isDirect && _isAdmin,
+                        canPin: !_room.isDirect,
                         onPin: () async {
                           try {
                             await ApiService().pinMessage(_room.id, _messages[i].id);
