@@ -121,11 +121,12 @@ class ChatServer implements MessageComponentInterface {
     // ── public broadcast (called from outside, e.g. REST API) ──
 
     public function broadcastMessage(int $room_id, array $message): void {
-        $this->broadcastRoom($room_id, null, [
-            'type'    => 'message',
-            'room_id' => $room_id,
-            'message' => $message,
-        ]);
+        $json = json_encode(['type' => 'message', 'room_id' => $room_id, 'message' => $message], JSON_UNESCAPED_UNICODE);
+        foreach ($this->users as $cid => $uid) {
+            if ($this->isMember($room_id, $uid)) {
+                $this->conns[$cid]?->send($json);
+            }
+        }
     }
 
     // ── helpers ─────────────────────────────────────────────────
