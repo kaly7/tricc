@@ -17,7 +17,7 @@ class User {
         id: j['id'],
         name: j['name'],
         email: j['email'] ?? '',
-        avatarUrl: j['avatar_url'],
+        avatarUrl: (j['avatar_url'] as String?)?.isNotEmpty == true ? j['avatar_url'] : null,
         isAdmin: j['is_admin'] == true || j['is_admin'] == 1,
       );
 }

@@ -151,8 +151,9 @@ class ApiService {
 
   // Users (search / admin)
   Future<List<User>> getUsers() async {
-    final r = await _get('/admin/users');
-    return (r['users'] as List).map((e) => User.fromJson(e)).toList();
+    final r = await _get('/users');
+    final list = (r['data'] as List?) ?? [];
+    return list.map((e) => User.fromJson(e as Map<String, dynamic>)).toList();
   }
 }
 
