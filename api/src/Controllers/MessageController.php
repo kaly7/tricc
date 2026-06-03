@@ -60,6 +60,7 @@ class MessageController {
         $row = $msg->fetch();
 
         self::pushToMembers($room_id, $auth['user_id'], $row);
+        self::wsBroadcast($room_id, $row);
         Response::ok($row);
     }
 
@@ -102,5 +103,15 @@ class MessageController {
                 'message_id' => $msg['id'],
             ]);
         }
+    }
+
+    private static function wsBroadcast(int $room_id, array $message): void {
+        try {
+            $sock = @stream_socket_client('tcp://127.0.0.1:9455', $errno, $errstr, 0.3);
+            if ($sock) {
+                fwrite($sock, json_encode(['room_id' => $room_id, 'message' => $message], JSON_UNESCAPED_UNICODE));
+                fclose($sock);
+            }
+        } catch (\Throwable) {}
     }
 }

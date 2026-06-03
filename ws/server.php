@@ -4,15 +4,37 @@ require_once __DIR__ . '/../vendor/autoload.php';
 use Ratchet\Server\IoServer;
 use Ratchet\Http\HttpServer;
 use Ratchet\WebSocket\WsServer;
+use React\EventLoop\Factory as LoopFactory;
+use React\Socket\Server as ReactSocket;
 use Tricc\WS\ChatServer;
 
-$port = (int)($argv[1] ?? 9454);
+$wsPort      = (int)($argv[1] ?? 9454);
+$broadcastPort = (int)($argv[2] ?? 9455);
 
-$server = IoServer::factory(
-    new HttpServer(new WsServer(new ChatServer())),
-    $port,
-    '0.0.0.0'
-);
+$loop = LoopFactory::create();
+$chat = new ChatServer();
 
-echo "[Tricc WS] listening on port $port\n";
-$server->run();
+// WebSocket szerver (publikus, 9454)
+$wsSocket = new ReactSocket('0.0.0.0:' . $wsPort, $loop);
+new IoServer(new HttpServer(new WsServer($chat)), $wsSocket, $loop);
+
+// Belső broadcast TCP szerver (csak localhost, 9455)
+// A REST API ide küld JSON-t, ez broadcast-olja a WS klienseknek
+$broadcastSocket = new ReactSocket('127.0.0.1:' . $broadcastPort, $loop);
+$broadcastSocket->on('connection', function(\React\Socket\ConnectionInterface $conn) use ($chat) {
+    $buf = '';
+    $conn->on('data', function(string $chunk) use (&$buf, $conn, $chat) {
+        $buf .= $chunk;
+        $data = json_decode($buf, true);
+        if ($data !== null) {
+            if (isset($data['room_id'], $data['message'])) {
+                $chat->broadcastMessage((int)$data['room_id'], $data['message']);
+            }
+            $conn->close();
+        }
+    });
+    $conn->on('error', fn() => $conn->close());
+});
+
+echo "[Tricc WS] port $wsPort | broadcast 127.0.0.1:$broadcastPort\n";
+$loop->run();
