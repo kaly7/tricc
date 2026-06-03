@@ -50,7 +50,7 @@ class ApiService {
 
   Map<String, dynamic> _parse(http.Response r) {
     final data = jsonDecode(r.body) as Map<String, dynamic>;
-    if (r.statusCode >= 400) throw ApiException(data['message'] ?? 'Hiba történt', r.statusCode);
+    if (r.statusCode >= 400) throw ApiException(data['message'] ?? data['error'] ?? 'Hiba történt', r.statusCode);
     return data;
   }
 
