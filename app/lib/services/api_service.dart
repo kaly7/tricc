@@ -70,12 +70,13 @@ class ApiService {
   // Rooms
   Future<List<Room>> getRooms() async {
     final r = await _get('/rooms');
-    return (r['rooms'] as List).map((e) => Room.fromJson(e)).toList();
+    final list = (r['data'] as List?) ?? [];
+    return list.map((e) => Room.fromJson(e as Map<String, dynamic>)).toList();
   }
 
   Future<Room> getRoom(int id) async {
     final r = await _get('/rooms/$id');
-    return Room.fromJson(r['room']);
+    return Room.fromJson(r);
   }
 
   Future<int> createDirectRoom(int userId) async {
@@ -99,7 +100,8 @@ class ApiService {
     var path = '/rooms/$roomId/messages?limit=$limit';
     if (before != null) path += '&before=$before';
     final r = await _get(path);
-    return (r['messages'] as List).map((e) => Message.fromJson(e)).toList();
+    final list = (r['data'] as List?) ?? [];
+    return list.map((e) => Message.fromJson(e as Map<String, dynamic>)).toList();
   }
 
   Future<Message> sendMessage(int roomId, {
@@ -113,7 +115,7 @@ class ApiService {
     if (fileUrl != null) body['file_url'] = fileUrl;
     if (fileName != null) body['file_name'] = fileName;
     final r = await _post('/rooms/$roomId/messages', body);
-    return Message.fromJson(r['message']);
+    return Message.fromJson(r);
   }
 
   Future<void> deleteMessage(int roomId, int messageId) =>
