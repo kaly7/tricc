@@ -126,12 +126,29 @@ class _RoomAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return CircleAvatar(
-      backgroundColor: kBlue,
-      child: Text(
-        room.displayName(AuthService().userId ?? 0).isNotEmpty ? room.displayName(AuthService().userId ?? 0)[0].toUpperCase() : '?',
-        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-      ),
+    final name = room.displayName(AuthService().userId ?? 0);
+    return Stack(
+      children: [
+        CircleAvatar(
+          backgroundColor: room.isDirect ? kBlue : kLime,
+          child: Text(
+            name.isNotEmpty ? name[0].toUpperCase() : '?',
+            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+          ),
+        ),
+        Positioned(
+          bottom: 0, right: 0,
+          child: Container(
+            padding: const EdgeInsets.all(2),
+            decoration: BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+            child: Icon(
+              room.isDirect ? Icons.person : Icons.group,
+              size: 10,
+              color: room.isDirect ? kBlue : kLime,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

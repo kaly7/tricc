@@ -1,7 +1,7 @@
 class Message {
   final int id;
-  final int roomId;
-  final int userId;
+  final int? roomId;
+  final int? userId;
   final String userName;
   final String? avatarUrl;
   final String type; // 'text' | 'image' | 'file' | 'link'
@@ -12,8 +12,8 @@ class Message {
 
   Message({
     required this.id,
-    required this.roomId,
-    required this.userId,
+    this.roomId,
+    this.userId,
     required this.userName,
     this.avatarUrl,
     required this.type,
@@ -25,8 +25,8 @@ class Message {
 
   factory Message.fromJson(Map<String, dynamic> j) => Message(
         id: j['id'],
-        roomId: j['room_id'],
-        userId: j['user_id'],
+        roomId: j['room_id'] as int?,
+        userId: j['user_id'] as int?,
         userName: j['user_name'] ?? '',
         avatarUrl: j['avatar_url'],
         type: j['type'] ?? 'text',

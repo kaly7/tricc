@@ -198,7 +198,7 @@ class _ChatScreenState extends State<ChatScreen> {
                       itemCount: _messages.length,
                       itemBuilder: (_, i) => _MessageBubble(
                         message: _messages[i],
-                        isMine: _messages[i].userId == AuthService().userId,
+                        isMine: _messages[i].userId != null && _messages[i].userId == AuthService().userId,
                         isGroup: !_room.isDirect,
                         isPinned: _room.pinnedMessage?.id == _messages[i].id,
                         canPin: !_room.isDirect,
