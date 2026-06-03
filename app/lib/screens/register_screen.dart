@@ -45,9 +45,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
       );
       await AuthService().setAuth(
         token: data['token'],
-        userId: data['user']['id'],
-        name: data['user']['name'],
-        avatarUrl: data['user']['avatar_url'],
+        userId: data['user_id'],
+        name: _nameCtrl.text.trim(),
+      );
+      final me = await ApiService().getMe();
+      await AuthService().setAuth(
+        token: data['token'],
+        userId: data['user_id'],
+        name: me['name'] ?? _nameCtrl.text.trim(),
+        avatarUrl: me['avatar_url'],
+        isAdmin: me['is_admin'] == true || me['is_admin'] == 1,
       );
       await WsService().connect();
       if (mounted) {

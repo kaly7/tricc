@@ -32,10 +32,16 @@ class _LoginScreenState extends State<LoginScreen> {
       final data = await ApiService().login(_emailCtrl.text.trim(), _passCtrl.text);
       await AuthService().setAuth(
         token: data['token'],
-        userId: data['user']['id'],
-        name: data['user']['name'],
-        avatarUrl: data['user']['avatar_url'],
-        isAdmin: data['user']['is_admin'] == true || data['user']['is_admin'] == 1,
+        userId: data['user_id'],
+        name: '',
+      );
+      final me = await ApiService().getMe();
+      await AuthService().setAuth(
+        token: data['token'],
+        userId: data['user_id'],
+        name: me['name'] ?? '',
+        avatarUrl: me['avatar_url'],
+        isAdmin: me['is_admin'] == true || me['is_admin'] == 1,
       );
       await WsService().connect();
       if (mounted) {
