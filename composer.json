@@ -1,0 +1,15 @@
+{
+    "name": "tricc/backend",
+    "description": "Tricc chat backend – API + WebSocket",
+    "require": {
+        "php": ">=8.0",
+        "cboden/ratchet": "^0.4",
+        "firebase/php-jwt": "^6.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "Tricc\\": "api/src/",
+            "Tricc\\WS\\": "ws/src/"
+        }
+    }
+}
