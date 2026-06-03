@@ -14,7 +14,7 @@ Szia! Új projekt indul: **Tricc** — 3C Távközlési Kft belső csevegő alka
 
 ### A projekt célja
 
-Meghívásos alapú chat app. iOS Flutter kliens, PHP + MySQL backend, Ratchet WebSocket valós idejű üzenetküldéshez, normál APNs push értesítés (nem VoIP/PushKit, azt a SIP apphoz használjuk).
+Meghívásos alapú chat app. **Kizárólag iOS kliens** (iPhone + iPad) — Android verzió nem készül, nem is tervezett. PHP + MySQL backend, Ratchet WebSocket valós idejű üzenetküldéshez, normál APNs push értesítés (nem VoIP/PushKit, azt a SIP apphoz használjuk). Push oldalon elegendő az APNs — FCM/Firebase nem kell.
 
 ### Kért backend funkciók (prioritás sorrendben)
 
