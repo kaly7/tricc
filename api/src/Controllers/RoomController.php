@@ -19,7 +19,26 @@ class RoomController {
             ORDER BY last_message_at DESC, r.created_at DESC
         ");
         $st->execute([$auth['user_id']]);
-        Response::ok($st->fetchAll());
+        $rooms = $st->fetchAll();
+
+        // Direct szobáknál other_user mező hozzáadása
+        foreach ($rooms as &$room) {
+            if ($room['type'] === 'direct') {
+                $ou = $db->prepare("
+                    SELECT u.id, u.name, u.avatar_url
+                    FROM room_members rm JOIN users u ON u.id = rm.user_id
+                    WHERE rm.room_id = ? AND rm.user_id != ?
+                    LIMIT 1
+                ");
+                $ou->execute([$room['id'], $auth['user_id']]);
+                $room['other_user'] = $ou->fetch() ?: null;
+            } else {
+                $room['other_user'] = null;
+            }
+        }
+        unset($room);
+
+        Response::ok($rooms);
     }
 
     public static function create(): never {
@@ -74,14 +93,52 @@ class RoomController {
         $auth = Auth::require();
         self::assertMember($room_id, $auth['user_id']);
         $db   = DB::get();
-        $room = $db->prepare("SELECT id, name, type, created_by, created_at FROM rooms WHERE id=?");
+        $room = $db->prepare("SELECT id, name, type, created_by, created_at, pinned_message_id FROM rooms WHERE id=?");
         $room->execute([$room_id]);
         $r = $room->fetch();
         if (!$r) Response::abort(404, 'Szoba nem található.');
+
         $mems = $db->prepare("SELECT u.id, u.name, u.avatar_url, rm.role FROM room_members rm JOIN users u ON u.id=rm.user_id WHERE rm.room_id=?");
         $mems->execute([$room_id]);
         $r['members'] = $mems->fetchAll();
+
+        // Pinned message
+        $r['pinned_message'] = null;
+        if ($r['pinned_message_id']) {
+            $pm = $db->prepare("
+                SELECT m.id, m.content, m.type, u.name AS user_name
+                FROM messages m JOIN users u ON u.id = m.sender_id
+                WHERE m.id = ?
+            ");
+            $pm->execute([$r['pinned_message_id']]);
+            $r['pinned_message'] = $pm->fetch() ?: null;
+        }
+        unset($r['pinned_message_id']);
+
         Response::ok($r);
+    }
+
+    public static function pin(int $room_id): never {
+        $auth = Auth::require();
+        self::assertAdmin($room_id, $auth['user_id']);
+        $body = json_decode(file_get_contents('php://input'), true) ?? [];
+        $msg_id = (int)($body['message_id'] ?? 0);
+        if (!$msg_id) Response::abort(400, 'message_id megadása kötelező.');
+
+        // Ellenőrzés: az üzenet valóban ebben a szobában van-e
+        $chk = DB::get()->prepare("SELECT id FROM messages WHERE id=? AND room_id=?");
+        $chk->execute([$msg_id, $room_id]);
+        if (!$chk->fetch()) Response::abort(404, 'Üzenet nem található ebben a szobában.');
+
+        DB::get()->prepare("UPDATE rooms SET pinned_message_id=? WHERE id=?")->execute([$msg_id, $room_id]);
+        Response::ok();
+    }
+
+    public static function unpin(int $room_id): never {
+        $auth = Auth::require();
+        self::assertAdmin($room_id, $auth['user_id']);
+        DB::get()->prepare("UPDATE rooms SET pinned_message_id=NULL WHERE id=?")->execute([$room_id]);
+        Response::ok();
     }
 
     public static function addMember(int $room_id): never {
