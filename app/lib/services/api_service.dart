@@ -49,9 +49,11 @@ class ApiService {
   }
 
   Map<String, dynamic> _parse(http.Response r) {
-    final data = jsonDecode(r.body) as Map<String, dynamic>;
-    if (r.statusCode >= 400) throw ApiException(data['message'] ?? data['error'] ?? 'Hiba történt', r.statusCode);
-    return data;
+    final body = jsonDecode(r.body) as Map<String, dynamic>;
+    if (r.statusCode >= 400) throw ApiException(body['error'] ?? body['message'] ?? 'Hiba történt', r.statusCode);
+    // Response::ok csomagolja: {"ok":true,"data":{...}} → kibontjuk
+    if (body['data'] is Map<String, dynamic>) return body['data'] as Map<String, dynamic>;
+    return body;
   }
 
   // Auth
