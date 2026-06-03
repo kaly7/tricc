@@ -32,7 +32,7 @@ class RoomController {
         if ($type === 'direct') {
             $other = (int)($body['user_id'] ?? 0);
             if (!$other) Response::abort(400, 'Célfelhasználó megadása kötelező.');
-            return self::getOrCreateDirect($auth['user_id'], $other);
+            self::getOrCreateDirect($auth['user_id'], $other);
         }
 
         $db = DB::get();

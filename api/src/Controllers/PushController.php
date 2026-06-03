@@ -11,9 +11,9 @@ class PushController {
         if (!$token) Response::abort(400, 'device_token megadása kötelező.');
 
         DB::get()->prepare("
-            INSERT INTO push_tokens (user_id, device_token)
+            INSERT INTO push_tokens (user_id, token)
             VALUES (?, ?)
-            ON DUPLICATE KEY UPDATE user_id = VALUES(user_id), updated_at = NOW()
+            ON DUPLICATE KEY UPDATE token = VALUES(token), updated_at = NOW()
         ")->execute([$auth['user_id'], $token]);
 
         Response::ok();
@@ -25,7 +25,7 @@ class PushController {
         $token = trim($body['device_token'] ?? '');
         if (!$token) Response::abort(400, 'device_token megadása kötelező.');
 
-        DB::get()->prepare("DELETE FROM push_tokens WHERE user_id=? AND device_token=?")
+        DB::get()->prepare("DELETE FROM push_tokens WHERE user_id=? AND token=?")
                  ->execute([$auth['user_id'], $token]);
         Response::ok();
     }
