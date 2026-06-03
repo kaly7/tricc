@@ -9,7 +9,7 @@ import '../models/user.dart';
 import 'auth_service.dart';
 
 class ApiService {
-  static const String base = 'http://192.168.16.22:9453';
+  static const String base = 'http://192.168.16.22:9453/tricc/api';
 
   Map<String, String> get _headers => {
         'Content-Type': 'application/json',
