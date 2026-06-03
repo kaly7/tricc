@@ -73,4 +73,11 @@ class AuthController {
         DB::get()->prepare("UPDATE users SET name=? WHERE id=?")->execute([$name, $auth['user_id']]);
         Response::ok();
     }
+
+    public static function users(): never {
+        Auth::require();
+        $st = DB::get()->prepare("SELECT id, name, avatar_url FROM users WHERE is_active=1 ORDER BY name");
+        $st->execute();
+        Response::ok($st->fetchAll());
+    }
 }

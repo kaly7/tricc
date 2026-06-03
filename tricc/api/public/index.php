@@ -22,6 +22,7 @@ try {
         $method === 'POST' && $path === '/auth/login'        => AuthController::login(),
         $method === 'GET'  && $path === '/auth/me'           => AuthController::me(),
         $method === 'PUT'  && $path === '/auth/profile'      => AuthController::updateProfile(),
+        $method === 'GET'  && $path === '/users'             => AuthController::users(),
 
         // Rooms
         $method === 'GET'  && $path === '/rooms'             => RoomController::list(),
