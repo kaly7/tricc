@@ -207,6 +207,7 @@ class _ChatScreenState extends State<ChatScreen> {
                           try {
                             await ApiService().pinMessage(_room.id, _messages[i].id);
                             await _loadRoom();
+                            if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Üzenet kiemelve.')));
                           } catch (e) {
                             if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
                           }
@@ -379,7 +380,7 @@ class _MessageBubble extends StatelessWidget {
       case 'text':
         return MarkdownBody(
           data: message.content ?? '',
-          selectable: true,
+          selectable: false,
           styleSheet: MarkdownStyleSheet(
             p: TextStyle(color: isMine ? Colors.white : Colors.black87),
             strong: TextStyle(color: isMine ? Colors.white : Colors.black87, fontWeight: FontWeight.bold),
