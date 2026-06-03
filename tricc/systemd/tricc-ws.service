@@ -1,0 +1,16 @@
+[Unit]
+Description=Tricc WebSocket Server
+After=network.target mysql.service
+
+[Service]
+Type=simple
+User=www-data
+WorkingDirectory=/var/www/html/tricc
+ExecStart=/usr/bin/php ws/server.php 9454
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
