@@ -3,10 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:file_picker/file_picker.dart';
-import 'package:url_launcher/url_launcher.dart';
-import 'package:open_filex/open_filex.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:http/http.dart' as http;
+import 'package:open_filex/open_filex.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../models/room.dart';
 import '../models/message.dart';
 import '../services/api_service.dart';
@@ -26,6 +26,7 @@ class _ChatScreenState extends State<ChatScreen> {
   final _msgCtrl = TextEditingController();
   final _scroll = ScrollController();
   final List<Message> _messages = [];
+  late Room _room;
   bool _loading = true;
   bool _sending = false;
   bool _hasMore = true;
@@ -33,6 +34,8 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   void initState() {
     super.initState();
+    _room = widget.room;
+    _loadRoom();
     _loadMessages();
     WsService().join(widget.room.id);
     WsService().events.listen(_onWsEvent);
@@ -44,6 +47,13 @@ class _ChatScreenState extends State<ChatScreen> {
     _msgCtrl.dispose();
     _scroll.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadRoom() async {
+    try {
+      final r = await ApiService().getRoom(widget.room.id);
+      if (mounted) setState(() => _room = r);
+    } catch (_) {}
   }
 
   void _onWsEvent(Map<String, dynamic> msg) {
@@ -112,7 +122,7 @@ class _ChatScreenState extends State<ChatScreen> {
       final m = await ApiService().sendMessage(
         widget.room.id,
         type: type,
-        fileUrl: uploaded['url'],
+        fileUrl: uploaded['url'] ?? uploaded['file_url'],
         fileName: uploaded['file_name'],
       );
       if (!_messages.any((e) => e.id == m.id)) {
@@ -125,12 +135,40 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
+  void _showRoomInfo() {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (_) => _RoomInfoSheet(room: _room, onDirectMessage: (userId) async {
+        Navigator.pop(context);
+        try {
+          final roomId = await ApiService().createDirectRoom(userId);
+          final room = await ApiService().getRoom(roomId);
+          if (mounted) {
+            Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => ChatScreen(room: room)));
+          }
+        } catch (e) {
+          if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+        }
+      }),
+    );
+  }
+
+  String get _title => _room.displayName(AuthService().userId ?? 0);
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(widget.room.name)),
+      appBar: AppBar(
+        title: Text(_title),
+        actions: [
+          if (!_room.isDirect)
+            IconButton(icon: const Icon(Icons.info_outline), onPressed: _showRoomInfo),
+        ],
+      ),
       body: Column(
         children: [
+          if (_room.pinnedMessage != null) _PinnedBar(message: _room.pinnedMessage!),
           Expanded(
             child: _loading
                 ? const Center(child: CircularProgressIndicator())
@@ -148,6 +186,7 @@ class _ChatScreenState extends State<ChatScreen> {
                       itemBuilder: (_, i) => _MessageBubble(
                         message: _messages[i],
                         isMine: _messages[i].userId == AuthService().userId,
+                        isGroup: !_room.isDirect,
                       ),
                     ),
                   ),
@@ -165,25 +204,94 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 }
 
+// Kiemelt üzenet sáv
+class _PinnedBar extends StatelessWidget {
+  final Message message;
+  const _PinnedBar({required this.message});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      color: kBlue.withOpacity(0.08),
+      child: Row(
+        children: [
+          const Icon(Icons.push_pin, size: 14, color: kBlue),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              message.content ?? message.fileName ?? 'Kiemelt üzenet',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 12, color: kBlue),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// Szoba info (tagok)
+class _RoomInfoSheet extends StatelessWidget {
+  final Room room;
+  final void Function(int userId) onDirectMessage;
+  const _RoomInfoSheet({required this.room, required this.onDirectMessage});
+
+  @override
+  Widget build(BuildContext context) {
+    final me = AuthService().userId;
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(room.name.isNotEmpty ? room.name : 'Csoport', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 4),
+          Text('${room.members.length} tag', style: const TextStyle(color: Colors.grey, fontSize: 13)),
+          const Divider(height: 20),
+          ...room.members.map((u) => ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: CircleAvatar(
+              backgroundColor: kBlue,
+              child: Text(u.name.isNotEmpty ? u.name[0].toUpperCase() : '?',
+                  style: const TextStyle(color: Colors.white)),
+            ),
+            title: Text(u.name),
+            trailing: u.id != me
+                ? IconButton(
+                    icon: const Icon(Icons.message_outlined, color: kBlue),
+                    tooltip: 'Üzenet küldése',
+                    onPressed: () => onDirectMessage(u.id),
+                  )
+                : const Text('(én)', style: TextStyle(color: Colors.grey, fontSize: 12)),
+          )),
+          const SizedBox(height: 8),
+        ],
+      ),
+    );
+  }
+}
+
+// Üzenet buborék
 class _MessageBubble extends StatelessWidget {
   final Message message;
   final bool isMine;
-  const _MessageBubble({required this.message, required this.isMine});
+  final bool isGroup;
+  const _MessageBubble({required this.message, required this.isMine, required this.isGroup});
 
   @override
   Widget build(BuildContext context) {
     return Align(
       alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
-        margin: EdgeInsets.only(
-          top: 4, bottom: 4,
-          left: isMine ? 64 : 12,
-          right: isMine ? 12 : 64,
-        ),
+        margin: EdgeInsets.only(top: 4, bottom: 4, left: isMine ? 64 : 12, right: isMine ? 12 : 64),
         child: Column(
           crossAxisAlignment: isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
           children: [
-            if (!isMine)
+            if (!isMine && isGroup)
               Padding(
                 padding: const EdgeInsets.only(left: 4, bottom: 2),
                 child: Text(message.userName, style: const TextStyle(fontSize: 12, color: Colors.grey, fontWeight: FontWeight.w600)),
@@ -218,27 +326,9 @@ class _MessageBubble extends StatelessWidget {
       case 'text':
         return Text(message.content ?? '', style: TextStyle(color: isMine ? Colors.white : Colors.black87));
       case 'image':
-        return ClipRRect(
-          borderRadius: BorderRadius.circular(12),
-          child: CachedNetworkImage(
-            imageUrl: 'http://192.168.16.22:9453${message.fileUrl}',
-            width: 220,
-            fit: BoxFit.cover,
-            placeholder: (context, url) => const SizedBox(height: 120, child: Center(child: CircularProgressIndicator())),
-          ),
-        );
+        return _ImageBubble(fileUrl: message.fileUrl ?? '', isMine: isMine);
       case 'file':
-        return GestureDetector(
-          onTap: () => _openFile(context),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.insert_drive_file, color: isMine ? Colors.white : kBlue),
-              const SizedBox(width: 8),
-              Flexible(child: Text(message.fileName ?? 'Fájl', style: TextStyle(color: isMine ? Colors.white : Colors.black87))),
-            ],
-          ),
-        );
+        return _FileBubble(fileName: message.fileName ?? 'Fájl', fileUrl: message.fileUrl ?? '', isMine: isMine);
       case 'link':
         return GestureDetector(
           onTap: () => launchUrl(Uri.parse(message.content ?? ''), mode: LaunchMode.externalApplication),
@@ -246,22 +336,6 @@ class _MessageBubble extends StatelessWidget {
         );
       default:
         return const SizedBox.shrink();
-    }
-  }
-
-  Future<void> _openFile(BuildContext context) async {
-    if (message.fileUrl == null) return;
-    final fileUrl = 'http://192.168.16.22:9453${message.fileUrl}';
-    try {
-      final dir = await getTemporaryDirectory();
-      final path = '${dir.path}/${message.fileName ?? 'file'}';
-      final res = await http.get(Uri.parse(fileUrl));
-      await File(path).writeAsBytes(res.bodyBytes);
-      await OpenFilex.open(path);
-    } catch (_) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Nem sikerült megnyitni a fájlt.')));
-      }
     }
   }
 
@@ -275,6 +349,100 @@ class _MessageBubble extends StatelessWidget {
   }
 }
 
+// Kép buborék — bélyegkép + letöltés
+class _ImageBubble extends StatelessWidget {
+  final String fileUrl;
+  final bool isMine;
+  static const String _serverBase = 'http://192.168.16.22:9453';
+  const _ImageBubble({required this.fileUrl, required this.isMine});
+
+  String get fullUrl => '$_serverBase$fileUrl';
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      alignment: Alignment.bottomRight,
+      children: [
+        ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: CachedNetworkImage(
+            imageUrl: fullUrl,
+            width: 220,
+            fit: BoxFit.cover,
+            placeholder: (context, url) => const SizedBox(height: 120, child: Center(child: CircularProgressIndicator())),
+            errorWidget: (context, url, err) => const SizedBox(height: 60, child: Center(child: Icon(Icons.broken_image))),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.all(4),
+          child: CircleAvatar(
+            radius: 14,
+            backgroundColor: Colors.black45,
+            child: IconButton(
+              icon: const Icon(Icons.download, color: Colors.white, size: 14),
+              padding: EdgeInsets.zero,
+              onPressed: () => _download(context),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _download(BuildContext context) async {
+    try {
+      final res = await http.get(Uri.parse(fullUrl));
+      final dir = await getTemporaryDirectory();
+      final fileName = fileUrl.split('/').last;
+      final path = '${dir.path}/$fileName';
+      await File(path).writeAsBytes(res.bodyBytes);
+      await OpenFilex.open(path);
+    } catch (_) {
+      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Letöltés sikertelen.')));
+    }
+  }
+}
+
+// Fájl buborék — csak név + letöltés ikon
+class _FileBubble extends StatelessWidget {
+  final String fileName;
+  final String fileUrl;
+  final bool isMine;
+  static const String _serverBase = 'http://192.168.16.22:9453';
+  const _FileBubble({required this.fileName, required this.fileUrl, required this.isMine});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () => _open(context),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.insert_drive_file_outlined, color: isMine ? Colors.white : kBlue, size: 20),
+          const SizedBox(width: 8),
+          Flexible(child: Text(fileName, style: TextStyle(color: isMine ? Colors.white : Colors.black87))),
+          const SizedBox(width: 8),
+          Icon(Icons.download_outlined, color: isMine ? Colors.white70 : Colors.grey, size: 18),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _open(BuildContext context) async {
+    try {
+      final url = '$_serverBase$fileUrl';
+      final res = await http.get(Uri.parse(url));
+      final dir = await getTemporaryDirectory();
+      final path = '${dir.path}/$fileName';
+      await File(path).writeAsBytes(res.bodyBytes);
+      await OpenFilex.open(path);
+    } catch (_) {
+      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Megnyitás sikertelen.')));
+    }
+  }
+}
+
+// Input sáv
 class _InputBar extends StatelessWidget {
   final TextEditingController controller;
   final bool sending;

@@ -95,7 +95,7 @@ class _RoomTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return ListTile(
       leading: _RoomAvatar(room: room),
-      title: Text(room.name, style: const TextStyle(fontWeight: FontWeight.w600)),
+      title: Text(room.displayName(AuthService().userId ?? 0), style: const TextStyle(fontWeight: FontWeight.w600)),
       subtitle: room.lastMessage != null
           ? Text(room.lastMessage!, maxLines: 1, overflow: TextOverflow.ellipsis)
           : null,
@@ -129,7 +129,7 @@ class _RoomAvatar extends StatelessWidget {
     return CircleAvatar(
       backgroundColor: kBlue,
       child: Text(
-        room.name.isNotEmpty ? room.name[0].toUpperCase() : '?',
+        room.displayName(AuthService().userId ?? 0).isNotEmpty ? room.displayName(AuthService().userId ?? 0)[0].toUpperCase() : '?',
         style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
       ),
     );

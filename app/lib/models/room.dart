@@ -1,4 +1,5 @@
 import 'user.dart';
+import 'message.dart';
 
 class Room {
   final int id;
@@ -8,6 +9,8 @@ class Room {
   final String? lastMessage;
   final String? lastMessageAt;
   final List<User> members;
+  final User? otherUser;       // direct szobánál a másik fél
+  final Message? pinnedMessage; // csoport pin
 
   Room({
     required this.id,
@@ -17,9 +20,20 @@ class Room {
     this.lastMessage,
     this.lastMessageAt,
     this.members = const [],
+    this.otherUser,
+    this.pinnedMessage,
   });
 
   bool get isDirect => type == 'direct';
+
+  String displayName(int myUserId) {
+    if (isDirect) {
+      if (otherUser != null) return otherUser!.name;
+      final other = members.where((m) => m.id != myUserId).firstOrNull;
+      return other?.name ?? name;
+    }
+    return name.isNotEmpty ? name : 'Névtelen csoport';
+  }
 
   factory Room.fromJson(Map<String, dynamic> j) => Room(
         id: j['id'],
@@ -29,7 +43,9 @@ class Room {
         lastMessage: j['last_message'],
         lastMessageAt: j['last_message_at'],
         members: (j['members'] as List<dynamic>? ?? [])
-            .map((m) => User.fromJson(m))
+            .map((m) => User.fromJson(m as Map<String, dynamic>))
             .toList(),
+        otherUser: j['other_user'] != null ? User.fromJson(j['other_user']) : null,
+        pinnedMessage: j['pinned_message'] != null ? Message.fromJson(j['pinned_message']) : null,
       );
 }
