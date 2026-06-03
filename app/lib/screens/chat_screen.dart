@@ -200,6 +200,7 @@ class _ChatScreenState extends State<ChatScreen> {
                         message: _messages[i],
                         isMine: _messages[i].userId == AuthService().userId,
                         isGroup: !_room.isDirect,
+                        isPinned: _room.pinnedMessage?.id == _messages[i].id,
                         canPin: !_room.isDirect,
                         onPin: () async {
                           try {
@@ -311,7 +312,8 @@ class _MessageBubble extends StatelessWidget {
   final bool isGroup;
   final bool canPin;
   final VoidCallback? onPin;
-  const _MessageBubble({required this.message, required this.isMine, required this.isGroup, this.canPin = false, this.onPin});
+  final bool isPinned;
+  const _MessageBubble({required this.message, required this.isMine, required this.isGroup, this.canPin = false, this.onPin, this.isPinned = false});
 
   @override
   Widget build(BuildContext context) {
@@ -351,9 +353,16 @@ class _MessageBubble extends StatelessWidget {
               ),
               child: _buildContent(context),
             ),
-            Padding(
-              padding: const EdgeInsets.only(top: 2, left: 4, right: 4),
-              child: Text(_formatTime(message.createdAt), style: const TextStyle(fontSize: 10, color: Colors.grey)),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (isPinned) const Icon(Icons.push_pin, size: 10, color: kBlue),
+                if (isPinned) const SizedBox(width: 2),
+                Padding(
+                  padding: const EdgeInsets.only(top: 2, left: 4, right: 4),
+                  child: Text(_formatTime(message.createdAt), style: const TextStyle(fontSize: 10, color: Colors.grey)),
+                ),
+              ],
             ),
           ],
         ),
