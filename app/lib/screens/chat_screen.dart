@@ -31,6 +31,9 @@ class _ChatScreenState extends State<ChatScreen> {
   bool _sending = false;
   bool _hasMore = true;
 
+  bool get _isAdmin => _room.members
+      .any((m) => m.id == AuthService().userId && m.role == 'admin');
+
   @override
   void initState() {
     super.initState();
@@ -168,7 +171,17 @@ class _ChatScreenState extends State<ChatScreen> {
       ),
       body: Column(
         children: [
-          if (_room.pinnedMessage != null) _PinnedBar(message: _room.pinnedMessage!),
+          if (_room.pinnedMessage != null)
+            _PinnedBar(
+              message: _room.pinnedMessage!,
+              canUnpin: !_room.isDirect && _isAdmin,
+              onUnpin: () async {
+                try {
+                  await ApiService().unpinMessage(_room.id);
+                  await _loadRoom();
+                } catch (_) {}
+              },
+            ),
           Expanded(
             child: _loading
                 ? const Center(child: CircularProgressIndicator())
@@ -187,6 +200,15 @@ class _ChatScreenState extends State<ChatScreen> {
                         message: _messages[i],
                         isMine: _messages[i].userId == AuthService().userId,
                         isGroup: !_room.isDirect,
+                        canPin: !_room.isDirect && _isAdmin,
+                        onPin: () async {
+                          try {
+                            await ApiService().pinMessage(_room.id, _messages[i].id);
+                            await _loadRoom();
+                          } catch (e) {
+                            if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+                          }
+                        },
                       ),
                     ),
                   ),
@@ -207,7 +229,9 @@ class _ChatScreenState extends State<ChatScreen> {
 // Kiemelt üzenet sáv
 class _PinnedBar extends StatelessWidget {
   final Message message;
-  const _PinnedBar({required this.message});
+  final bool canUnpin;
+  final VoidCallback? onUnpin;
+  const _PinnedBar({required this.message, this.canUnpin = false, this.onUnpin});
 
   @override
   Widget build(BuildContext context) {
@@ -227,6 +251,11 @@ class _PinnedBar extends StatelessWidget {
               style: const TextStyle(fontSize: 12, color: kBlue),
             ),
           ),
+          if (canUnpin)
+            GestureDetector(
+              onTap: onUnpin,
+              child: const Icon(Icons.close, size: 16, color: kBlue),
+            ),
         ],
       ),
     );
@@ -280,11 +309,24 @@ class _MessageBubble extends StatelessWidget {
   final Message message;
   final bool isMine;
   final bool isGroup;
-  const _MessageBubble({required this.message, required this.isMine, required this.isGroup});
+  final bool canPin;
+  final VoidCallback? onPin;
+  const _MessageBubble({required this.message, required this.isMine, required this.isGroup, this.canPin = false, this.onPin});
 
   @override
   Widget build(BuildContext context) {
-    return Align(
+    return GestureDetector(
+      onLongPress: canPin ? () => showModalBottomSheet(
+        context: context,
+        builder: (_) => SafeArea(
+          child: ListTile(
+            leading: const Icon(Icons.push_pin, color: kBlue),
+            title: const Text('Üzenet kiemelése'),
+            onTap: () { Navigator.pop(context); onPin?.call(); },
+          ),
+        ),
+      ) : null,
+      child: Align(
       alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
         margin: EdgeInsets.only(top: 4, bottom: 4, left: isMine ? 64 : 12, right: isMine ? 12 : 64),
@@ -315,6 +357,7 @@ class _MessageBubble extends StatelessWidget {
             ),
           ],
         ),
+      ),
       ),
     );
   }
