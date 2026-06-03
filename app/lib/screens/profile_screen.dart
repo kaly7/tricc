@@ -5,6 +5,7 @@ import 'package:image_picker/image_picker.dart';
 import '../services/api_service.dart';
 import '../services/auth_service.dart';
 import '../services/ws_service.dart';
+import '../app_theme.dart';
 import 'login_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -96,7 +97,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   children: [
                     CircleAvatar(
                       radius: 48,
-                      backgroundColor: const Color(0xFF1A73E8),
+                      backgroundColor: kBlue,
                       backgroundImage: avatarUrl != null
                           ? CachedNetworkImageProvider('http://192.168.16.22:9453$avatarUrl')
                           : null,

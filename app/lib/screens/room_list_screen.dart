@@ -4,6 +4,7 @@ import '../models/user.dart';
 import '../services/api_service.dart';
 import '../services/auth_service.dart';
 import '../services/ws_service.dart';
+import '../app_theme.dart';
 import 'chat_screen.dart';
 import 'profile_screen.dart';
 
@@ -58,7 +59,7 @@ class _RoomListScreenState extends State<RoomListScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Tricc', style: TextStyle(fontWeight: FontWeight.bold)),
+        title: const AppBarLogo(),
         actions: [
           IconButton(
             icon: const Icon(Icons.person),
@@ -126,7 +127,7 @@ class _RoomAvatar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return CircleAvatar(
-      backgroundColor: const Color(0xFF1A73E8),
+      backgroundColor: kBlue,
       child: Text(
         room.name.isNotEmpty ? room.name[0].toUpperCase() : '?',
         style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),

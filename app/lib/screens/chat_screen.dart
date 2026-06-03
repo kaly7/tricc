@@ -12,6 +12,7 @@ import '../models/message.dart';
 import '../services/api_service.dart';
 import '../services/auth_service.dart';
 import '../services/ws_service.dart';
+import '../app_theme.dart';
 
 class ChatScreen extends StatefulWidget {
   final Room room;
@@ -190,7 +191,7 @@ class _MessageBubble extends StatelessWidget {
             Container(
               padding: _needsPadding ? const EdgeInsets.symmetric(horizontal: 12, vertical: 8) : EdgeInsets.zero,
               decoration: BoxDecoration(
-                color: isMine ? const Color(0xFF1A73E8) : const Color(0xFFEEEEEE),
+                color: isMine ? kBlue : const Color(0xFFEEEEEE),
                 borderRadius: BorderRadius.only(
                   topLeft: const Radius.circular(16),
                   topRight: const Radius.circular(16),
@@ -232,7 +233,7 @@ class _MessageBubble extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.insert_drive_file, color: isMine ? Colors.white : const Color(0xFF1A73E8)),
+              Icon(Icons.insert_drive_file, color: isMine ? Colors.white : kBlue),
               const SizedBox(width: 8),
               Flexible(child: Text(message.fileName ?? 'Fájl', style: TextStyle(color: isMine ? Colors.white : Colors.black87))),
             ],
@@ -313,7 +314,7 @@ class _InputBar extends StatelessWidget {
             ),
             const SizedBox(width: 4),
             CircleAvatar(
-              backgroundColor: const Color(0xFF1A73E8),
+              backgroundColor: kBlue,
               child: sending
                   ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
                   : IconButton(icon: const Icon(Icons.send, color: Colors.white, size: 18), onPressed: onSend),

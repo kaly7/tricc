@@ -60,11 +60,8 @@ class _LoginScreenState extends State<LoginScreen> {
             mainAxisAlignment: MainAxisAlignment.center,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const Text(
-                'Tricc',
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 36, fontWeight: FontWeight.bold, color: Color(0xFF1A73E8)),
-              ),
+              Image.asset('assets/logo.png', height: 72),
+              const SizedBox(height: 8),
               const Text(
                 '3C Távközlési Kft',
                 textAlign: TextAlign.center,
