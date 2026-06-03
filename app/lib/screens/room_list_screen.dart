@@ -204,18 +204,26 @@ class _NewRoomSheetState extends State<_NewRoomSheet> {
         children: [
           const Text('Új beszélgetés', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
           const SizedBox(height: 12),
-          Row(
-            children: [
-              const Text('Csoportos szoba'),
-              const Spacer(),
-              Switch(value: _isGroup, onChanged: (v) => setState(() => _isGroup = v)),
+          SegmentedButton<bool>(
+            segments: const [
+              ButtonSegment(value: false, label: Text('Direkt üzenet'), icon: Icon(Icons.person)),
+              ButtonSegment(value: true, label: Text('Csoport'), icon: Icon(Icons.group)),
             ],
+            selected: {_isGroup},
+            onSelectionChanged: (v) => setState(() {
+              _isGroup = v.first;
+              _selected.clear();
+            }),
           ),
+          const SizedBox(height: 12),
           if (_isGroup) ...[
             TextField(controller: _nameCtrl, decoration: const InputDecoration(labelText: 'Csoport neve')),
             const SizedBox(height: 8),
           ],
-          const Text('Tagok kiválasztása:', style: TextStyle(fontWeight: FontWeight.w500)),
+          Text(
+            _isGroup ? 'Tagok kiválasztása:' : 'Kivel szeretnél beszélgetni?',
+            style: const TextStyle(fontWeight: FontWeight.w500),
+          ),
           const SizedBox(height: 8),
           if (_loading)
             const Center(child: CircularProgressIndicator())
