@@ -19,7 +19,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Tricc Admin — Belépés</title>
+<title>BabL42 Admin — Belépés</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
 <style>
 body { background: #f0f2f5; }
@@ -33,7 +33,8 @@ body { background: #f0f2f5; }
   <div class="card shadow-sm">
     <div class="card-body p-4">
       <div class="text-center mb-4">
-        <div class="brand">Tri<span>cc</span></div>
+        <img src="/tricc/docs/logo.png" alt="BabL42" style="height:64px;margin-bottom:8px;display:block;margin-left:auto;margin-right:auto;">
+        <div class="brand">BabL<span>42</span></div>
         <div class="text-muted small">Admin panel</div>
       </div>
       <?php if ($error): ?>
