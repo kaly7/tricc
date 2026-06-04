@@ -76,13 +76,22 @@ class _ChatScreenState extends State<ChatScreen> {
         setState(() => _messages.insert(0, m));
       }
     } else if (msg['type'] == 'delete_request') {
-      if (msg['message'] != null) {
-        final m = Message.fromJson(msg['message']);
-        if (!_messages.any((e) => e.id == m.id)) {
-          setState(() => _messages.insert(0, m));
+      final m = msg['message'] != null ? Message.fromJson(msg['message']) : null;
+      setState(() {
+        if (m != null && !_messages.any((e) => e.id == m.id)) {
+          _messages.insert(0, m);
         }
-      }
-      await _loadRoom(); // await hogy a banner azonnal megjelenjen
+        // Azonnal frissítjük a deleteRequestedBy-t a WS eventből — nem várunk _loadRoom()-ra
+        _room = Room(
+          id: _room.id, name: _room.name, type: _room.type,
+          memberCount: _room.memberCount, lastMessage: _room.lastMessage,
+          lastMessageAt: _room.lastMessageAt, members: _room.members,
+          otherUser: _room.otherUser, pinnedMessage: _room.pinnedMessage,
+          unreadCount: _room.unreadCount,
+          deleteRequestedBy: m?.userId ?? _room.deleteRequestedBy,
+        );
+      });
+      _loadRoom(); // háttérben is frissítjük
     }
   }
 
