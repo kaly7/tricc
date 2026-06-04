@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../app_theme.dart';
 import '../services/api_service.dart';
 import '../services/auth_service.dart';
 import '../services/ws_service.dart';
@@ -66,8 +67,34 @@ class _LoginScreenState extends State<LoginScreen> {
             mainAxisAlignment: MainAxisAlignment.center,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Image.asset('assets/logo.png', height: 72),
-              const SizedBox(height: 8),
+              Image.asset('assets/logo.png', height: 96),
+              const SizedBox(height: 10),
+              RichText(
+                textAlign: TextAlign.center,
+                text: const TextSpan(
+                  children: [
+                    TextSpan(
+                      text: 'BabL',
+                      style: TextStyle(
+                        color: kBlue,
+                        fontSize: 32,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 1,
+                      ),
+                    ),
+                    TextSpan(
+                      text: '42',
+                      style: TextStyle(
+                        color: kLime,
+                        fontSize: 32,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 1,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 4),
               const Text(
                 'RV42',
                 textAlign: TextAlign.center,
