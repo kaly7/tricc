@@ -61,7 +61,7 @@ class _ChatScreenState extends State<ChatScreen> {
     } catch (_) {}
   }
 
-  void _onWsEvent(Map<String, dynamic> msg) {
+  Future<void> _onWsEvent(Map<String, dynamic> msg) async {
     if (!mounted) return;
     final roomId = msg['room_id'];
     if (roomId != widget.room.id) return;
@@ -77,7 +77,7 @@ class _ChatScreenState extends State<ChatScreen> {
           setState(() => _messages.insert(0, m));
         }
       }
-      _loadRoom();
+      await _loadRoom(); // await hogy a banner azonnal megjelenjen
     }
   }
 
@@ -240,7 +240,14 @@ class _ChatScreenState extends State<ChatScreen> {
                   if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
                 }
               },
-              onDelete: () => _confirmDelete(forEveryone: false),
+              onDelete: () async {
+                try {
+                  await ApiService().leaveRoom(_room.id);
+                  if (mounted) Navigator.pop(context);
+                } catch (e) {
+                  if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+                }
+              },
             ),
           if (_room.pinnedMessage != null)
             _PinnedBar(
