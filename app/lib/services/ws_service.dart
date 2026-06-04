@@ -34,6 +34,7 @@ class WsService {
         (data) {
           try {
             final msg = jsonDecode(data as String) as Map<String, dynamic>;
+            _handleIncoming(msg);
             _controller.add(msg);
           } catch (_) {}
         },
@@ -44,6 +45,20 @@ class WsService {
     } catch (_) {
       _scheduleReconnect();
     }
+  }
+
+  // Bejövő WS üzenetnél: ha mástól jött szöveges/kép/fájl üzenet → delivered ACK
+  void _handleIncoming(Map<String, dynamic> msg) {
+    if (msg['type'] != 'message') return;
+    final message = msg['message'] as Map<String, dynamic>?;
+    if (message == null) return;
+    final senderId = message['user_id'] as int?;
+    final myId = AuthService().userId;
+    if (senderId == null || senderId == myId) return;
+    final messageId = message['id'] as int?;
+    final roomId = msg['room_id'] as int?;
+    if (messageId == null || roomId == null) return;
+    _send({'type': 'delivered', 'message_id': messageId, 'room_id': roomId});
   }
 
   void _onDisconnected() {

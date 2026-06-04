@@ -81,18 +81,17 @@ class _ChatScreenState extends State<ChatScreen> {
         setState(() => _messages.insert(0, m));
         if (m.type == 'system') {
           setState(() => _someoneRequestedDelete = true);
-          // _loadRoom után a szervertől jövő delete_requested_by dönt véglegesen
           _loadRoom().then((_) {
             if (mounted) setState(() => _someoneRequestedDelete = false);
           });
         }
       }
+    } else if (msg['type'] == 'status_update') {
+      _applyStatusUpdate(msg);
     } else if (msg['type'] == 'member_left') {
       _loadRoom();
     } else if (msg['type'] == 'delete_request') {
       final m = msg['message'] != null ? Message.fromJson(msg['message']) : null;
-      // user_id top-level-ből, vagy message.userId-ból, vagy -1 (ismeretlen kérő)
-      final requesterId = (msg['user_id'] as int?) ?? m?.userId ?? -1;
       setState(() {
         if (m != null && !_messages.any((e) => e.id == m.id)) {
           _messages.insert(0, m);
@@ -101,6 +100,30 @@ class _ChatScreenState extends State<ChatScreen> {
       });
       _loadRoom();
     }
+  }
+
+  void _applyStatusUpdate(Map<String, dynamic> msg) {
+    final messageId = msg['message_id'] as int?;
+    final userId    = msg['user_id']    as int?;
+    if (messageId == null || userId == null) return;
+    final deliveredAt = msg['delivered_at'] != null ? DateTime.tryParse(msg['delivered_at'] as String) : null;
+    final readAt      = msg['read_at']      != null ? DateTime.tryParse(msg['read_at']      as String) : null;
+    setState(() {
+      final idx = _messages.indexWhere((m) => m.id == messageId);
+      if (idx == -1) return;
+      final old = _messages[idx];
+      final deliveries = List<MessageDelivery>.from(old.deliveries);
+      final dIdx = deliveries.indexWhere((d) => d.userId == userId);
+      if (dIdx != -1) {
+        deliveries[dIdx] = deliveries[dIdx].copyWith(
+          deliveredAt: deliveredAt,
+          readAt: readAt,
+        );
+      } else {
+        deliveries.add(MessageDelivery(userId: userId, deliveredAt: deliveredAt, readAt: readAt));
+      }
+      _messages[idx] = old.copyWith(deliveries: deliveries);
+    });
   }
 
   Future<void> _loadMessages({bool older = false}) async {
@@ -624,6 +647,10 @@ class _MessageBubble extends StatelessWidget {
                   padding: const EdgeInsets.only(top: 2, left: 4, right: 4),
                   child: Text(_formatTime(message.createdAt), style: const TextStyle(fontSize: 10, color: Colors.grey)),
                 ),
+                if (isMine && message.deliveries.isNotEmpty) ...[
+                  const SizedBox(width: 2),
+                  _DeliveryDots(deliveries: message.deliveries),
+                ],
               ],
             ),
           ],
@@ -769,6 +796,41 @@ class _FileBubble extends StatelessWidget {
     } catch (_) {
       if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Megnyitás sikertelen.')));
     }
+  }
+}
+
+// Kézbesítési pöttyök (🔴 elküldve → 🟡 odaért → 🟢 elolvasva)
+class _DeliveryDots extends StatelessWidget {
+  final List<MessageDelivery> deliveries;
+  const _DeliveryDots({required this.deliveries});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: deliveries.map((d) => _StatusDot(delivery: d)).toList(),
+    );
+  }
+}
+
+class _StatusDot extends StatelessWidget {
+  final MessageDelivery delivery;
+  const _StatusDot({required this.delivery});
+
+  Color get _color {
+    if (delivery.readAt != null) return const Color(0xFF43A047);      // zöld
+    if (delivery.deliveredAt != null) return const Color(0xFFFDD835); // sárga
+    return const Color(0xFFE53935);                                    // piros
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 7,
+      height: 7,
+      margin: const EdgeInsets.only(left: 2),
+      decoration: BoxDecoration(color: _color, shape: BoxShape.circle),
+    );
   }
 }
 
