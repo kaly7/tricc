@@ -166,7 +166,9 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
-  void _showRoomInfo() {
+  void _showRoomInfo() async {
+    await _loadRoom(); // frissítjük a taglistát megnyitás előtt
+    if (!mounted) return;
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
@@ -282,7 +284,16 @@ class _ChatScreenState extends State<ChatScreen> {
           Expanded(
             child: _loading
                 ? const Center(child: CircularProgressIndicator())
-                : NotificationListener<ScrollNotification>(
+                : Stack(
+                    children: [
+                      Center(
+                        child: Opacity(
+                          opacity: 0.06,
+                          child: Image.asset('assets/logo.png',
+                              width: double.infinity, fit: BoxFit.fitWidth),
+                        ),
+                      ),
+                      NotificationListener<ScrollNotification>(
                     onNotification: (n) {
                       if (n.metrics.pixels >= n.metrics.maxScrollExtent - 200 && _hasMore) {
                         _loadMessages(older: true);
@@ -310,6 +321,8 @@ class _ChatScreenState extends State<ChatScreen> {
                         },
                       ),
                     ),
+                  ),
+                    ],
                   ),
           ),
           _InputBar(
