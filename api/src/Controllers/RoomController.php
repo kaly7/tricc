@@ -9,6 +9,7 @@ class RoomController {
         $db   = DB::get();
         $st   = $db->prepare("
             SELECT r.id, r.name, r.type, r.created_at,
+                   r.delete_requested_by,
                    COUNT(DISTINCT rm2.user_id) AS member_count,
                    (SELECT content FROM messages WHERE room_id=r.id ORDER BY created_at DESC LIMIT 1) AS last_message,
                    (SELECT created_at FROM messages WHERE room_id=r.id ORDER BY created_at DESC LIMIT 1) AS last_message_at,
