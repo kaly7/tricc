@@ -87,6 +87,8 @@ class _ChatScreenState extends State<ChatScreen> {
           });
         }
       }
+    } else if (msg['type'] == 'member_left') {
+      _loadRoom();
     } else if (msg['type'] == 'delete_request') {
       final m = msg['message'] != null ? Message.fromJson(msg['message']) : null;
       // user_id top-level-ből, vagy message.userId-ból, vagy -1 (ismeretlen kérő)
