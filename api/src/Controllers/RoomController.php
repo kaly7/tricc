@@ -189,13 +189,24 @@ class RoomController {
         $auth = Auth::require();
         if ($auth['user_id'] !== $user_id) self::assertAdmin($room_id, $auth['user_id']);
         $db = DB::get();
+
+        // Kilépő neve a WS broadcasthoz
+        $u = $db->prepare("SELECT name FROM users WHERE id=?");
+        $u->execute([$user_id]);
+        $name = $u->fetchColumn() ?: 'Valaki';
+
         $db->prepare("DELETE FROM room_members WHERE room_id=? AND user_id=?")->execute([$room_id, $user_id]);
+
         // Ha nincs több tag, töröljük a szobát
         $cnt = $db->prepare("SELECT COUNT(*) FROM room_members WHERE room_id=?");
         $cnt->execute([$room_id]);
         if ((int)$cnt->fetchColumn() === 0) {
             $db->prepare("DELETE FROM rooms WHERE id=?")->execute([$room_id]);
+        } else {
+            self::wsBroadcastRaw(['type' => 'member_left', 'room_id' => $room_id,
+                                  'user_id' => $user_id, 'user_name' => $name]);
         }
+
         Response::ok();
     }
 
