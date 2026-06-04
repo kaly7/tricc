@@ -59,6 +59,10 @@ class MessageController {
         $msg->execute([$msg_id]);
         $row = $msg->fetch();
 
+        // Auto-unhide: ha valakinek hidden volt ez a szoba, új üzenet hatására újra látható lesz
+        $db->prepare("UPDATE room_members SET hidden_at=NULL WHERE room_id=? AND hidden_at IS NOT NULL")
+           ->execute([$room_id]);
+
         self::pushToMembers($room_id, $auth['user_id'], $row);
         self::wsBroadcast($room_id, $row);
         Response::ok($row);

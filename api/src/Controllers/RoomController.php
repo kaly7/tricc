@@ -17,7 +17,7 @@ class RoomController {
                     WHERE m.room_id=r.id
                     AND (rm.last_read_at IS NULL OR m.created_at > rm.last_read_at)) AS unread_count
             FROM rooms r
-            JOIN room_members rm ON rm.room_id = r.id AND rm.user_id = ?
+            JOIN room_members rm ON rm.room_id = r.id AND rm.user_id = ? AND rm.hidden_at IS NULL
             JOIN room_members rm2 ON rm2.room_id = r.id
             GROUP BY r.id
             ORDER BY last_message_at DESC, r.created_at DESC
@@ -142,6 +142,14 @@ class RoomController {
         $auth = Auth::require();
         self::assertMember($room_id, $auth['user_id']);
         DB::get()->prepare("UPDATE rooms SET pinned_message_id=NULL WHERE id=?")->execute([$room_id]);
+        Response::ok();
+    }
+
+    public static function hide(int $room_id): never {
+        $auth = Auth::require();
+        self::assertMember($room_id, $auth['user_id']);
+        DB::get()->prepare("UPDATE room_members SET hidden_at=NOW() WHERE room_id=? AND user_id=?")
+                 ->execute([$room_id, $auth['user_id']]);
         Response::ok();
     }
 

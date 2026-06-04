@@ -51,6 +51,7 @@ CREATE TABLE IF NOT EXISTS room_members (
     role         ENUM('admin','member') NOT NULL DEFAULT 'member',
     joined_at    DATETIME     NOT NULL DEFAULT NOW(),
     last_read_at DATETIME     NULL DEFAULT NULL,
+    hidden_at    DATETIME     NULL DEFAULT NULL,
     PRIMARY KEY (room_id, user_id),
     FOREIGN KEY (room_id) REFERENCES rooms(id) ON DELETE CASCADE,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
