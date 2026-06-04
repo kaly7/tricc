@@ -31,6 +31,11 @@ body { background: #f0f2f5; }
           <i class="bi bi-envelope-plus"></i> Meghívók
         </a>
       </li>
+      <li class="nav-item">
+        <a class="nav-link <?= ($active_page??'') === 'reset' ? 'active' : '' ?> text-warning" href="reset.php">
+          <i class="bi bi-trash2"></i> Teszt reset
+        </a>
+      </li>
     </ul>
     <span class="navbar-text me-3 text-white-50 small">
       <i class="bi bi-person-circle"></i> <?= htmlspecialchars($_SESSION['tricc_admin']['name']) ?>
