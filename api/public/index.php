@@ -29,6 +29,8 @@ try {
         $method === 'POST' && $path === '/rooms'             => RoomController::create(),
         $method === 'GET'  && preg_match('#^/rooms/(\d+)$#', $path, $m) > 0
                                                              => RoomController::get((int)$m[1]),
+        $method === 'POST' && preg_match('#^/rooms/(\d+)/read$#', $path, $m) > 0
+                                                             => RoomController::markRead((int)$m[1]),
         $method === 'POST' && preg_match('#^/rooms/(\d+)/members$#', $path, $m) > 0
                                                              => RoomController::addMember((int)$m[1]),
         $method === 'DELETE' && preg_match('#^/rooms/(\d+)/members/(\d+)$#', $path, $m) > 0
