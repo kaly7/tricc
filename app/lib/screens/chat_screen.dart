@@ -34,7 +34,9 @@ class _ChatScreenState extends State<ChatScreen> {
   bool _sending = false;
   bool _hasMore = true;
   StreamSubscription? _wsSub;
-  int? _localDeleteRequestedBy; // WS eventből azonnal, nem _loadRoom-ból
+  int? _localDeleteRequestedBy;
+  bool _iRequestedDelete = false;    // én kértem a törlést
+  bool _someoneRequestedDelete = false; // valaki más kérte
 
   bool get _isAdmin => _room.members
       .any((m) => m.id == AuthService().userId && m.role == 'admin');
@@ -76,9 +78,8 @@ class _ChatScreenState extends State<ChatScreen> {
       if (!_messages.any((e) => e.id == m.id)) {
         setState(() {
           _messages.insert(0, m);
-          // Ha rendszer üzenet törlési kérésről szól, azonnal beállítjuk a bannert
-          if (m.type == 'system' && m.userId != null) {
-            _localDeleteRequestedBy = m.userId;
+          if (m.type == 'system' && !_iRequestedDelete) {
+            _someoneRequestedDelete = true;
           }
         });
       }
@@ -202,6 +203,7 @@ class _ChatScreenState extends State<ChatScreen> {
               try {
                 if (forEveryone) {
                   await ApiService().requestDelete(_room.id);
+                  setState(() => _iRequestedDelete = true);
                   await _loadRoom();
                   await _loadMessages();
                 } else {
@@ -244,10 +246,9 @@ class _ChatScreenState extends State<ChatScreen> {
       ),
       body: Column(
         children: [
-          if ((_localDeleteRequestedBy ?? _room.deleteRequestedBy) != null &&
-              (_localDeleteRequestedBy ?? _room.deleteRequestedBy) == AuthService().userId)
+          if (_iRequestedDelete || _room.deleteRequestedBy == AuthService().userId)
             const _PendingDeleteBar()
-          else if ((_localDeleteRequestedBy ?? _room.deleteRequestedBy) != null)
+          else if (_someoneRequestedDelete || (_room.deleteRequestedBy != null && _room.deleteRequestedBy != AuthService().userId))
             _DeleteRequestBanner(
               onKeep: () async {
                 try {
