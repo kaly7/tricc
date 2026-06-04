@@ -74,7 +74,13 @@ class _ChatScreenState extends State<ChatScreen> {
     if (msg['type'] == 'message') {
       final m = Message.fromJson(msg['message']);
       if (!_messages.any((e) => e.id == m.id)) {
-        setState(() => _messages.insert(0, m));
+        setState(() {
+          _messages.insert(0, m);
+          // Ha rendszer üzenet törlési kérésről szól, azonnal beállítjuk a bannert
+          if (m.type == 'system' && m.userId != null) {
+            _localDeleteRequestedBy = m.userId;
+          }
+        });
       }
     } else if (msg['type'] == 'delete_request') {
       final m = msg['message'] != null ? Message.fromJson(msg['message']) : null;
