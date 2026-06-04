@@ -42,16 +42,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $mail->SMTPSecure = 'tls';
                     $mail->Port       = 587;
                     $mail->CharSet    = 'UTF-8';
-                    $mail->setFrom('noreply@perfect-phone.hu', 'Tricc');
+                    $mail->setFrom('noreply@perfect-phone.hu', 'BabL42');
                     $mail->addAddress($email, $recipient_name ?: $email);
-                    $mail->Subject = 'Meghívó a Tricc csevegő alkalmazásba';
+                    $mail->Subject = 'Meghívó a BabL42 csevegő alkalmazásba';
                     $expStr = $exp ? date('Y. F j.', strtotime($exp)) : 'nincs lejárat';
                     $mail->Body = "Szia" . ($recipient_name ? " $recipient_name" : "") . "!\n\n"
-                        . "Meghívást kaptál a Tricc belső csevegőbe.\n\n"
+                        . "Meghívást kaptál a BabL42 belső csevegőbe.\n\n"
                         . "Meghívókódod: $code\n"
                         . "Lejárat: $expStr\n\n"
                         . "Telepítés után a regisztrációnál add meg ezt a kódot.\n\n"
-                        . "Üdv,\n3C Távközlési Kft";
+                        . "Üdv,\nRV42";
                     $mail->AltBody = $mail->Body;
                     $mail->send();
                     $sent_to = $email;
