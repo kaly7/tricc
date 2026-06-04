@@ -43,6 +43,10 @@ class _ChatScreenState extends State<ChatScreen> {
   void initState() {
     super.initState();
     _room = widget.room;
+    // Ha a szoba már tartalmaz törlési kérést (pl. főoldalról lépünk be)
+    if (_room.deleteRequestedBy != null && _room.deleteRequestedBy != AuthService().userId) {
+      _someoneRequestedDelete = true;
+    }
     _loadRoom();
     _loadMessages();
     WsService().join(widget.room.id);
