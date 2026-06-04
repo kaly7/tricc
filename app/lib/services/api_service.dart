@@ -89,6 +89,9 @@ class ApiService {
     return r['room_id'];
   }
 
+  Future<void> markRead(int roomId) =>
+      _post('/rooms/$roomId/read', {});
+
   Future<void> pinMessage(int roomId, int messageId) =>
       _post('/rooms/$roomId/pin', {'message_id': messageId});
 

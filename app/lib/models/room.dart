@@ -9,8 +9,9 @@ class Room {
   final String? lastMessage;
   final String? lastMessageAt;
   final List<User> members;
-  final User? otherUser;       // direct szobánál a másik fél
-  final Message? pinnedMessage; // csoport pin
+  final User? otherUser;
+  final Message? pinnedMessage;
+  final int unreadCount;
 
   Room({
     required this.id,
@@ -22,6 +23,7 @@ class Room {
     this.members = const [],
     this.otherUser,
     this.pinnedMessage,
+    this.unreadCount = 0,
   });
 
   bool get isDirect => type == 'direct';
@@ -47,5 +49,6 @@ class Room {
             .toList(),
         otherUser: j['other_user'] != null ? User.fromJson(j['other_user']) : null,
         pinnedMessage: j['pinned_message'] != null ? Message.fromJson(j['pinned_message']) : null,
+        unreadCount: j['unread_count'] ?? 0,
       );
 }

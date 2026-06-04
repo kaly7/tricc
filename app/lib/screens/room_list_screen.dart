@@ -39,6 +39,7 @@ class _RoomListScreenState extends State<RoomListScreen> {
   }
 
   void _openRoom(Room room) async {
+    ApiService().markRead(room.id).catchError((_) {});
     await Navigator.push(context, MaterialPageRoute(builder: (_) => ChatScreen(room: room)));
     _load();
   }
@@ -95,13 +96,32 @@ class _RoomTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return ListTile(
       leading: _RoomAvatar(room: room),
-      title: Text(room.displayName(AuthService().userId ?? 0), style: const TextStyle(fontWeight: FontWeight.w600)),
+      title: Text(
+        room.displayName(AuthService().userId ?? 0),
+        style: TextStyle(fontWeight: room.unreadCount > 0 ? FontWeight.bold : FontWeight.w600),
+      ),
       subtitle: room.lastMessage != null
-          ? Text(room.lastMessage!, maxLines: 1, overflow: TextOverflow.ellipsis)
+          ? Text(
+              room.lastMessage!,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(fontWeight: room.unreadCount > 0 ? FontWeight.bold : FontWeight.normal),
+            )
           : null,
-      trailing: room.lastMessageAt != null
-          ? Text(_formatTime(room.lastMessageAt!), style: const TextStyle(fontSize: 12, color: Colors.grey))
-          : null,
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (room.lastMessageAt != null)
+            Text(_formatTime(room.lastMessageAt!), style: const TextStyle(fontSize: 12, color: Colors.grey)),
+          if (room.unreadCount > 0) ...[
+            const SizedBox(width: 6),
+            Container(
+              width: 10, height: 10,
+              decoration: const BoxDecoration(color: kLime, shape: BoxShape.circle),
+            ),
+          ],
+        ],
+      ),
       onTap: onTap,
     );
   }
