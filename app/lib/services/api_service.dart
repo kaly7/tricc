@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:http/http.dart' as http;
+import 'package:http/io_client.dart';
 import 'package:mime/mime.dart';
 import 'package:http_parser/http_parser.dart';
 import '../models/room.dart';
@@ -12,6 +13,14 @@ class ApiService {
   static const String base = 'https://192.168.16.22:9456/tricc/api';
   static const String fileBase = 'https://192.168.16.22:9456'; // fájl URL-ekhez
 
+  // Önaláírt tanúsítványt elfogad (belső szerver, Fejlesztes Local CA)
+  static http.Client _buildClient() {
+    final ctx = SecurityContext.defaultContext;
+    final inner = HttpClient(context: ctx)
+      ..badCertificateCallback = (cert, host, port) => true;
+    return IOClient(inner);
+  }
+
   Map<String, String> get _headers => {
         'Content-Type': 'application/json',
         if (AuthService().token != null)
@@ -19,34 +28,38 @@ class ApiService {
       };
 
   Future<Map<String, dynamic>> _post(String path, Map<String, dynamic> body) async {
-    final r = await http.post(
-      Uri.parse('$base$path'),
-      headers: _headers,
-      body: jsonEncode(body),
-    );
-    return _parse(r);
+    final client = _buildClient();
+    try {
+      final r = await client.post(Uri.parse('$base$path'), headers: _headers, body: jsonEncode(body));
+      return _parse(r);
+    } finally { client.close(); }
   }
 
   Future<Map<String, dynamic>> _get(String path) async {
-    final r = await http.get(Uri.parse('$base$path'), headers: _headers);
-    return _parse(r);
+    final client = _buildClient();
+    try {
+      final r = await client.get(Uri.parse('$base$path'), headers: _headers);
+      return _parse(r);
+    } finally { client.close(); }
   }
 
   Future<Map<String, dynamic>> _put(String path, Map<String, dynamic> body) async {
-    final r = await http.put(
-      Uri.parse('$base$path'),
-      headers: _headers,
-      body: jsonEncode(body),
-    );
-    return _parse(r);
+    final client = _buildClient();
+    try {
+      final r = await client.put(Uri.parse('$base$path'), headers: _headers, body: jsonEncode(body));
+      return _parse(r);
+    } finally { client.close(); }
   }
 
   Future<Map<String, dynamic>> _delete(String path, [Map<String, dynamic>? body]) async {
-    final req = http.Request('DELETE', Uri.parse('$base$path'));
-    req.headers.addAll(_headers);
-    if (body != null) req.body = jsonEncode(body);
-    final r = await req.send();
-    return _parse(await http.Response.fromStream(r));
+    final client = _buildClient();
+    try {
+      final req = http.Request('DELETE', Uri.parse('$base$path'));
+      req.headers.addAll(_headers);
+      if (body != null) req.body = jsonEncode(body);
+      final r = await req.send();
+      return _parse(await http.Response.fromStream(r));
+    } finally { client.close(); }
   }
 
   Map<String, dynamic> _parse(http.Response r) {
@@ -147,23 +160,29 @@ class ApiService {
   Future<Map<String, dynamic>> uploadFile(File file) async {
     final mime = lookupMimeType(file.path) ?? 'application/octet-stream';
     final parts = mime.split('/');
-    final req = http.MultipartRequest('POST', Uri.parse('$base/upload'));
-    req.headers['Authorization'] = 'Bearer ${AuthService().token}';
-    req.files.add(await http.MultipartFile.fromPath(
-      'file', file.path,
-      contentType: MediaType(parts[0], parts[1]),
-    ));
-    final res = await req.send();
-    return _parse(await http.Response.fromStream(res));
+    final client = _buildClient();
+    try {
+      final req = http.MultipartRequest('POST', Uri.parse('$base/upload'));
+      req.headers['Authorization'] = 'Bearer ${AuthService().token}';
+      req.files.add(await http.MultipartFile.fromPath(
+        'file', file.path,
+        contentType: MediaType(parts[0], parts[1]),
+      ));
+      final res = await client.send(req);
+      return _parse(await http.Response.fromStream(res));
+    } finally { client.close(); }
   }
 
   Future<String> uploadAvatar(File file) async {
-    final req = http.MultipartRequest('POST', Uri.parse('$base/upload/avatar'));
-    req.headers['Authorization'] = 'Bearer ${AuthService().token}';
-    req.files.add(await http.MultipartFile.fromPath('file', file.path));
-    final res = await req.send();
-    final data = _parse(await http.Response.fromStream(res));
-    return data['avatar_url'];
+    final client = _buildClient();
+    try {
+      final req = http.MultipartRequest('POST', Uri.parse('$base/upload/avatar'));
+      req.headers['Authorization'] = 'Bearer ${AuthService().token}';
+      req.files.add(await http.MultipartFile.fromPath('file', file.path));
+      final res = await client.send(req);
+      final data = _parse(await http.Response.fromStream(res));
+      return data['avatar_url'];
+    } finally { client.close(); }
   }
 
   // Push
