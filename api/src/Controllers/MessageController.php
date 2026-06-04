@@ -31,6 +31,19 @@ class MessageController {
             $st->execute([$room_id]);
         }
         $rows = array_reverse($st->fetchAll());
+
+        $my_id = $auth['user_id'];
+        foreach ($rows as &$row) {
+            if ((int)$row['user_id'] === $my_id) {
+                $ds = $db->prepare("SELECT user_id, delivered_at, read_at FROM message_deliveries WHERE message_id=?");
+                $ds->execute([$row['id']]);
+                $row['deliveries'] = $ds->fetchAll();
+            } else {
+                $row['deliveries'] = [];
+            }
+        }
+        unset($row);
+
         Response::ok($rows);
     }
 
@@ -59,13 +72,19 @@ class MessageController {
         $msg->execute([$msg_id]);
         $row = $msg->fetch();
 
+        // Delivery rekordok létrehozása minden tagnak (küldő kivételével)
+        $db->prepare("INSERT IGNORE INTO message_deliveries (message_id, user_id)
+            SELECT ?, rm.user_id FROM room_members rm WHERE rm.room_id=? AND rm.user_id!=?")
+           ->execute([$msg_id, $room_id, $auth['user_id']]);
+
         // Auto-unhide + delete_requested_by törlése: új üzenet hatására szoba újra látható, banner eltűnik
         $db->prepare("UPDATE room_members SET hidden_at=NULL WHERE room_id=? AND hidden_at IS NOT NULL")
            ->execute([$room_id]);
         $db->prepare("UPDATE rooms SET delete_requested_by=NULL WHERE id=? AND delete_requested_by IS NOT NULL")
            ->execute([$room_id]);
 
-        self::pushToMembers($room_id, $auth['user_id'], $row);
+        $row['deliveries'] = [];
+        self::pushToMembers($room_id, $auth['user_id'], $row, $msg_id);
         self::wsBroadcast($room_id, $row);
         Response::ok($row);
     }
@@ -88,14 +107,14 @@ class MessageController {
         Response::ok();
     }
 
-    private static function pushToMembers(int $room_id, int $sender_id, array $msg): void {
+    private static function pushToMembers(int $room_id, int $sender_id, array $msg, int $msg_id): void {
         $db = DB::get();
         $sender = $db->prepare("SELECT name FROM users WHERE id=?");
         $sender->execute([$sender_id]);
         $sname = $sender->fetchColumn() ?? 'Ismeretlen';
 
         $tokens = $db->prepare("
-            SELECT pt.token FROM push_tokens pt
+            SELECT pt.token, pt.user_id FROM push_tokens pt
             JOIN room_members rm ON rm.user_id = pt.user_id
             WHERE rm.room_id = ? AND pt.user_id != ?
         ");
@@ -103,12 +122,35 @@ class MessageController {
 
         $title = $sname;
         $body  = $msg['type'] === 'text' ? ($msg['content'] ?? '') : '📎 Fájl';
+        $now   = date('Y-m-d H:i:s');
         foreach ($tokens->fetchAll() as $t) {
-            APNs::send($t['token'], $title, $body, [
+            $ok = APNs::send($t['token'], $title, $body, [
                 'room_id'    => $room_id,
                 'message_id' => $msg['id'],
             ]);
+            if ($ok) {
+                $db->prepare("UPDATE message_deliveries SET delivered_at=? WHERE message_id=? AND user_id=?")
+                   ->execute([$now, $msg_id, $t['user_id']]);
+                self::wsToUser($sender_id, [
+                    'type'         => 'status_update',
+                    'room_id'      => $room_id,
+                    'message_id'   => $msg_id,
+                    'user_id'      => (int)$t['user_id'],
+                    'delivered_at' => $now,
+                    'read_at'      => null,
+                ]);
+            }
         }
+    }
+
+    private static function wsToUser(int $user_id, array $payload): void {
+        try {
+            $sock = @stream_socket_client('tcp://127.0.0.1:9455', $errno, $errstr, 0.3);
+            if ($sock) {
+                fwrite($sock, json_encode(['target_user' => $user_id, 'payload' => $payload], JSON_UNESCAPED_UNICODE));
+                fclose($sock);
+            }
+        } catch (\Throwable) {}
     }
 
     private static function wsBroadcast(int $room_id, array $message): void {

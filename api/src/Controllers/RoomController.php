@@ -170,8 +170,45 @@ class RoomController {
     public static function markRead(int $room_id): never {
         $auth = Auth::require();
         self::assertMember($room_id, $auth['user_id']);
-        DB::get()->prepare("UPDATE room_members SET last_read_at=NOW() WHERE room_id=? AND user_id=?")
-                 ->execute([$room_id, $auth['user_id']]);
+        $db  = DB::get();
+        $uid = $auth['user_id'];
+
+        $db->prepare("UPDATE room_members SET last_read_at=NOW() WHERE room_id=? AND user_id=?")
+           ->execute([$room_id, $uid]);
+
+        // Kiolvasás: érintett üzenetek (olvasatlan delivery rekordok)
+        $affected = $db->prepare("
+            SELECT md.message_id, md.delivered_at, m.sender_id
+            FROM message_deliveries md
+            JOIN messages m ON m.id = md.message_id
+            WHERE md.user_id=? AND md.read_at IS NULL AND m.room_id=?
+        ");
+        $affected->execute([$uid, $room_id]);
+        $rows = $affected->fetchAll();
+
+        if ($rows) {
+            $now = date('Y-m-d H:i:s');
+            $db->prepare("
+                UPDATE message_deliveries SET read_at=?
+                WHERE user_id=? AND read_at IS NULL
+                  AND message_id IN (SELECT id FROM messages WHERE room_id=?)
+            ")->execute([$now, $uid, $room_id]);
+
+            foreach ($rows as $r) {
+                self::wsBroadcastRaw([
+                    'target_user' => (int)$r['sender_id'],
+                    'payload'     => [
+                        'type'         => 'status_update',
+                        'room_id'      => $room_id,
+                        'message_id'   => (int)$r['message_id'],
+                        'user_id'      => $uid,
+                        'delivered_at' => $r['delivered_at'] ?: null,
+                        'read_at'      => $now,
+                    ],
+                ]);
+            }
+        }
+
         Response::ok();
     }
 

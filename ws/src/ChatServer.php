@@ -40,6 +40,9 @@ class ChatServer implements MessageComponentInterface {
             case 'typing':
                 $this->handleTyping($from, $msg);
                 break;
+            case 'delivered':
+                $this->handleDelivered($from, $msg);
+                break;
         }
     }
 
@@ -106,6 +109,35 @@ class ChatServer implements MessageComponentInterface {
         );
     }
 
+    private function handleDelivered(ConnectionInterface $conn, array $msg): void {
+        $uid    = $this->users[$conn->resourceId] ?? null;
+        $msg_id = (int)($msg['message_id'] ?? 0);
+        $room_id = (int)($msg['room_id'] ?? 0);
+        if (!$uid || !$msg_id || !$room_id) return;
+
+        $db = DB::get();
+        $db->prepare("UPDATE message_deliveries SET delivered_at=NOW() WHERE message_id=? AND user_id=? AND delivered_at IS NULL")
+           ->execute([$msg_id, $uid]);
+
+        $st = $db->prepare("SELECT sender_id FROM messages WHERE id=?");
+        $st->execute([$msg_id]);
+        $sender_id = (int)($st->fetchColumn() ?: 0);
+        if (!$sender_id) return;
+
+        $dr = $db->prepare("SELECT delivered_at, read_at FROM message_deliveries WHERE message_id=? AND user_id=?");
+        $dr->execute([$msg_id, $uid]);
+        $row = $dr->fetch();
+
+        $this->sendToUser($sender_id, [
+            'type'         => 'status_update',
+            'room_id'      => $room_id,
+            'message_id'   => $msg_id,
+            'user_id'      => $uid,
+            'delivered_at' => $row['delivered_at'] ?? null,
+            'read_at'      => $row['read_at'] ?? null,
+        ]);
+    }
+
     private function handleTyping(ConnectionInterface $conn, array $msg): void {
         $uid     = $this->users[$conn->resourceId] ?? null;
         $room_id = (int)($msg['room_id'] ?? 0);
@@ -122,6 +154,22 @@ class ChatServer implements MessageComponentInterface {
 
     public function broadcastMessage(int $room_id, array $message): void {
         $json = json_encode(['type' => 'message', 'room_id' => $room_id, 'message' => $message], JSON_UNESCAPED_UNICODE);
+        foreach ($this->users as $cid => $uid) {
+            if ($this->isMember($room_id, $uid)) {
+                $this->conns[$cid]?->send($json);
+            }
+        }
+    }
+
+    public function sendToUser(int $user_id, array $payload): void {
+        $json = json_encode($payload, JSON_UNESCAPED_UNICODE);
+        foreach ($this->userConns[$user_id] ?? [] as $cid) {
+            $this->conns[$cid]?->send($json);
+        }
+    }
+
+    public function broadcastRaw(int $room_id, array $payload): void {
+        $json = json_encode($payload, JSON_UNESCAPED_UNICODE);
         foreach ($this->users as $cid => $uid) {
             if ($this->isMember($room_id, $uid)) {
                 $this->conns[$cid]?->send($json);

@@ -70,6 +70,16 @@ CREATE TABLE IF NOT EXISTS messages (
     FOREIGN KEY (sender_id) REFERENCES users(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+CREATE TABLE IF NOT EXISTS message_deliveries (
+    message_id   BIGINT   NOT NULL,
+    user_id      INT      NOT NULL,
+    delivered_at DATETIME NULL,
+    read_at      DATETIME NULL,
+    PRIMARY KEY (message_id, user_id),
+    FOREIGN KEY (message_id) REFERENCES messages(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id)    REFERENCES users(id)    ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- Alapértelmezett admin
 INSERT INTO invite_codes (code, created_by, expires_at)
 VALUES ('TRICC-ADMIN-0001', NULL, DATE_ADD(NOW(), INTERVAL 30 DAY))

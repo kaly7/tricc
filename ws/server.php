@@ -27,8 +27,12 @@ $broadcastSocket->on('connection', function(\React\Socket\ConnectionInterface $c
         $buf .= $chunk;
         $data = json_decode($buf, true);
         if ($data !== null) {
-            if (isset($data['room_id'], $data['message'])) {
+            if (isset($data['target_user'], $data['payload'])) {
+                $chat->sendToUser((int)$data['target_user'], $data['payload']);
+            } elseif (isset($data['room_id'], $data['message'])) {
                 $chat->broadcastMessage((int)$data['room_id'], $data['message']);
+            } elseif (isset($data['room_id'])) {
+                $chat->broadcastRaw((int)$data['room_id'], $data);
             }
             $conn->close();
         }
