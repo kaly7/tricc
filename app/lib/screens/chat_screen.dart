@@ -253,6 +253,14 @@ class _ChatScreenState extends State<ChatScreen> {
                   if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
                 }
               },
+              onDelete: () async {
+                try {
+                  await ApiService().hideRoom(_room.id);
+                  if (mounted) Navigator.pop(context);
+                } catch (e) {
+                  if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+                }
+              },
             ),
           if (_room.pinnedMessage != null)
             _PinnedBar(
@@ -506,7 +514,8 @@ class _PendingDeleteBar extends StatelessWidget {
 // Törlési kérés banner
 class _DeleteRequestBanner extends StatelessWidget {
   final VoidCallback onKeep;
-  const _DeleteRequestBanner({required this.onKeep});
+  final VoidCallback onDelete;
+  const _DeleteRequestBanner({required this.onKeep, required this.onDelete});
 
   @override
   Widget build(BuildContext context) {
@@ -521,6 +530,10 @@ class _DeleteRequestBanner extends StatelessWidget {
           const Expanded(child: Text('A másik fél törölte ezt a beszélgetést.',
               style: TextStyle(fontSize: 13, color: Colors.orange))),
           TextButton(onPressed: onKeep, child: const Text('Megtartom')),
+          TextButton(
+            onPressed: onDelete,
+            child: const Text('Én is törlöm', style: TextStyle(color: Colors.red)),
+          ),
         ],
       ),
     );
