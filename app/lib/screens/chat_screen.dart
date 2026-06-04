@@ -34,9 +34,7 @@ class _ChatScreenState extends State<ChatScreen> {
   bool _sending = false;
   bool _hasMore = true;
   StreamSubscription? _wsSub;
-  int? _localDeleteRequestedBy;
-  bool _iRequestedDelete = false;    // én kértem a törlést
-  bool _someoneRequestedDelete = false; // valaki más kérte
+  bool _someoneRequestedDelete = false;
 
   bool get _isAdmin => _room.members
       .any((m) => m.id == AuthService().userId && m.role == 'admin');
@@ -78,7 +76,7 @@ class _ChatScreenState extends State<ChatScreen> {
       if (!_messages.any((e) => e.id == m.id)) {
         setState(() {
           _messages.insert(0, m);
-          if (m.type == 'system' && !_iRequestedDelete) {
+          if (m.type == 'system') {
             _someoneRequestedDelete = true;
           }
         });
@@ -91,7 +89,7 @@ class _ChatScreenState extends State<ChatScreen> {
         if (m != null && !_messages.any((e) => e.id == m.id)) {
           _messages.insert(0, m);
         }
-        _localDeleteRequestedBy = requesterId;
+        _someoneRequestedDelete = true;
       });
       _loadRoom();
     }
@@ -188,13 +186,15 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   void _confirmDelete({required bool forEveryone}) {
+    final label = forEveryone ? 'Törlés mindenkinél' : 'Törlés csak nálam';
+    final desc = forEveryone
+        ? 'A beszélgetés azonnal eltűnik nálad. A másik fél értesítést kap és dönthet, hogy megtartja-e.'
+        : 'A beszélgetés eltűnik a listádból. A másik félnél megmarad.';
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
-        title: Text(forEveryone ? 'Törlés mindenkinél' : 'Törlés csak nálam'),
-        content: Text(forEveryone
-            ? 'A többi résztvevő értesítést kap, és dönthetnek, hogy megtartják-e a beszélgetést.'
-            : 'A beszélgetés eltűnik a listádból. A többi résztvevőnél megmarad.'),
+        title: Text(label),
+        content: Text(desc),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context), child: const Text('Mégsem')),
           TextButton(
@@ -202,19 +202,15 @@ class _ChatScreenState extends State<ChatScreen> {
               Navigator.pop(context);
               try {
                 if (forEveryone) {
-                  await ApiService().requestDelete(_room.id);
-                  setState(() => _iRequestedDelete = true);
-                  await _loadRoom();
-                  await _loadMessages();
-                } else {
-                  await ApiService().hideRoom(_room.id);
-                  if (mounted) Navigator.pop(context);
+                  await ApiService().requestDelete(_room.id); // értesíti B-t
                 }
+                await ApiService().hideRoom(_room.id); // A-nál azonnal eltűnik
+                if (mounted) Navigator.pop(context);
               } catch (e) {
                 if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
               }
             },
-            child: Text(forEveryone ? 'Törlés kérése' : 'Törlés', style: const TextStyle(color: Colors.red)),
+            child: Text('Törlés', style: const TextStyle(color: Colors.red)),
           ),
         ],
       ),
@@ -246,23 +242,13 @@ class _ChatScreenState extends State<ChatScreen> {
       ),
       body: Column(
         children: [
-          if (_iRequestedDelete || _room.deleteRequestedBy == AuthService().userId)
-            const _PendingDeleteBar()
-          else if (_someoneRequestedDelete || (_room.deleteRequestedBy != null && _room.deleteRequestedBy != AuthService().userId))
+          if (_someoneRequestedDelete || (_room.deleteRequestedBy != null && _room.deleteRequestedBy != AuthService().userId))
             _DeleteRequestBanner(
               onKeep: () async {
                 try {
                   await ApiService().keepRoom(_room.id);
+                  setState(() => _someoneRequestedDelete = false);
                   await _loadRoom();
-                  await _loadMessages();
-                } catch (e) {
-                  if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
-                }
-              },
-              onDelete: () async {
-                try {
-                  await ApiService().hideRoom(_room.id);
-                  if (mounted) Navigator.pop(context);
                 } catch (e) {
                   if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
                 }
@@ -520,8 +506,7 @@ class _PendingDeleteBar extends StatelessWidget {
 // Törlési kérés banner
 class _DeleteRequestBanner extends StatelessWidget {
   final VoidCallback onKeep;
-  final VoidCallback onDelete;
-  const _DeleteRequestBanner({required this.onKeep, required this.onDelete});
+  const _DeleteRequestBanner({required this.onKeep});
 
   @override
   Widget build(BuildContext context) {
@@ -529,24 +514,13 @@ class _DeleteRequestBanner extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       color: Colors.orange.shade50,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
         children: [
-          const Row(children: [
-            Icon(Icons.warning_amber, size: 16, color: Colors.orange),
-            SizedBox(width: 6),
-            Expanded(child: Text('Valaki törölni szeretné ezt a beszélgetést.', style: TextStyle(fontSize: 13, color: Colors.orange, fontWeight: FontWeight.w600))),
-          ]),
-          const SizedBox(height: 8),
-          Row(children: [
-            Expanded(child: OutlinedButton(onPressed: onKeep, child: const Text('Megtartom'))),
-            const SizedBox(width: 8),
-            Expanded(child: ElevatedButton(
-              onPressed: onDelete,
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white, minimumSize: const Size(0, 36)),
-              child: const Text('Törlöm én is'),
-            )),
-          ]),
+          const Icon(Icons.warning_amber, size: 16, color: Colors.orange),
+          const SizedBox(width: 8),
+          const Expanded(child: Text('A másik fél törölte ezt a beszélgetést.',
+              style: TextStyle(fontSize: 13, color: Colors.orange))),
+          TextButton(onPressed: onKeep, child: const Text('Megtartom')),
         ],
       ),
     );
