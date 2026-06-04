@@ -33,7 +33,7 @@ body { background: #f0f2f5; }
   <div class="card shadow-sm">
     <div class="card-body p-4">
       <div class="text-center mb-4">
-        <img src="../docs/logo.png" alt="BabL42" style="height:64px;margin-bottom:8px;display:block;margin-left:auto;margin-right:auto;">
+        <img src="/tricc/docs/logo.png" alt="BabL42" style="height:64px;margin-bottom:8px;display:block;margin-left:auto;margin-right:auto;">
         <div class="brand">BabL<span>42</span></div>
         <div class="text-muted small">Admin panel</div>
       </div>

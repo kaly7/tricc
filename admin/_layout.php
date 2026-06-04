@@ -19,7 +19,7 @@ body { background: #f0f2f5; }
 <body>
 <nav class="navbar navbar-expand navbar-dark bg-dark mb-4">
   <div class="container">
-    <a class="navbar-brand" href="users.php"><img src="../docs/logo.png" alt="" style="height:28px;margin-right:8px;vertical-align:middle;">BabL<span>42</span> Admin</a>
+    <a class="navbar-brand" href="users.php"><img src="/tricc/docs/logo.png" alt="" style="height:28px;margin-right:8px;vertical-align:middle;">BabL<span>42</span> Admin</a>
     <ul class="navbar-nav me-auto">
       <li class="nav-item">
         <a class="nav-link <?= ($active_page??'') === 'users' ? 'active' : '' ?>" href="users.php">
