@@ -60,6 +60,12 @@
 	</array>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Képek küldéséhez és avatar feltöltéséhez szükséges.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Képek készítéséhez és küldéséhez szükséges.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Helyadatokhoz csak ha szükséges a fájlok megosztásakor.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Hang- és videófelvételhez szükséges.</string>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>
