@@ -190,7 +190,7 @@ class _ChatScreenState extends State<ChatScreen> {
                   await _loadRoom();
                   await _loadMessages();
                 } else {
-                  await ApiService().leaveRoom(_room.id);
+                  await ApiService().hideRoom(_room.id);
                   if (mounted) Navigator.pop(context);
                 }
               } catch (e) {
@@ -229,7 +229,9 @@ class _ChatScreenState extends State<ChatScreen> {
       ),
       body: Column(
         children: [
-          if (_room.deleteRequestedBy != null && _room.deleteRequestedBy != AuthService().userId)
+          if (_room.deleteRequestedBy != null && _room.deleteRequestedBy == AuthService().userId)
+            _PendingDeleteBar()
+          else if (_room.deleteRequestedBy != null)
             _DeleteRequestBanner(
               onKeep: () async {
                 try {
@@ -242,7 +244,7 @@ class _ChatScreenState extends State<ChatScreen> {
               },
               onDelete: () async {
                 try {
-                  await ApiService().leaveRoom(_room.id);
+                  await ApiService().hideRoom(_room.id);
                   if (mounted) Navigator.pop(context);
                 } catch (e) {
                   if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
@@ -473,6 +475,26 @@ class _RoomInfoSheetState extends State<_RoomInfoSheet> {
           ),
         ],
       ),
+    );
+  }
+}
+
+// A kérő félnél — várakozás jelzés
+class _PendingDeleteBar extends StatelessWidget {
+  const _PendingDeleteBar();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      color: Colors.grey.shade100,
+      child: const Row(children: [
+        Icon(Icons.hourglass_empty, size: 14, color: Colors.grey),
+        SizedBox(width: 6),
+        Text('Törlési kérés elküldve — várakozás a másik fél döntésére.',
+            style: TextStyle(fontSize: 12, color: Colors.grey)),
+      ]),
     );
   }
 }

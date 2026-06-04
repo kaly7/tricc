@@ -120,6 +120,10 @@ class _RoomTile extends StatelessWidget {
               decoration: const BoxDecoration(color: kLime, shape: BoxShape.circle),
             ),
           ],
+          if (room.deleteRequestedBy != null && room.deleteRequestedBy != AuthService().userId) ...[
+            const SizedBox(width: 6),
+            const Icon(Icons.warning_amber, size: 16, color: Colors.orange),
+          ],
         ],
       ),
       onTap: onTap,
