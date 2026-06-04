@@ -92,6 +92,12 @@ class ApiService {
   Future<void> markRead(int roomId) =>
       _post('/rooms/$roomId/read', {});
 
+  Future<void> requestDelete(int roomId) =>
+      _post('/rooms/$roomId/delete-request', {});
+
+  Future<void> keepRoom(int roomId) =>
+      _post('/rooms/$roomId/keep', {});
+
   Future<void> pinMessage(int roomId, int messageId) =>
       _post('/rooms/$roomId/pin', {'message_id': messageId});
 

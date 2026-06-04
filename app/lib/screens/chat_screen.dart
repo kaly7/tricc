@@ -63,11 +63,21 @@ class _ChatScreenState extends State<ChatScreen> {
 
   void _onWsEvent(Map<String, dynamic> msg) {
     if (!mounted) return;
-    if (msg['type'] == 'message' && msg['room_id'] == widget.room.id) {
+    final roomId = msg['room_id'];
+    if (roomId != widget.room.id) return;
+    if (msg['type'] == 'message') {
       final m = Message.fromJson(msg['message']);
       if (!_messages.any((e) => e.id == m.id)) {
         setState(() => _messages.insert(0, m));
       }
+    } else if (msg['type'] == 'delete_request') {
+      if (msg['message'] != null) {
+        final m = Message.fromJson(msg['message']);
+        if (!_messages.any((e) => e.id == m.id)) {
+          setState(() => _messages.insert(0, m));
+        }
+      }
+      _loadRoom();
     }
   }
 
@@ -161,6 +171,39 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
+  void _confirmDelete({required bool forEveryone}) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: Text(forEveryone ? 'Törlés mindenkinél' : 'Törlés csak nálam'),
+        content: Text(forEveryone
+            ? 'A többi résztvevő értesítést kap, és dönthetnek, hogy megtartják-e a beszélgetést.'
+            : 'A beszélgetés eltűnik a listádból. A többi résztvevőnél megmarad.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Mégsem')),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              try {
+                if (forEveryone) {
+                  await ApiService().requestDelete(_room.id);
+                  await _loadRoom();
+                  await _loadMessages();
+                } else {
+                  await ApiService().leaveRoom(_room.id);
+                  if (mounted) Navigator.pop(context);
+                }
+              } catch (e) {
+                if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+              }
+            },
+            child: Text(forEveryone ? 'Törlés kérése' : 'Törlés', style: const TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+  }
+
   String get _title => _room.displayName(AuthService().userId ?? 0);
 
   @override
@@ -171,10 +214,34 @@ class _ChatScreenState extends State<ChatScreen> {
         actions: [
           if (!_room.isDirect)
             IconButton(icon: const Icon(Icons.info_outline), onPressed: _showRoomInfo),
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.more_vert),
+            onSelected: (v) {
+              if (v == 'leave') _confirmDelete(forEveryone: false);
+              if (v == 'delete') _confirmDelete(forEveryone: true);
+            },
+            itemBuilder: (_) => [
+              const PopupMenuItem(value: 'leave', child: Row(children: [Icon(Icons.exit_to_app, size: 18), SizedBox(width: 8), Text('Törlés csak nálam')])),
+              const PopupMenuItem(value: 'delete', child: Row(children: [Icon(Icons.delete_forever, size: 18, color: Colors.red), SizedBox(width: 8), Text('Törlés mindenkinél', style: TextStyle(color: Colors.red))])),
+            ],
+          ),
         ],
       ),
       body: Column(
         children: [
+          if (_room.deleteRequestedBy != null && _room.deleteRequestedBy != AuthService().userId)
+            _DeleteRequestBanner(
+              onKeep: () async {
+                try {
+                  await ApiService().keepRoom(_room.id);
+                  await _loadRoom();
+                  await _loadMessages();
+                } catch (e) {
+                  if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+                }
+              },
+              onDelete: () => _confirmDelete(forEveryone: false),
+            ),
           if (_room.pinnedMessage != null)
             _PinnedBar(
               message: _room.pinnedMessage!,
@@ -403,6 +470,42 @@ class _RoomInfoSheetState extends State<_RoomInfoSheet> {
   }
 }
 
+// Törlési kérés banner
+class _DeleteRequestBanner extends StatelessWidget {
+  final VoidCallback onKeep;
+  final VoidCallback onDelete;
+  const _DeleteRequestBanner({required this.onKeep, required this.onDelete});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      color: Colors.orange.shade50,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(children: [
+            Icon(Icons.warning_amber, size: 16, color: Colors.orange),
+            SizedBox(width: 6),
+            Expanded(child: Text('Valaki törölni szeretné ezt a beszélgetést.', style: TextStyle(fontSize: 13, color: Colors.orange, fontWeight: FontWeight.w600))),
+          ]),
+          const SizedBox(height: 8),
+          Row(children: [
+            Expanded(child: OutlinedButton(onPressed: onKeep, child: const Text('Megtartom'))),
+            const SizedBox(width: 8),
+            Expanded(child: ElevatedButton(
+              onPressed: onDelete,
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white, minimumSize: const Size(0, 36)),
+              child: const Text('Törlöm én is'),
+            )),
+          ]),
+        ],
+      ),
+    );
+  }
+}
+
 // Üzenet buborék
 class _MessageBubble extends StatelessWidget {
   final Message message;
@@ -415,6 +518,12 @@ class _MessageBubble extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (message.type == 'system') {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 24),
+        child: Center(child: Text(message.content ?? '', style: const TextStyle(color: Colors.grey, fontStyle: FontStyle.italic, fontSize: 12), textAlign: TextAlign.center)),
+      );
+    }
     return GestureDetector(
       onLongPress: canPin ? () => showModalBottomSheet(
         context: context,
@@ -469,10 +578,12 @@ class _MessageBubble extends StatelessWidget {
     );
   }
 
-  bool get _needsPadding => message.type == 'text' || message.type == 'link' || message.type == 'file';
+  bool get _needsPadding => message.type == 'text' || message.type == 'link' || message.type == 'file' || message.type == 'system';
 
   Widget _buildContent(BuildContext context) {
     switch (message.type) {
+      case 'system':
+        return Text(message.content ?? '', style: const TextStyle(color: Colors.grey, fontStyle: FontStyle.italic, fontSize: 13));
       case 'text':
         return MarkdownBody(
           data: message.content ?? '',
