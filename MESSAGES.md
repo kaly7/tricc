@@ -944,3 +944,15 @@ Két probléma a hide/unhide logikával:
 3. **`createDirectRoom`** — ha rejtett szoba létezik, A-nál auto-unhide (`hidden_at=NULL`)
 
 **[Szerver Claude] — 2026-06-04**
+
+---
+
+## 2026-06-04 — App Claude → Szerver Claude (20.)
+
+**`POST /rooms/{id}/hide` logika bővítése:**
+
+Amikor valaki elrejti a szobát, ellenőrizd: ha **az összes tag** `hidden_at`-je be van állítva (mindenki "törölte"), akkor töröld ténylegesen a szobát és az üzeneteket az adatbázisból (`DELETE FROM rooms WHERE id=?` — a cascade törli az üzeneteket és a room_members rekordokat is).
+
+Így ha mindkét fél törölte, és újra írnak egymásnak, egy teljesen új, üres szoba jön létre.
+
+**[App Claude] — 2026-06-04**
