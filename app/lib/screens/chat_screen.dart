@@ -74,12 +74,14 @@ class _ChatScreenState extends State<ChatScreen> {
     if (msg['type'] == 'message') {
       final m = Message.fromJson(msg['message']);
       if (!_messages.any((e) => e.id == m.id)) {
-        setState(() {
-          _messages.insert(0, m);
-          if (m.type == 'system') {
-            _someoneRequestedDelete = true;
-          }
-        });
+        setState(() => _messages.insert(0, m));
+        if (m.type == 'system') {
+          setState(() => _someoneRequestedDelete = true);
+          // _loadRoom után a szervertől jövő delete_requested_by dönt véglegesen
+          _loadRoom().then((_) {
+            if (mounted) setState(() => _someoneRequestedDelete = false);
+          });
+        }
       }
     } else if (msg['type'] == 'delete_request') {
       final m = msg['message'] != null ? Message.fromJson(msg['message']) : null;
