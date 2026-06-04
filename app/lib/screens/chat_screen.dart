@@ -34,6 +34,7 @@ class _ChatScreenState extends State<ChatScreen> {
   bool _sending = false;
   bool _hasMore = true;
   StreamSubscription? _wsSub;
+  int? _localDeleteRequestedBy; // WS eventből azonnal, nem _loadRoom-ból
 
   bool get _isAdmin => _room.members
       .any((m) => m.id == AuthService().userId && m.role == 'admin');
@@ -77,21 +78,15 @@ class _ChatScreenState extends State<ChatScreen> {
       }
     } else if (msg['type'] == 'delete_request') {
       final m = msg['message'] != null ? Message.fromJson(msg['message']) : null;
+      // user_id top-level-ből, vagy message.userId-ból, vagy -1 (ismeretlen kérő)
+      final requesterId = (msg['user_id'] as int?) ?? m?.userId ?? -1;
       setState(() {
         if (m != null && !_messages.any((e) => e.id == m.id)) {
           _messages.insert(0, m);
         }
-        // Azonnal frissítjük a deleteRequestedBy-t a WS eventből — nem várunk _loadRoom()-ra
-        _room = Room(
-          id: _room.id, name: _room.name, type: _room.type,
-          memberCount: _room.memberCount, lastMessage: _room.lastMessage,
-          lastMessageAt: _room.lastMessageAt, members: _room.members,
-          otherUser: _room.otherUser, pinnedMessage: _room.pinnedMessage,
-          unreadCount: _room.unreadCount,
-          deleteRequestedBy: m?.userId ?? _room.deleteRequestedBy,
-        );
+        _localDeleteRequestedBy = requesterId;
       });
-      _loadRoom(); // háttérben is frissítjük
+      _loadRoom();
     }
   }
 
@@ -243,9 +238,10 @@ class _ChatScreenState extends State<ChatScreen> {
       ),
       body: Column(
         children: [
-          if (_room.deleteRequestedBy != null && _room.deleteRequestedBy == AuthService().userId)
-            _PendingDeleteBar()
-          else if (_room.deleteRequestedBy != null)
+          if ((_localDeleteRequestedBy ?? _room.deleteRequestedBy) != null &&
+              (_localDeleteRequestedBy ?? _room.deleteRequestedBy) == AuthService().userId)
+            const _PendingDeleteBar()
+          else if ((_localDeleteRequestedBy ?? _room.deleteRequestedBy) != null)
             _DeleteRequestBanner(
               onKeep: () async {
                 try {
@@ -495,6 +491,7 @@ class _RoomInfoSheetState extends State<_RoomInfoSheet> {
 
 // A kérő félnél — várakozás jelzés
 class _PendingDeleteBar extends StatelessWidget {
+  // ignore: unused_element
   const _PendingDeleteBar();
 
   @override
