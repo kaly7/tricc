@@ -8,7 +8,7 @@ class WsService {
   factory WsService() => _i;
   WsService._();
 
-  static const String _url = 'ws://192.168.16.22:9454';
+  static const String _url = 'wss://192.168.16.22:9456/ws';
 
   WebSocketChannel? _channel;
   Timer? _reconnectTimer;

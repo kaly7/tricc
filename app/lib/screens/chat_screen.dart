@@ -683,7 +683,7 @@ class _MessageBubble extends StatelessWidget {
 class _ImageBubble extends StatelessWidget {
   final String fileUrl;
   final bool isMine;
-  static const String _serverBase = 'http://192.168.16.22:9453';
+  static const String _serverBase = 'https://192.168.16.22:9456';
   const _ImageBubble({required this.fileUrl, required this.isMine});
 
   String get fullUrl => '$_serverBase$fileUrl';
@@ -738,7 +738,7 @@ class _FileBubble extends StatelessWidget {
   final String fileName;
   final String fileUrl;
   final bool isMine;
-  static const String _serverBase = 'http://192.168.16.22:9453';
+  static const String _serverBase = 'https://192.168.16.22:9456';
   const _FileBubble({required this.fileName, required this.fileUrl, required this.isMine});
 
   @override

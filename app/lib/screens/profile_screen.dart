@@ -99,7 +99,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       radius: 48,
                       backgroundColor: kBlue,
                       backgroundImage: avatarUrl != null
-                          ? CachedNetworkImageProvider('http://192.168.16.22:9453$avatarUrl')
+                          ? CachedNetworkImageProvider('https://192.168.16.22:9456$avatarUrl')
                           : null,
                       child: avatarUrl == null
                           ? Text(
