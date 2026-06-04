@@ -96,7 +96,7 @@ class RoomController {
         $auth = Auth::require();
         self::assertMember($room_id, $auth['user_id']);
         $db   = DB::get();
-        $room = $db->prepare("SELECT id, name, type, created_by, created_at, pinned_message_id FROM rooms WHERE id=?");
+        $room = $db->prepare("SELECT id, name, type, created_by, created_at, pinned_message_id, delete_requested_by FROM rooms WHERE id=?");
         $room->execute([$room_id]);
         $r = $room->fetch();
         if (!$r) Response::abort(404, 'Szoba nem található.');
@@ -165,8 +165,96 @@ class RoomController {
     public static function removeMember(int $room_id, int $user_id): never {
         $auth = Auth::require();
         if ($auth['user_id'] !== $user_id) self::assertAdmin($room_id, $auth['user_id']);
-        DB::get()->prepare("DELETE FROM room_members WHERE room_id=? AND user_id=?")->execute([$room_id, $user_id]);
+        $db = DB::get();
+        $db->prepare("DELETE FROM room_members WHERE room_id=? AND user_id=?")->execute([$room_id, $user_id]);
+        // Ha nincs több tag, töröljük a szobát
+        $cnt = $db->prepare("SELECT COUNT(*) FROM room_members WHERE room_id=?");
+        $cnt->execute([$room_id]);
+        if ((int)$cnt->fetchColumn() === 0) {
+            $db->prepare("DELETE FROM rooms WHERE id=?")->execute([$room_id]);
+        }
         Response::ok();
+    }
+
+    public static function deleteRequest(int $room_id): never {
+        $auth = Auth::require();
+        self::assertMember($room_id, $auth['user_id']);
+        $db  = DB::get();
+        $uid = $auth['user_id'];
+
+        // Lekérjük a kérelmező nevét
+        $u = $db->prepare("SELECT name FROM users WHERE id=?");
+        $u->execute([$uid]);
+        $name = $u->fetchColumn() ?: 'Valaki';
+
+        // Beállítjuk delete_requested_by
+        $db->prepare("UPDATE rooms SET delete_requested_by=? WHERE id=?")->execute([$uid, $room_id]);
+
+        // Rendszer üzenet beszúrása
+        $db->prepare("INSERT INTO messages (room_id, sender_id, type, content) VALUES (?,?,?,'system')")
+           ->execute([$room_id, $uid, 'system']);
+        // Content frissítés (az auto-increment id után)
+        $msg_id = (int)$db->lastInsertId();
+        $content = "$name törölni szeretné ezt a beszélgetést.";
+        $db->prepare("UPDATE messages SET content=? WHERE id=?")->execute([$content, $msg_id]);
+
+        // WS broadcast
+        $msg = ['id' => $msg_id, 'room_id' => $room_id, 'sender_id' => $uid,
+                'user_name' => $name, 'type' => 'system', 'content' => $content,
+                'file_url' => null, 'file_name' => null, 'created_at' => date('Y-m-d H:i:s')];
+        self::wsBroadcastRaw(['type' => 'delete_request', 'room_id' => $room_id,
+                              'user_name' => $name, 'message' => $msg]);
+
+        Response::ok(['message_id' => $msg_id]);
+    }
+
+    public static function keep(int $room_id): never {
+        $auth = Auth::require();
+        self::assertMember($room_id, $auth['user_id']);
+        $db  = DB::get();
+        $uid = $auth['user_id'];
+
+        // Lekérjük a megtartó nevét és az initiátor id-t
+        $u = $db->prepare("SELECT name FROM users WHERE id=?");
+        $u->execute([$uid]);
+        $name = $u->fetchColumn() ?: 'Valaki';
+
+        $r = $db->prepare("SELECT delete_requested_by FROM rooms WHERE id=?");
+        $r->execute([$room_id]);
+        $initiator_id = (int)$r->fetchColumn();
+
+        // delete_requested_by törlése
+        $db->prepare("UPDATE rooms SET delete_requested_by=NULL WHERE id=?")->execute([$room_id]);
+
+        // Rendszer üzenet
+        $content = "$name megtartotta a beszélgetést.";
+        $db->prepare("INSERT INTO messages (room_id, sender_id, type, content) VALUES (?,?,?,'system')")
+           ->execute([$room_id, $uid, 'system']);
+        $msg_id = (int)$db->lastInsertId();
+        $db->prepare("UPDATE messages SET content=? WHERE id=?")->execute([$content, $msg_id]);
+
+        // Initiátor kilép (ha még tag)
+        if ($initiator_id) {
+            $db->prepare("DELETE FROM room_members WHERE room_id=? AND user_id=?")->execute([$room_id, $initiator_id]);
+        }
+
+        // WS broadcast
+        $msg = ['id' => $msg_id, 'room_id' => $room_id, 'sender_id' => $uid,
+                'user_name' => $name, 'type' => 'system', 'content' => $content,
+                'file_url' => null, 'file_name' => null, 'created_at' => date('Y-m-d H:i:s')];
+        self::wsBroadcastRaw(['type' => 'message', 'room_id' => $room_id, 'message' => $msg]);
+
+        Response::ok();
+    }
+
+    private static function wsBroadcastRaw(array $payload): void {
+        try {
+            $sock = @stream_socket_client('tcp://127.0.0.1:9455', $errno, $errstr, 0.3);
+            if ($sock) {
+                fwrite($sock, json_encode($payload, JSON_UNESCAPED_UNICODE));
+                fclose($sock);
+            }
+        } catch (\Throwable) {}
     }
 
     public static function assertMemberStatic(int $room_id, int $user_id): void {

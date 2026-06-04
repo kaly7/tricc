@@ -37,9 +37,12 @@ CREATE TABLE IF NOT EXISTS rooms (
     id           INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
     name         VARCHAR(150) NOT NULL DEFAULT '',
     type         ENUM('direct','group') NOT NULL DEFAULT 'group',
-    created_by   INT          NOT NULL,
-    created_at   DATETIME     NOT NULL DEFAULT NOW(),
-    FOREIGN KEY (created_by) REFERENCES users(id)
+    created_by           INT          NOT NULL,
+    created_at           DATETIME     NOT NULL DEFAULT NOW(),
+    pinned_message_id    INT          NULL DEFAULT NULL,
+    delete_requested_by  INT          NULL DEFAULT NULL,
+    FOREIGN KEY (created_by) REFERENCES users(id),
+    FOREIGN KEY (delete_requested_by) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS room_members (
@@ -57,7 +60,7 @@ CREATE TABLE IF NOT EXISTS messages (
     id           BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
     room_id      INT    NOT NULL,
     sender_id    INT    NOT NULL,
-    type         ENUM('text','image','file','link') NOT NULL DEFAULT 'text',
+    type         ENUM('text','image','file','link','system') NOT NULL DEFAULT 'text',
     content      TEXT   NOT NULL DEFAULT '',
     file_url     VARCHAR(500) NOT NULL DEFAULT '',
     created_at   DATETIME(3)  NOT NULL DEFAULT NOW(3),

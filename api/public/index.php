@@ -35,6 +35,10 @@ try {
                                                              => RoomController::addMember((int)$m[1]),
         $method === 'DELETE' && preg_match('#^/rooms/(\d+)/members/(\d+)$#', $path, $m) > 0
                                                              => RoomController::removeMember((int)$m[1], (int)$m[2]),
+        $method === 'POST' && preg_match('#^/rooms/(\d+)/delete-request$#', $path, $m) > 0
+                                                             => RoomController::deleteRequest((int)$m[1]),
+        $method === 'POST' && preg_match('#^/rooms/(\d+)/keep$#', $path, $m) > 0
+                                                             => RoomController::keep((int)$m[1]),
         $method === 'POST'   && preg_match('#^/rooms/(\d+)/pin$#', $path, $m) > 0
                                                              => RoomController::pin((int)$m[1]),
         $method === 'DELETE' && preg_match('#^/rooms/(\d+)/pin$#', $path, $m) > 0
