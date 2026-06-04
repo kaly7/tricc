@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../models/room.dart';
 import '../models/user.dart';
@@ -18,15 +19,21 @@ class RoomListScreen extends StatefulWidget {
 class _RoomListScreenState extends State<RoomListScreen> {
   List<Room> _rooms = [];
   bool _loading = true;
+  StreamSubscription? _wsSub;
 
   @override
   void initState() {
     super.initState();
     _load();
-    // Frissítés ha WS-en új üzenet érkezik
-    WsService().events.listen((msg) {
-      if (msg['type'] == 'message') _load();
+    _wsSub = WsService().events.listen((msg) {
+      if (msg['type'] == 'message' || msg['type'] == 'delete_request') _load();
     });
+  }
+
+  @override
+  void dispose() {
+    _wsSub?.cancel();
+    super.dispose();
   }
 
   Future<void> _load() async {

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -32,6 +33,7 @@ class _ChatScreenState extends State<ChatScreen> {
   bool _loading = true;
   bool _sending = false;
   bool _hasMore = true;
+  StreamSubscription? _wsSub;
 
   bool get _isAdmin => _room.members
       .any((m) => m.id == AuthService().userId && m.role == 'admin');
@@ -43,11 +45,12 @@ class _ChatScreenState extends State<ChatScreen> {
     _loadRoom();
     _loadMessages();
     WsService().join(widget.room.id);
-    WsService().events.listen(_onWsEvent);
+    _wsSub = WsService().events.listen((msg) => _onWsEvent(msg));
   }
 
   @override
   void dispose() {
+    _wsSub?.cancel();
     WsService().leave(widget.room.id);
     _msgCtrl.dispose();
     _scroll.dispose();
@@ -58,7 +61,9 @@ class _ChatScreenState extends State<ChatScreen> {
     try {
       final r = await ApiService().getRoom(widget.room.id);
       if (mounted) setState(() => _room = r);
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('[_loadRoom] hiba: $e');
+    }
   }
 
   Future<void> _onWsEvent(Map<String, dynamic> msg) async {
