@@ -158,6 +158,12 @@ class RoomController {
            ->execute([$room_id, $auth['user_id']]);
         // delete_requested_by törlése: újranyitáskor ne jelenjen meg a banner
         $db->prepare("UPDATE rooms SET delete_requested_by=NULL WHERE id=?")->execute([$room_id]);
+        // Ha mindenki elrejtette, szoba valódi törlése (CASCADE törli az üzeneteket és tagságokat is)
+        $remaining = $db->prepare("SELECT COUNT(*) FROM room_members WHERE room_id=? AND hidden_at IS NULL");
+        $remaining->execute([$room_id]);
+        if ((int)$remaining->fetchColumn() === 0) {
+            $db->prepare("DELETE FROM rooms WHERE id=?")->execute([$room_id]);
+        }
         Response::ok();
     }
 
