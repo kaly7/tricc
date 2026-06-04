@@ -75,17 +75,28 @@ class _RoomListScreenState extends State<RoomListScreen> {
           ),
         ],
       ),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : _rooms.isEmpty
-              ? const Center(child: Text('Még nincs beszélgetésed.\nHozz létre egyet!', textAlign: TextAlign.center))
-              : RefreshIndicator(
+      body: Stack(
+        children: [
+          Center(
+            child: Opacity(
+              opacity: 0.06,
+              child: Image.asset('assets/logo.png',
+                  width: double.infinity, fit: BoxFit.fitWidth),
+            ),
+          ),
+          if (_loading)
+            const Center(child: CircularProgressIndicator())
+          else if (_rooms.isEmpty)
+            const Center(child: Text('Még nincs beszélgetésed.\nHozz létre egyet!', textAlign: TextAlign.center))
+          else RefreshIndicator(
                   onRefresh: _load,
                   child: ListView.builder(
                     itemCount: _rooms.length,
                     itemBuilder: (_, i) => _RoomTile(room: _rooms[i], onTap: () => _openRoom(_rooms[i])),
                   ),
                 ),
+        ],
+      ),
       floatingActionButton: FloatingActionButton(
         onPressed: _showNewRoomDialog,
         child: const Icon(Icons.edit),
