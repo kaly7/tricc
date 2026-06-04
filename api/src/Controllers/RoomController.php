@@ -84,7 +84,12 @@ class RoomController {
         ");
         $st->execute([$a, $b]);
         $row = $st->fetch();
-        if ($row) { Response::ok(['room_id' => (int)$row['id']]); }
+        if ($row) {
+            // Ha rejtett volt, unhide automatikusan
+            $db->prepare("UPDATE room_members SET hidden_at=NULL WHERE room_id=? AND user_id=?")
+               ->execute([(int)$row['id'], $a]);
+            Response::ok(['room_id' => (int)$row['id']]);
+        }
 
         $db->prepare("INSERT INTO rooms (name, type, created_by) VALUES ('','direct',?)")->execute([$a]);
         $room_id = (int)$db->lastInsertId();
@@ -148,8 +153,11 @@ class RoomController {
     public static function hide(int $room_id): never {
         $auth = Auth::require();
         self::assertMember($room_id, $auth['user_id']);
-        DB::get()->prepare("UPDATE room_members SET hidden_at=NOW() WHERE room_id=? AND user_id=?")
-                 ->execute([$room_id, $auth['user_id']]);
+        $db = DB::get();
+        $db->prepare("UPDATE room_members SET hidden_at=NOW() WHERE room_id=? AND user_id=?")
+           ->execute([$room_id, $auth['user_id']]);
+        // delete_requested_by törlése: újranyitáskor ne jelenjen meg a banner
+        $db->prepare("UPDATE rooms SET delete_requested_by=NULL WHERE id=?")->execute([$room_id]);
         Response::ok();
     }
 
@@ -211,6 +219,8 @@ class RoomController {
         $msg = ['id' => $msg_id, 'room_id' => $room_id, 'sender_id' => $uid,
                 'user_name' => $name, 'type' => 'system', 'content' => $content,
                 'file_url' => null, 'file_name' => null, 'created_at' => date('Y-m-d H:i:s')];
+        // Külön message event (system üzenet megjelenítéséhez) + delete_request event (banner)
+        self::wsBroadcastRaw(['type' => 'message', 'room_id' => $room_id, 'message' => $msg]);
         self::wsBroadcastRaw(['type' => 'delete_request', 'room_id' => $room_id,
                               'user_id' => $uid, 'user_name' => $name, 'message' => $msg]);
 

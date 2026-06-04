@@ -59,8 +59,10 @@ class MessageController {
         $msg->execute([$msg_id]);
         $row = $msg->fetch();
 
-        // Auto-unhide: ha valakinek hidden volt ez a szoba, új üzenet hatására újra látható lesz
+        // Auto-unhide + delete_requested_by törlése: új üzenet hatására szoba újra látható, banner eltűnik
         $db->prepare("UPDATE room_members SET hidden_at=NULL WHERE room_id=? AND hidden_at IS NOT NULL")
+           ->execute([$room_id]);
+        $db->prepare("UPDATE rooms SET delete_requested_by=NULL WHERE id=? AND delete_requested_by IS NOT NULL")
            ->execute([$room_id]);
 
         self::pushToMembers($room_id, $auth['user_id'], $row);
