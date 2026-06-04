@@ -212,7 +212,7 @@ class RoomController {
                 'user_name' => $name, 'type' => 'system', 'content' => $content,
                 'file_url' => null, 'file_name' => null, 'created_at' => date('Y-m-d H:i:s')];
         self::wsBroadcastRaw(['type' => 'delete_request', 'room_id' => $room_id,
-                              'user_name' => $name, 'message' => $msg]);
+                              'user_id' => $uid, 'user_name' => $name, 'message' => $msg]);
 
         Response::ok(['message_id' => $msg_id]);
     }
