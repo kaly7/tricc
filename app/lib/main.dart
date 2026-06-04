@@ -45,7 +45,7 @@ class _TriccAppState extends State<TriccApp> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Tricc',
+      title: 'BabL42',
       debugShowCheckedModeBanner: false,
       theme: buildAppTheme(),
       home: AuthService().isLoggedIn ? const RoomListScreen() : const LoginScreen(),

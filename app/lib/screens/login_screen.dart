@@ -69,9 +69,9 @@ class _LoginScreenState extends State<LoginScreen> {
               Image.asset('assets/logo.png', height: 72),
               const SizedBox(height: 8),
               const Text(
-                '3C Távközlési Kft',
+                'RV42',
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 14, color: Colors.grey),
+                style: TextStyle(fontSize: 13, color: Colors.grey),
               ),
               const SizedBox(height: 48),
               TextField(
