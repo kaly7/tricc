@@ -16,7 +16,6 @@ class APNs {
 
         $cmd = [
             'curl', '--http2', '--silent', '--show-error',
-            '--key',  $cfg['apns_key_file'],
             '-H', "apns-topic: {$cfg['apns_bundle_id']}",
             '-H', 'apns-push-type: alert',
             '-H', 'apns-priority: 10',
