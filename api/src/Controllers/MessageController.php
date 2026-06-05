@@ -301,11 +301,16 @@ class MessageController {
             WHERE rm.room_id = ? AND pt.user_id != ? AND rm.is_muted = 0
         ");
         $tokens->execute([$room_id, $sender_id]);
+        $tokenRows = $tokens->fetchAll();
+
+        file_put_contents('/tmp/apns_debug.log',
+            date('Y-m-d H:i:s') . " pushToMembers room=$room_id sender=$sender_id tokens=" . count($tokenRows) . PHP_EOL,
+            FILE_APPEND);
 
         $title = $sname;
         $body  = $msg['type'] === 'text' ? ($msg['content'] ?? '') : '📎 Fájl';
         $now   = date('Y-m-d H:i:s');
-        foreach ($tokens->fetchAll() as $t) {
+        foreach ($tokenRows as $t) {
             // Badge = összes olvasatlan üzenet száma a felhasználónak
             $badgeSt = $db->prepare("
                 SELECT COUNT(*) FROM messages m
