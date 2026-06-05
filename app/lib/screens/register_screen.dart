@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import '../services/auth_service.dart';
+import '../services/push_service.dart';
 import '../services/ws_service.dart';
 import 'room_list_screen.dart';
 
@@ -57,6 +58,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         isAdmin: me['is_admin'] == true || me['is_admin'] == 1,
       );
       await WsService().connect();
+      PushService().reregisterIfNeeded();
       if (mounted) {
         Navigator.pushAndRemoveUntil(
           context,

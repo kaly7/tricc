@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'api_service.dart';
 
 class PushService {
@@ -8,6 +9,7 @@ class PushService {
   PushService._();
 
   static const _channel = MethodChannel('push_channel');
+  static const _prefKey = 'apns_device_token';
 
   void Function(Map<String, dynamic>)? onNotificationTap;
 
@@ -17,9 +19,8 @@ class PushService {
       switch (call.method) {
         case 'onToken':
           final token = call.arguments as String;
-          _registerToken(token);
+          await _saveAndRegisterToken(token);
         case 'onMessage':
-          // előtérben érkező push — WS általában kezeli, de fallback
           break;
         case 'onNotificationTap':
           final data = Map<String, dynamic>.from(call.arguments as Map);
@@ -28,7 +29,21 @@ class PushService {
     });
   }
 
-  Future<void> _registerToken(String token) async {
+  // Minden bejelentkezés után hívd meg — újraküldi a mentett tokent a szervernek
+  Future<void> reregisterIfNeeded() async {
+    if (!Platform.isIOS) return;
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString(_prefKey);
+    if (token != null) {
+      try {
+        await ApiService().registerPushToken(token);
+      } catch (_) {}
+    }
+  }
+
+  Future<void> _saveAndRegisterToken(String token) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_prefKey, token);
     try {
       await ApiService().registerPushToken(token);
     } catch (_) {}

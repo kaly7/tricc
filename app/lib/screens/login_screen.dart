@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../app_theme.dart';
 import '../services/api_service.dart';
 import '../services/auth_service.dart';
+import '../services/push_service.dart';
 import '../services/ws_service.dart';
 import 'register_screen.dart';
 import 'room_list_screen.dart';
@@ -45,6 +46,7 @@ class _LoginScreenState extends State<LoginScreen> {
         isAdmin: me['is_admin'] == true || me['is_admin'] == 1,
       );
       await WsService().connect();
+      PushService().reregisterIfNeeded();
       if (mounted) {
         Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const RoomListScreen()));
       }
