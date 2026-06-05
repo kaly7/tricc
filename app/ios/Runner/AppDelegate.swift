@@ -5,10 +5,6 @@ import UserNotifications
 @main
 @objc class AppDelegate: FlutterAppDelegate, FlutterImplicitEngineDelegate {
 
-  // Token tárolása — Flutter lekérheti amikor már kész
-  private var storedToken: String?
-  private var pushChannel: FlutterMethodChannel?
-
   override func application(
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
@@ -21,42 +17,30 @@ import UserNotifications
   func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
     GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
 
-    // Channel beállítása közvetlenül a Flutter engine inicializálásakor
-    guard let controller = engineBridge.pluginRegistry as? FlutterViewController else { return }
-    pushChannel = FlutterMethodChannel(name: "push_channel", binaryMessenger: controller.binaryMessenger)
-    pushChannel?.setMethodCallHandler { [weak self] call, result in
-      switch call.method {
-      case "getStoredToken":
-        result(self?.storedToken)
-      case "refreshToken":
-        UIApplication.shared.registerForRemoteNotifications()
-        result(nil)
-      default:
+    // push_channel handler: Flutter hívhat refreshToken-t hogy iOS újraküldje a tokent
+    guard let registrar = engineBridge.pluginRegistry.registrar(forPlugin: "PushChannelPlugin") else { return }
+    let channel = FlutterMethodChannel(name: "push_channel", binaryMessenger: registrar.messenger())
+    channel.setMethodCallHandler { (call: FlutterMethodCall, result: @escaping FlutterResult) in
+      if call.method == "refreshToken" {
+        DispatchQueue.main.async { UIApplication.shared.registerForRemoteNotifications() }
+        result(nil as Any?)
+      } else {
         result(FlutterMethodNotImplemented)
       }
-    }
-
-    // Ha már van tárolt token (korán érkezett), azonnal elküldjük
-    if let token = storedToken {
-      pushChannel?.invokeMethod("onToken", arguments: token)
     }
   }
 
   private func requestPushPermission(_ application: UIApplication) {
     UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .badge, .sound]) { granted, _ in
       if granted {
-        DispatchQueue.main.async {
-          application.registerForRemoteNotifications()
-        }
+        DispatchQueue.main.async { application.registerForRemoteNotifications() }
       }
     }
   }
 
   override func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
     let token = deviceToken.map { String(format: "%02x", $0) }.joined()
-    storedToken = token
-    // Ha a channel már kész, azonnal elküldjük; ha nem, a didInitializeImplicitFlutterEngine küldi
-    pushChannel?.invokeMethod("onToken", arguments: token)
+    sendToFlutter("onToken", arguments: token)
   }
 
   override func application(_ application: UIApplication, didFailToRegisterForRemoteNotificationsWithError error: Error) {
@@ -64,8 +48,7 @@ import UserNotifications
   }
 
   override func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification, withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
-    let userInfo = notification.request.content.userInfo
-    pushChannel?.invokeMethod("onMessage", arguments: userInfo)
+    sendToFlutter("onMessage", arguments: notification.request.content.userInfo)
     if #available(iOS 14.0, *) {
       completionHandler([.banner, .sound, .badge])
     } else {
@@ -74,8 +57,17 @@ import UserNotifications
   }
 
   override func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse, withCompletionHandler completionHandler: @escaping () -> Void) {
-    let userInfo = response.notification.request.content.userInfo
-    pushChannel?.invokeMethod("onNotificationTap", arguments: userInfo)
+    sendToFlutter("onNotificationTap", arguments: response.notification.request.content.userInfo)
     completionHandler()
+  }
+
+  private func sendToFlutter(_ method: String, arguments: Any?) {
+    DispatchQueue.main.async {
+      guard let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+            let vc = scene.windows.first(where: { $0.isKeyWindow })?.rootViewController as? FlutterViewController
+      else { return }
+      FlutterMethodChannel(name: "push_channel", binaryMessenger: vc.binaryMessenger)
+        .invokeMethod(method, arguments: arguments)
+    }
   }
 }

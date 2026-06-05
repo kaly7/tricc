@@ -13,8 +13,8 @@ class PushService {
 
   void Function(Map<String, dynamic>)? onNotificationTap;
 
-  // Hívd meg az app indulása után (main.dart) — beállítja a handlert
-  // és lekéri a tokent ha az már korábban megérkezett
+  // Hívd meg az app indulása után — beállítja a handlert,
+  // majd kér iOS-tól egy friss tokent (azonnal visszaküld)
   Future<void> init() async {
     if (!Platform.isIOS) return;
 
@@ -31,41 +31,23 @@ class PushService {
       }
     });
 
-    // Lekéri az AppDelegate-ben tárolt tokent (ha már megérkezett iOS-től)
-    try {
-      final stored = await _channel.invokeMethod<String?>('getStoredToken');
-      if (stored != null && stored.isNotEmpty) {
-        await _saveAndRegister(stored);
-        return;
-      }
-    } catch (_) {}
-
-    // Ha nincs tárolt token, megkérjük iOS-t hogy küldje el újra
+    // Handler felállt — most kérünk tokent iOS-tól.
+    // registerForRemoteNotifications() mindig visszahívja a delegate-et a tokennel,
+    // és ekkor már a handler aktív, tehát onToken biztosan lefut.
     try {
       await _channel.invokeMethod('refreshToken');
     } catch (_) {}
   }
 
-  // Bejelentkezéskor hívd meg — a mentett tokent újraküldi a szervernek
+  // Bejelentkezéskor: a mentett tokenből újraregisztráció a szerveren
   Future<void> reregisterIfNeeded() async {
     if (!Platform.isIOS) return;
-    // Előbb próbáljuk a natív tároltból
-    try {
-      final stored = await _channel.invokeMethod<String?>('getStoredToken');
-      if (stored != null && stored.isNotEmpty) {
-        await _saveAndRegister(stored);
-        return;
-      }
-    } catch (_) {}
-    // Fallback: SharedPreferences-ből
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString(_prefKey);
     if (token != null) {
       try { await ApiService().registerPushToken(token); } catch (_) {}
-    } else {
-      // Nincs semmi — iOS-t kérjük meg hogy küldje el a tokent
-      try { await _channel.invokeMethod('refreshToken'); } catch (_) {}
     }
+    // Ha nincs mentett token, az init() refreshToken-je kezeli
   }
 
   Future<void> _saveAndRegister(String token) async {
