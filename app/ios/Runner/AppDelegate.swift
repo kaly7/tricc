@@ -3,45 +3,41 @@ import UIKit
 import UserNotifications
 
 @main
-@objc class AppDelegate: FlutterAppDelegate {
+@objc class AppDelegate: FlutterAppDelegate, FlutterImplicitEngineDelegate {
 
   private var pushChannel: FlutterMethodChannel?
-  // Token buffer: iOS sokszor a Flutter handler előtt küldi a tokent
   private var pendingToken: String?
 
   override func application(
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
   ) -> Bool {
-    GeneratedPluginRegistrant.register(with: self)
     UNUserNotificationCenter.current().delegate = self
+    requestPushPermission(application)
+    return super.application(application, didFinishLaunchingWithOptions: launchOptions)
+  }
 
-    // super hívja fel a FlutterViewController-t és a window-t
-    let result = super.application(application, didFinishLaunchingWithOptions: launchOptions)
+  // SceneDelegate-es Flutter appban ez a megfelelő belépési pont a csatorna beállításához
+  func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
+    GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
 
-    // Window és FlutterViewController a super után bizton elérhető
-    if let vc = window?.rootViewController as? FlutterViewController {
-      let ch = FlutterMethodChannel(name: "push_channel", binaryMessenger: vc.binaryMessenger)
-      pushChannel = ch
-      ch.setMethodCallHandler { [weak self] (call: FlutterMethodCall, result: @escaping FlutterResult) in
-        guard let self = self else { return }
-        if call.method == "refreshToken" {
-          if let token = self.pendingToken {
-            // Token már megvan a bufferben — azonnali kézbesítés
-            self.sendToFlutter("onToken", arguments: token)
-          } else {
-            // Még nem érkezett token — kérjük el iOS-tól
-            DispatchQueue.main.async { UIApplication.shared.registerForRemoteNotifications() }
-          }
-          result(nil as Any?)
+    guard let registrar = engineBridge.pluginRegistry.registrar(forPlugin: "PushChannelPlugin") else { return }
+    let ch = FlutterMethodChannel(name: "push_channel", binaryMessenger: registrar.messenger())
+    pushChannel = ch
+    ch.setMethodCallHandler { [weak self] (call: FlutterMethodCall, result: @escaping FlutterResult) in
+      guard let self = self else { return }
+      if call.method == "refreshToken" {
+        if let token = self.pendingToken {
+          // Token már bufferedben van — azonnal kézbesít, nincs round-trip
+          self.sendToFlutter("onToken", arguments: token)
         } else {
-          result(FlutterMethodNotImplemented)
+          DispatchQueue.main.async { UIApplication.shared.registerForRemoteNotifications() }
         }
+        result(nil as Any?)
+      } else {
+        result(FlutterMethodNotImplemented)
       }
     }
-
-    requestPushPermission(application)
-    return result
   }
 
   private func requestPushPermission(_ application: UIApplication) {
@@ -54,12 +50,12 @@ import UserNotifications
 
   override func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
     let token = deviceToken.map { String(format: "%02x", $0) }.joined()
-    pendingToken = token          // buffer: Flutter lehet hogy még nem áll készen
+    pendingToken = token
     sendToFlutter("onToken", arguments: token)
   }
 
   override func application(_ application: UIApplication, didFailToRegisterForRemoteNotificationsWithError error: Error) {
-    print("[APNs] Regisztráció sikertelen: \(error)")
+    print("[APNs] Sikertelen: \(error)")
   }
 
   override func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification, withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
