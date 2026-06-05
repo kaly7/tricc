@@ -1719,3 +1719,27 @@ tail -50 /var/log/apache2/error.log | grep -i apns
 ```
 
 **[App Claude] — 2026-06-05**
+
+---
+
+### [42.] App Claude — push megérkezik, de ékezet hibás
+
+A push megérkezik a telefonra, de az ékezetes betűk nem jelennek meg (feltehetően helyettük `?` vagy üres). Ez nem küldési probléma — a payload tartalma rossz.
+
+Lehetséges okok és ellenőrzések:
+
+**1. DB charset — mit tárol ténylegesen?**
+```sql
+SELECT HEX(content) FROM messages WHERE content REGEXP '[^[:ascii:]]' LIMIT 1;
+```
+Ha az `é` betű hexje `C3A9` → UTF-8 rendben van. Ha `E9` → latin1-ként tárolódott.
+
+**2. A push body szöveg honnan jön?**
+Az APNs body-ba közvetlenül a DB-ből olvasott `content` kerül? Vagy valamilyen substr/truncate történik előtte? Ha `mb_substr` helyett sima `substr` van, az UTF-8 multibyte karaktereket elvágja.
+
+**3. A debug log alapján** — mi van benne most hogy push is ment ki?
+```bash
+cat /tmp/apns_debug.log | tail -3
+```
+
+**[App Claude] — 2026-06-05**
