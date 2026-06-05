@@ -2,8 +2,10 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../services/api_service.dart';
 import '../services/auth_service.dart';
+import '../services/push_service.dart';
 import '../services/ws_service.dart';
 import '../app_theme.dart';
 import 'login_screen.dart';
@@ -18,6 +20,29 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> {
   late TextEditingController _nameCtrl;
   bool _saving = false;
+  String? _pushToken;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _loadPushToken();
+  }
+
+  Future<void> _loadPushToken() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (mounted) setState(() => _pushToken = prefs.getString('apns_device_token'));
+  }
+
+  Future<void> _retryPushToken() async {
+    setState(() => _saving = true);
+    try {
+      await PushService().init();
+      await Future.delayed(const Duration(seconds: 2));
+      await _loadPushToken();
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
 
   @override
   void initState() {
@@ -136,6 +161,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
             const SizedBox(height: 24),
             const Divider(),
             const SizedBox(height: 8),
+            _PushStatusTile(token: _pushToken, onRetry: _retryPushToken, saving: _saving),
+            const SizedBox(height: 8),
+            const Divider(),
+            const SizedBox(height: 8),
             TextButton.icon(
               onPressed: _logout,
               icon: const Icon(Icons.logout, color: Colors.red),
@@ -144,6 +173,38 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _PushStatusTile extends StatelessWidget {
+  final String? token;
+  final VoidCallback onRetry;
+  final bool saving;
+  const _PushStatusTile({required this.token, required this.onRetry, required this.saving});
+
+  @override
+  Widget build(BuildContext context) {
+    final hasToken = token != null && token!.isNotEmpty;
+    return Row(
+      children: [
+        Icon(
+          hasToken ? Icons.notifications_active : Icons.notifications_off,
+          color: hasToken ? Colors.green : Colors.red,
+          size: 20,
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            hasToken ? 'Push: ${token!.substring(0, 12)}…' : 'Push: nincs token',
+            style: TextStyle(fontSize: 13, color: hasToken ? Colors.green : Colors.red),
+          ),
+        ),
+        TextButton(
+          onPressed: saving ? null : onRetry,
+          child: const Text('Újra', style: TextStyle(fontSize: 12)),
+        ),
+      ],
     );
   }
 }
