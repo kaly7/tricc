@@ -35,7 +35,7 @@ class _TriccAppState extends State<TriccApp> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    PushService().init();
+    PushService().init(); // async, nem várjuk meg — background token regisztráció
     if (AuthService().isLoggedIn) WsService().connect();
   }
 

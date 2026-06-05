@@ -13,13 +13,16 @@ class PushService {
 
   void Function(Map<String, dynamic>)? onNotificationTap;
 
-  void init() {
+  // Hívd meg az app indulása után (main.dart) — beállítja a handlert
+  // és lekéri a tokent ha az már korábban megérkezett
+  Future<void> init() async {
     if (!Platform.isIOS) return;
+
     _channel.setMethodCallHandler((call) async {
       switch (call.method) {
         case 'onToken':
           final token = call.arguments as String;
-          await _saveAndRegisterToken(token);
+          await _saveAndRegister(token);
         case 'onMessage':
           break;
         case 'onNotificationTap':
@@ -27,25 +30,47 @@ class PushService {
           onNotificationTap?.call(data);
       }
     });
+
+    // Lekéri az AppDelegate-ben tárolt tokent (ha már megérkezett iOS-től)
+    try {
+      final stored = await _channel.invokeMethod<String?>('getStoredToken');
+      if (stored != null && stored.isNotEmpty) {
+        await _saveAndRegister(stored);
+        return;
+      }
+    } catch (_) {}
+
+    // Ha nincs tárolt token, megkérjük iOS-t hogy küldje el újra
+    try {
+      await _channel.invokeMethod('refreshToken');
+    } catch (_) {}
   }
 
-  // Minden bejelentkezés után hívd meg — újraküldi a mentett tokent a szervernek
+  // Bejelentkezéskor hívd meg — a mentett tokent újraküldi a szervernek
   Future<void> reregisterIfNeeded() async {
     if (!Platform.isIOS) return;
+    // Előbb próbáljuk a natív tároltból
+    try {
+      final stored = await _channel.invokeMethod<String?>('getStoredToken');
+      if (stored != null && stored.isNotEmpty) {
+        await _saveAndRegister(stored);
+        return;
+      }
+    } catch (_) {}
+    // Fallback: SharedPreferences-ből
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString(_prefKey);
     if (token != null) {
-      try {
-        await ApiService().registerPushToken(token);
-      } catch (_) {}
+      try { await ApiService().registerPushToken(token); } catch (_) {}
+    } else {
+      // Nincs semmi — iOS-t kérjük meg hogy küldje el a tokent
+      try { await _channel.invokeMethod('refreshToken'); } catch (_) {}
     }
   }
 
-  Future<void> _saveAndRegisterToken(String token) async {
+  Future<void> _saveAndRegister(String token) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_prefKey, token);
-    try {
-      await ApiService().registerPushToken(token);
-    } catch (_) {}
+    try { await ApiService().registerPushToken(token); } catch (_) {}
   }
 }
