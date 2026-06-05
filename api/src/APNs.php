@@ -2,14 +2,14 @@
 namespace Tricc;
 
 class APNs {
-    public static function send(string $device_token, string $title, string $body, array $data = []): bool {
+    public static function send(string $device_token, string $title, string $body, array $data = [], int $badge = 1): bool {
         $cfg = require __DIR__ . '/../../config.php';
 
         $payload = json_encode([
             'aps' => [
                 'alert' => ['title' => $title, 'body' => mb_substr($body, 0, 100)],
                 'sound' => 'default',
-                'badge' => 1,
+                'badge' => $badge,
             ],
             'data' => $data,
         ], JSON_UNESCAPED_UNICODE);

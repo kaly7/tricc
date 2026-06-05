@@ -116,7 +116,7 @@ class MessageController {
         $tokens = $db->prepare("
             SELECT pt.token, pt.user_id FROM push_tokens pt
             JOIN room_members rm ON rm.user_id = pt.user_id
-            WHERE rm.room_id = ? AND pt.user_id != ?
+            WHERE rm.room_id = ? AND pt.user_id != ? AND rm.is_muted = 0
         ");
         $tokens->execute([$room_id, $sender_id]);
 
@@ -124,10 +124,20 @@ class MessageController {
         $body  = $msg['type'] === 'text' ? ($msg['content'] ?? '') : '📎 Fájl';
         $now   = date('Y-m-d H:i:s');
         foreach ($tokens->fetchAll() as $t) {
+            // Badge = összes olvasatlan üzenet száma a felhasználónak
+            $badgeSt = $db->prepare("
+                SELECT COUNT(*) FROM messages m
+                JOIN room_members rm ON rm.room_id = m.room_id AND rm.user_id = ?
+                WHERE rm.hidden_at IS NULL
+                  AND (rm.last_read_at IS NULL OR m.created_at > rm.last_read_at)
+            ");
+            $badgeSt->execute([$t['user_id']]);
+            $badge = (int)$badgeSt->fetchColumn();
+
             $ok = APNs::send($t['token'], $title, $body, [
                 'room_id'    => $room_id,
                 'message_id' => $msg['id'],
-            ]);
+            ], $badge);
             if ($ok) {
                 $db->prepare("UPDATE message_deliveries SET delivered_at=? WHERE message_id=? AND user_id=?")
                    ->execute([$now, $msg_id, $t['user_id']]);

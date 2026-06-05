@@ -10,6 +10,7 @@ class RoomController {
         $st   = $db->prepare("
             SELECT r.id, r.name, r.type, r.created_at,
                    r.delete_requested_by,
+                   rm.is_muted,
                    COUNT(DISTINCT rm2.user_id) AS member_count,
                    (SELECT content FROM messages WHERE room_id=r.id ORDER BY created_at DESC LIMIT 1) AS last_message,
                    (SELECT created_at FROM messages WHERE room_id=r.id ORDER BY created_at DESC LIMIT 1) AS last_message_at,
@@ -147,6 +148,22 @@ class RoomController {
         $auth = Auth::require();
         self::assertMember($room_id, $auth['user_id']);
         DB::get()->prepare("UPDATE rooms SET pinned_message_id=NULL WHERE id=?")->execute([$room_id]);
+        Response::ok();
+    }
+
+    public static function mute(int $room_id): never {
+        $auth = Auth::require();
+        self::assertMember($room_id, $auth['user_id']);
+        DB::get()->prepare("UPDATE room_members SET is_muted=1 WHERE room_id=? AND user_id=?")
+                 ->execute([$room_id, $auth['user_id']]);
+        Response::ok();
+    }
+
+    public static function unmute(int $room_id): never {
+        $auth = Auth::require();
+        self::assertMember($room_id, $auth['user_id']);
+        DB::get()->prepare("UPDATE room_members SET is_muted=0 WHERE room_id=? AND user_id=?")
+                 ->execute([$room_id, $auth['user_id']]);
         Response::ok();
     }
 

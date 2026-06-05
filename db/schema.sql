@@ -52,6 +52,7 @@ CREATE TABLE IF NOT EXISTS room_members (
     joined_at    DATETIME     NOT NULL DEFAULT NOW(),
     last_read_at DATETIME     NULL DEFAULT NULL,
     hidden_at    DATETIME     NULL DEFAULT NULL,
+    is_muted     TINYINT(1)   NOT NULL DEFAULT 0,
     PRIMARY KEY (room_id, user_id),
     FOREIGN KEY (room_id) REFERENCES rooms(id) ON DELETE CASCADE,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE

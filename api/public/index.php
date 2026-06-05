@@ -45,6 +45,10 @@ try {
                                                              => RoomController::pin((int)$m[1]),
         $method === 'DELETE' && preg_match('#^/rooms/(\d+)/pin$#', $path, $m) > 0
                                                              => RoomController::unpin((int)$m[1]),
+        $method === 'POST'   && preg_match('#^/rooms/(\d+)/mute$#', $path, $m) > 0
+                                                             => RoomController::mute((int)$m[1]),
+        $method === 'DELETE' && preg_match('#^/rooms/(\d+)/mute$#', $path, $m) > 0
+                                                             => RoomController::unmute((int)$m[1]),
 
         // Messages
         $method === 'GET'  && preg_match('#^/rooms/(\d+)/messages$#', $path, $m) > 0
