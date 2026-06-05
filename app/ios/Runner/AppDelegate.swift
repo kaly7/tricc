@@ -5,6 +5,9 @@ import UserNotifications
 @main
 @objc class AppDelegate: FlutterAppDelegate, FlutterImplicitEngineDelegate {
 
+  // Tárolt csatorna — ugyanaz a messenger, amelyen a Flutter handler regisztrálva van
+  private var pushChannel: FlutterMethodChannel?
+
   override func application(
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
@@ -17,9 +20,9 @@ import UserNotifications
   func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
     GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
 
-    // push_channel handler: Flutter hívhat refreshToken-t hogy iOS újraküldje a tokent
     guard let registrar = engineBridge.pluginRegistry.registrar(forPlugin: "PushChannelPlugin") else { return }
     let channel = FlutterMethodChannel(name: "push_channel", binaryMessenger: registrar.messenger())
+    pushChannel = channel
     channel.setMethodCallHandler { (call: FlutterMethodCall, result: @escaping FlutterResult) in
       if call.method == "refreshToken" {
         DispatchQueue.main.async { UIApplication.shared.registerForRemoteNotifications() }
@@ -40,6 +43,7 @@ import UserNotifications
 
   override func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
     let token = deviceToken.map { String(format: "%02x", $0) }.joined()
+    print("[APNs] Token érkezett: \(token.prefix(20))...")
     sendToFlutter("onToken", arguments: token)
   }
 
@@ -63,11 +67,9 @@ import UserNotifications
 
   private func sendToFlutter(_ method: String, arguments: Any?) {
     DispatchQueue.main.async {
-      guard let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-            let vc = scene.windows.first(where: { $0.isKeyWindow })?.rootViewController as? FlutterViewController
-      else { return }
-      FlutterMethodChannel(name: "push_channel", binaryMessenger: vc.binaryMessenger)
-        .invokeMethod(method, arguments: arguments)
+      if let channel = self.pushChannel {
+        channel.invokeMethod(method, arguments: arguments)
+      }
     }
   }
 }
