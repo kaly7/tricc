@@ -64,6 +64,7 @@ CREATE TABLE IF NOT EXISTS messages (
     sender_id           INT    NOT NULL,
     type                ENUM('text','image','file','link','system') NOT NULL DEFAULT 'text',
     content             TEXT   NOT NULL DEFAULT '',
+    is_edited           TINYINT(1)   NOT NULL DEFAULT 0,
     file_url            VARCHAR(500) NOT NULL DEFAULT '',
     file_size           BIGINT NULL DEFAULT NULL,
     reply_to_id         BIGINT NULL DEFAULT NULL,

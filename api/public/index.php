@@ -55,6 +55,8 @@ try {
                                                              => MessageController::list((int)$m[1]),
         $method === 'POST' && preg_match('#^/rooms/(\d+)/messages$#', $path, $m) > 0
                                                              => MessageController::send((int)$m[1]),
+        $method === 'PUT'    && preg_match('#^/rooms/(\d+)/messages/(\d+)$#', $path, $m) > 0
+                                                             => MessageController::edit((int)$m[1], (int)$m[2]),
         $method === 'DELETE' && preg_match('#^/rooms/(\d+)/messages/(\d+)$#', $path, $m) > 0
                                                              => MessageController::delete((int)$m[1], (int)$m[2]),
         $method === 'POST'   && preg_match('#^/rooms/(\d+)/messages/(\d+)/reactions$#', $path, $m) > 0

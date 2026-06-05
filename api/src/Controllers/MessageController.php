@@ -14,7 +14,7 @@ class MessageController {
         if ($before) {
             $st = $db->prepare("
                 SELECT m.id, m.room_id, m.sender_id AS user_id, u.name AS user_name, u.avatar_url,
-                       m.type, m.content, m.file_url, m.file_size, m.created_at,
+                       m.type, m.content, m.is_edited, m.file_url, m.file_size, m.created_at,
                        m.reply_to_id, m.reply_to_content, m.reply_to_user_name
                 FROM messages m JOIN users u ON u.id = m.sender_id
                 WHERE m.room_id = ? AND m.id < ?
@@ -24,7 +24,7 @@ class MessageController {
         } else {
             $st = $db->prepare("
                 SELECT m.id, m.room_id, m.sender_id AS user_id, u.name AS user_name, u.avatar_url,
-                       m.type, m.content, m.file_url, m.file_size, m.created_at,
+                       m.type, m.content, m.is_edited, m.file_url, m.file_size, m.created_at,
                        m.reply_to_id, m.reply_to_content, m.reply_to_user_name
                 FROM messages m JOIN users u ON u.id = m.sender_id
                 WHERE m.room_id = ?
@@ -113,7 +113,7 @@ class MessageController {
 
         $msg = $db->prepare("
             SELECT m.id, m.room_id, m.sender_id AS user_id, u.name AS user_name, u.avatar_url,
-                   m.type, m.content, m.file_url, m.created_at,
+                   m.type, m.content, m.is_edited, m.file_url, m.file_size, m.created_at,
                    m.reply_to_id, m.reply_to_content, m.reply_to_user_name
             FROM messages m JOIN users u ON u.id = m.sender_id WHERE m.id = ?
         ");
@@ -165,7 +165,63 @@ class MessageController {
             if (!$r || $r['role'] !== 'admin') Response::abort(403, 'Nincs jogosultság.');
         }
         $db->prepare("DELETE FROM messages WHERE id=?")->execute([$msg_id]);
+
+        self::wsBroadcastRaw($room_id, [
+            'type'       => 'message_deleted',
+            'room_id'    => $room_id,
+            'message_id' => $msg_id,
+        ]);
+
         Response::ok();
+    }
+
+    public static function edit(int $room_id, int $msg_id): never {
+        $auth = Auth::require();
+        RoomController::assertMemberStatic($room_id, $auth['user_id']);
+
+        $db  = DB::get();
+        $st  = $db->prepare("SELECT sender_id, type FROM messages WHERE id=? AND room_id=?");
+        $st->execute([$msg_id, $room_id]);
+        $row = $st->fetch();
+        if (!$row) Response::abort(404, 'Üzenet nem található.');
+        if ((int)$row['sender_id'] !== $auth['user_id']) Response::abort(403, 'Csak saját üzenetet szerkeszthetsz.');
+        if (!in_array($row['type'], ['text', 'link'])) Response::abort(400, 'Csak szöveges üzenet szerkeszthető.');
+
+        $body    = json_decode(file_get_contents('php://input'), true) ?? [];
+        $content = trim($body['content'] ?? '');
+        if (!$content) Response::abort(400, 'Tartalom nem lehet üres.');
+
+        $db->prepare("UPDATE messages SET content=?, is_edited=1 WHERE id=?")->execute([$content, $msg_id]);
+
+        $msg = $db->prepare("
+            SELECT m.id, m.room_id, m.sender_id AS user_id, u.name AS user_name, u.avatar_url,
+                   m.type, m.content, m.is_edited, m.file_url, m.file_size, m.created_at,
+                   m.reply_to_id, m.reply_to_content, m.reply_to_user_name
+            FROM messages m JOIN users u ON u.id = m.sender_id WHERE m.id = ?
+        ");
+        $msg->execute([$msg_id]);
+        $updated = $msg->fetch();
+
+        if ($updated['reply_to_id']) {
+            $updated['reply_to'] = [
+                'id'        => (int)$updated['reply_to_id'],
+                'content'   => $updated['reply_to_content'],
+                'user_name' => $updated['reply_to_user_name'],
+            ];
+        } else {
+            $updated['reply_to'] = null;
+        }
+        unset($updated['reply_to_id'], $updated['reply_to_content'], $updated['reply_to_user_name']);
+        $updated['deliveries'] = [];
+        $updated['reactions']  = [];
+
+        self::wsBroadcastRaw($room_id, [
+            'type'    => 'message_edited',
+            'room_id' => $room_id,
+            'message' => $updated,
+        ]);
+
+        Response::ok($updated);
     }
 
     public static function reactionToggle(int $room_id, int $msg_id): never {
