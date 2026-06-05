@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../services/api_service.dart';
 import '../services/auth_service.dart';
 import '../services/push_service.dart';
+import '../services/settings_service.dart';
 import '../services/ws_service.dart';
 import '../app_theme.dart';
 import 'login_screen.dart';
@@ -161,6 +162,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
             const SizedBox(height: 24),
             const Divider(),
             const SizedBox(height: 8),
+            const _FontSizeSection(),
+            const SizedBox(height: 8),
+            const Divider(),
+            const SizedBox(height: 8),
             _PushStatusTile(token: _pushToken, onRetry: _retryPushToken, saving: _saving),
             const SizedBox(height: 8),
             const Divider(),
@@ -205,6 +210,119 @@ class _PushStatusTile extends StatelessWidget {
           child: const Text('Újra', style: TextStyle(fontSize: 12)),
         ),
       ],
+    );
+  }
+}
+
+class _FontSizeSection extends StatefulWidget {
+  const _FontSizeSection();
+
+  @override
+  State<_FontSizeSection> createState() => _FontSizeSectionState();
+}
+
+class _FontSizeSectionState extends State<_FontSizeSection> {
+  @override
+  void initState() {
+    super.initState();
+    SettingsService().addListener(_rebuild);
+  }
+
+  @override
+  void dispose() {
+    SettingsService().removeListener(_rebuild);
+    super.dispose();
+  }
+
+  void _rebuild() => setState(() {});
+
+  @override
+  Widget build(BuildContext context) {
+    final scale = SettingsService().fontScale;
+    final pct = (scale * 100).round();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('Betűméret', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.black54)),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            _ScaleButton(
+              icon: Icons.remove,
+              onTap: scale <= SettingsService.minScale ? null : () => SettingsService().decrease(),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade100,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.grey.shade300),
+                ),
+                child: MediaQuery(
+                  // Az előnézet a kiválasztott mérettel jelenik meg, nem a rendszer scalerével
+                  data: MediaQuery.of(context).copyWith(textScaler: TextScaler.linear(scale)),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text('Előnézet — $pct%',
+                              style: const TextStyle(fontSize: 11, color: Colors.grey),
+                              textScaler: TextScaler.noScaling),
+                          if (scale != 1.0)
+                            GestureDetector(
+                              onTap: () => SettingsService().reset(),
+                              child: const Text('Visszaállítás',
+                                  style: TextStyle(fontSize: 11, color: kBlue),
+                                  textScaler: TextScaler.noScaling),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      const Text('Helló! Ez egy előnézet szöveg.'),
+                      const SizedBox(height: 2),
+                      Text('Ilyen lesz az üzenetek betűmérete.',
+                          style: TextStyle(color: Colors.grey.shade600)),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            _ScaleButton(
+              icon: Icons.add,
+              onTap: scale >= SettingsService.maxScale ? null : () => SettingsService().increase(),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _ScaleButton extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback? onTap;
+  const _ScaleButton({required this.icon, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final enabled = onTap != null;
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 40,
+        height: 40,
+        decoration: BoxDecoration(
+          color: enabled ? kBlue : Colors.grey.shade200,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Icon(icon, color: enabled ? Colors.white : Colors.grey, size: 20),
+      ),
     );
   }
 }
