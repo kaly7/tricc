@@ -13,6 +13,7 @@ class WsService {
   WebSocketChannel? _channel;
   Timer? _reconnectTimer;
   bool _intentionalDisconnect = false;
+  final Set<int> _joinedRooms = {};
 
   final _controller = StreamController<Map<String, dynamic>>.broadcast();
   Stream<Map<String, dynamic>> get events => _controller.stream;
@@ -42,6 +43,9 @@ class WsService {
         onError: (_) => _onDisconnected(),
       );
       _send({'type': 'auth', 'token': token});
+      for (final roomId in _joinedRooms) {
+        _send({'type': 'join', 'room_id': roomId});
+      }
     } catch (_) {
       _scheduleReconnect();
     }
@@ -71,8 +75,15 @@ class WsService {
     _reconnectTimer = Timer(const Duration(seconds: 5), _doConnect);
   }
 
-  void join(int roomId) => _send({'type': 'join', 'room_id': roomId});
-  void leave(int roomId) => _send({'type': 'leave', 'room_id': roomId});
+  void join(int roomId) {
+    _joinedRooms.add(roomId);
+    _send({'type': 'join', 'room_id': roomId});
+  }
+
+  void leave(int roomId) {
+    _joinedRooms.remove(roomId);
+    _send({'type': 'leave', 'room_id': roomId});
+  }
   void sendTyping(int roomId, bool typing) =>
       _send({'type': 'typing', 'room_id': roomId, 'typing': typing});
 
