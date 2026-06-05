@@ -32,6 +32,16 @@ class Room {
 
   bool get isDirect => type == 'direct';
 
+  String? otherAvatarUrl(int myUserId) {
+    if (otherUser != null) return otherUser!.avatarUrl;
+    return members.where((m) => m.id != myUserId).firstOrNull?.avatarUrl;
+  }
+
+  int? otherUserId(int myUserId) {
+    if (otherUser != null) return otherUser!.id;
+    return members.where((m) => m.id != myUserId).firstOrNull?.id;
+  }
+
   String displayName(int myUserId) {
     if (isDirect) {
       if (otherUser != null) return otherUser!.name;

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../models/room.dart';
 import '../models/user.dart';
 import '../services/api_service.dart';
@@ -7,6 +8,7 @@ import '../services/auth_service.dart';
 import '../services/push_service.dart';
 import '../services/ws_service.dart';
 import '../app_theme.dart';
+import '../widgets/ws_status_bar.dart';
 import 'chat_screen.dart';
 import 'profile_screen.dart';
 
@@ -102,7 +104,10 @@ class _RoomListScreenState extends State<RoomListScreen> {
           ),
         ],
       ),
-      body: Stack(
+      body: Column(
+        children: [
+          const WsStatusBar(),
+          Expanded(child: Stack(
         children: [
           Center(
             child: Opacity(
@@ -126,6 +131,8 @@ class _RoomListScreenState extends State<RoomListScreen> {
             ),
                   ),
                 ),
+        ],
+          )),
         ],
       ),
       floatingActionButton: FloatingActionButton(
@@ -238,23 +245,44 @@ class _RoomAvatar extends StatelessWidget {
   final Room room;
   const _RoomAvatar({required this.room});
 
+  static const String _serverBase = 'https://192.168.16.22:9456';
+
+  Color _presenceColor(int? userId) {
+    if (userId == null) return Colors.transparent;
+    return WsService().onlineUsers.contains(userId) ? const Color(0xFF4CAF50) : Colors.grey.shade400;
+  }
+
   @override
   Widget build(BuildContext context) {
-    final name = room.displayName(AuthService().userId ?? 0);
+    final myId = AuthService().userId ?? 0;
+    final name = room.displayName(myId);
+    final avatarUrl = room.isDirect ? room.otherAvatarUrl(myId) : null;
+    final otherId = room.isDirect ? room.otherUserId(myId) : null;
+    final borderColor = room.isDirect ? _presenceColor(otherId) : Colors.transparent;
+
     return Stack(
       children: [
-        CircleAvatar(
-          backgroundColor: room.isDirect ? kBlue : kLime,
-          child: Text(
-            name.isNotEmpty ? name[0].toUpperCase() : '?',
-            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        Container(
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            border: Border.all(color: borderColor, width: 2.5),
+          ),
+          child: CircleAvatar(
+            backgroundColor: room.isDirect ? kBlue : kLime,
+            backgroundImage: avatarUrl != null
+                ? CachedNetworkImageProvider('$_serverBase$avatarUrl')
+                : null,
+            child: avatarUrl == null
+                ? Text(name.isNotEmpty ? name[0].toUpperCase() : '?',
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold))
+                : null,
           ),
         ),
         Positioned(
           bottom: 0, right: 0,
           child: Container(
             padding: const EdgeInsets.all(2),
-            decoration: BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+            decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
             child: Icon(
               room.isDirect ? Icons.person : Icons.group,
               size: 10,

@@ -16,6 +16,7 @@ import '../services/api_service.dart';
 import '../services/auth_service.dart';
 import '../services/ws_service.dart';
 import '../app_theme.dart';
+import '../widgets/ws_status_bar.dart';
 
 class ChatScreen extends StatefulWidget {
   final Room room;
@@ -531,6 +532,7 @@ class _ChatScreenState extends State<ChatScreen> {
       ),
       body: Column(
         children: [
+          const WsStatusBar(),
           if (_someoneRequestedDelete || (_room.deleteRequestedBy != null && _room.deleteRequestedBy != AuthService().userId))
             _DeleteRequestBanner(
               onKeep: () async {
@@ -882,7 +884,7 @@ class _MessageBubble extends StatelessWidget {
               const SizedBox(width: 8),
               GestureDetector(
                 onTap: () => _showAvatarDialog(context, message),
-                child: _MiniAvatar(avatarUrl: message.avatarUrl, name: message.userName),
+                child: _MiniAvatar(avatarUrl: message.avatarUrl, name: message.userName, userId: message.userId),
               ),
               const SizedBox(width: 6),
             ],
@@ -1137,20 +1139,33 @@ class _ImageBubble extends StatelessWidget {
 class _MiniAvatar extends StatelessWidget {
   final String? avatarUrl;
   final String name;
+  final int? userId;
   static const String _serverBase = 'https://192.168.16.22:9456';
-  const _MiniAvatar({required this.avatarUrl, required this.name});
+  const _MiniAvatar({required this.avatarUrl, required this.name, this.userId});
 
   @override
   Widget build(BuildContext context) {
     final url = avatarUrl != null ? '$_serverBase$avatarUrl' : null;
-    return CircleAvatar(
-      radius: 14,
-      backgroundColor: kBlue,
-      backgroundImage: url != null ? CachedNetworkImageProvider(url) : null,
-      child: url == null
-          ? Text(name.isEmpty ? '?' : name[0].toUpperCase(),
-              style: const TextStyle(fontSize: 11, color: Colors.white, fontWeight: FontWeight.bold))
-          : null,
+    final isOnline = userId != null && WsService().onlineUsers.contains(userId);
+    final borderColor = isOnline ? const Color(0xFF4CAF50) : Colors.grey.shade400;
+    return Stack(
+      children: [
+        Container(
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            border: Border.all(color: borderColor, width: 2),
+          ),
+          child: CircleAvatar(
+            radius: 13,
+            backgroundColor: kBlue,
+            backgroundImage: url != null ? CachedNetworkImageProvider(url) : null,
+            child: url == null
+                ? Text(name.isEmpty ? '?' : name[0].toUpperCase(),
+                    style: const TextStyle(fontSize: 10, color: Colors.white, fontWeight: FontWeight.bold))
+                : null,
+          ),
+        ),
+      ],
     );
   }
 }
