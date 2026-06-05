@@ -14,7 +14,7 @@ class MessageController {
         if ($before) {
             $st = $db->prepare("
                 SELECT m.id, m.room_id, m.sender_id AS user_id, u.name AS user_name, u.avatar_url,
-                       m.type, m.content, m.file_url, m.created_at,
+                       m.type, m.content, m.file_url, m.file_size, m.created_at,
                        m.reply_to_id, m.reply_to_content, m.reply_to_user_name
                 FROM messages m JOIN users u ON u.id = m.sender_id
                 WHERE m.room_id = ? AND m.id < ?
@@ -24,7 +24,7 @@ class MessageController {
         } else {
             $st = $db->prepare("
                 SELECT m.id, m.room_id, m.sender_id AS user_id, u.name AS user_name, u.avatar_url,
-                       m.type, m.content, m.file_url, m.created_at,
+                       m.type, m.content, m.file_url, m.file_size, m.created_at,
                        m.reply_to_id, m.reply_to_content, m.reply_to_user_name
                 FROM messages m JOIN users u ON u.id = m.sender_id
                 WHERE m.room_id = ?
@@ -83,7 +83,8 @@ class MessageController {
         $body    = json_decode(file_get_contents('php://input'), true) ?? [];
         $type    = $body['type'] ?? 'text';
         $content = trim($body['content'] ?? '');
-        $file_url = $body['file_url'] ?? null;
+        $file_url  = $body['file_url'] ?? null;
+        $file_size = isset($body['file_size']) ? (int)$body['file_size'] : null;
         $reply_to_id = (int)($body['reply_to_id'] ?? 0);
 
         if ($type === 'text' && !$content) Response::abort(400, 'Üzenet tartalma nem lehet üres.');
@@ -106,8 +107,8 @@ class MessageController {
             }
         }
 
-        $db->prepare("INSERT INTO messages (room_id, sender_id, type, content, file_url, reply_to_id, reply_to_content, reply_to_user_name) VALUES (?,?,?,?,?,?,?,?)")
-           ->execute([$room_id, $auth['user_id'], $type, $content ?: '', $file_url ?? '', $reply_to_id ?: null, $reply_to_content, $reply_to_user_name]);
+        $db->prepare("INSERT INTO messages (room_id, sender_id, type, content, file_url, file_size, reply_to_id, reply_to_content, reply_to_user_name) VALUES (?,?,?,?,?,?,?,?,?)")
+           ->execute([$room_id, $auth['user_id'], $type, $content ?: '', $file_url ?? '', $file_size, $reply_to_id ?: null, $reply_to_content, $reply_to_user_name]);
         $msg_id = (int)$db->lastInsertId();
 
         $msg = $db->prepare("
