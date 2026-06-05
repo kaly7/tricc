@@ -162,14 +162,30 @@ class _ChatScreenState extends State<ChatScreen> {
     final picker = ImagePicker();
     final picked = await picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
     if (picked == null) return;
+    final ok = await _confirmSend(picked.name, 'kép');
+    if (ok != true) return;
     await _uploadAndSend(File(picked.path), 'image');
   }
 
   Future<void> _pickFile() async {
     final result = await FilePicker.platform.pickFiles();
     if (result == null || result.files.single.path == null) return;
+    final ok = await _confirmSend(result.files.single.name, 'fájl');
+    if (ok != true) return;
     await _uploadAndSend(File(result.files.single.path!), 'file');
   }
+
+  Future<bool?> _confirmSend(String name, String label) => showDialog<bool>(
+    context: context,
+    builder: (_) => AlertDialog(
+      title: Text('$label küldése'),
+      content: Text(name, style: const TextStyle(fontWeight: FontWeight.w500)),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Mégsem')),
+        TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Küldés')),
+      ],
+    ),
+  );
 
   Future<void> _uploadAndSend(File file, String type) async {
     setState(() => _sending = true);
