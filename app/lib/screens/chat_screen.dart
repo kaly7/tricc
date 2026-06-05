@@ -98,6 +98,9 @@ class _ChatScreenState extends State<ChatScreen> {
         final idx = _messages.indexWhere((e) => e.id == m.id);
         if (idx != -1) _messages[idx] = m;
       });
+    } else if (msg['type'] == 'message_deleted') {
+      final msgId = msg['message_id'] as int?;
+      if (msgId != null) setState(() => _messages.removeWhere((e) => e.id == msgId));
     } else if (msg['type'] == 'member_left') {
       _loadRoom();
     } else if (msg['type'] == 'delete_request') {
