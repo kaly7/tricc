@@ -14,7 +14,8 @@ class MessageController {
         if ($before) {
             $st = $db->prepare("
                 SELECT m.id, m.room_id, m.sender_id AS user_id, u.name AS user_name, u.avatar_url,
-                       m.type, m.content, m.file_url, m.created_at
+                       m.type, m.content, m.file_url, m.created_at,
+                       m.reply_to_id, m.reply_to_content, m.reply_to_user_name
                 FROM messages m JOIN users u ON u.id = m.sender_id
                 WHERE m.room_id = ? AND m.id < ?
                 ORDER BY m.id DESC LIMIT $limit
@@ -23,7 +24,8 @@ class MessageController {
         } else {
             $st = $db->prepare("
                 SELECT m.id, m.room_id, m.sender_id AS user_id, u.name AS user_name, u.avatar_url,
-                       m.type, m.content, m.file_url, m.created_at
+                       m.type, m.content, m.file_url, m.created_at,
+                       m.reply_to_id, m.reply_to_content, m.reply_to_user_name
                 FROM messages m JOIN users u ON u.id = m.sender_id
                 WHERE m.room_id = ?
                 ORDER BY m.id DESC LIMIT $limit
@@ -34,6 +36,7 @@ class MessageController {
 
         $my_id = $auth['user_id'];
         foreach ($rows as &$row) {
+            // Deliveries (csak saját üzenetekhez)
             if ((int)$row['user_id'] === $my_id) {
                 $ds = $db->prepare("SELECT user_id, delivered_at, read_at FROM message_deliveries WHERE message_id=?");
                 $ds->execute([$row['id']]);
@@ -41,6 +44,32 @@ class MessageController {
             } else {
                 $row['deliveries'] = [];
             }
+
+            // Reply/quote
+            if ($row['reply_to_id']) {
+                $row['reply_to'] = [
+                    'id'        => (int)$row['reply_to_id'],
+                    'content'   => $row['reply_to_content'],
+                    'user_name' => $row['reply_to_user_name'],
+                ];
+            } else {
+                $row['reply_to'] = null;
+            }
+            unset($row['reply_to_id'], $row['reply_to_content'], $row['reply_to_user_name']);
+
+            // Reactions
+            $rs = $db->prepare("SELECT emoji, COUNT(*) AS count, GROUP_CONCAT(user_id) AS user_ids FROM message_reactions WHERE message_id=? GROUP BY emoji");
+            $rs->execute([$row['id']]);
+            $reactions = [];
+            foreach ($rs->fetchAll() as $r) {
+                $reactions[] = [
+                    'emoji'    => $r['emoji'],
+                    'count'    => (int)$r['count'],
+                    'user_ids' => array_map('intval', explode(',', $r['user_ids'])),
+                    'mine'     => in_array($my_id, array_map('intval', explode(',', $r['user_ids']))),
+                ];
+            }
+            $row['reactions'] = $reactions;
         }
         unset($row);
 
@@ -55,18 +84,36 @@ class MessageController {
         $type    = $body['type'] ?? 'text';
         $content = trim($body['content'] ?? '');
         $file_url = $body['file_url'] ?? null;
+        $reply_to_id = (int)($body['reply_to_id'] ?? 0);
 
         if ($type === 'text' && !$content) Response::abort(400, 'Üzenet tartalma nem lehet üres.');
         if (in_array($type, ['image', 'file']) && !$file_url) Response::abort(400, 'Fájl URL megadása kötelező.');
 
         $db = DB::get();
-        $db->prepare("INSERT INTO messages (room_id, sender_id, type, content, file_url) VALUES (?,?,?,?,?)")
-           ->execute([$room_id, $auth['user_id'], $type, $content ?: '', $file_url ?? '']);
+
+        // Reply cache
+        $reply_to_content = null;
+        $reply_to_user_name = null;
+        if ($reply_to_id) {
+            $rt = $db->prepare("SELECT m.content, u.name FROM messages m JOIN users u ON u.id=m.sender_id WHERE m.id=? AND m.room_id=?");
+            $rt->execute([$reply_to_id, $room_id]);
+            $rtRow = $rt->fetch();
+            if ($rtRow) {
+                $reply_to_content   = mb_substr($rtRow['content'], 0, 200);
+                $reply_to_user_name = $rtRow['name'];
+            } else {
+                $reply_to_id = 0;
+            }
+        }
+
+        $db->prepare("INSERT INTO messages (room_id, sender_id, type, content, file_url, reply_to_id, reply_to_content, reply_to_user_name) VALUES (?,?,?,?,?,?,?,?)")
+           ->execute([$room_id, $auth['user_id'], $type, $content ?: '', $file_url ?? '', $reply_to_id ?: null, $reply_to_content, $reply_to_user_name]);
         $msg_id = (int)$db->lastInsertId();
 
         $msg = $db->prepare("
             SELECT m.id, m.room_id, m.sender_id AS user_id, u.name AS user_name, u.avatar_url,
-                   m.type, m.content, m.file_url, m.created_at
+                   m.type, m.content, m.file_url, m.created_at,
+                   m.reply_to_id, m.reply_to_content, m.reply_to_user_name
             FROM messages m JOIN users u ON u.id = m.sender_id WHERE m.id = ?
         ");
         $msg->execute([$msg_id]);
@@ -83,7 +130,20 @@ class MessageController {
         $db->prepare("UPDATE rooms SET delete_requested_by=NULL WHERE id=? AND delete_requested_by IS NOT NULL")
            ->execute([$room_id]);
 
+        // reply_to objektum összerakása a válaszba
+        if ($row['reply_to_id']) {
+            $row['reply_to'] = [
+                'id'        => (int)$row['reply_to_id'],
+                'content'   => $row['reply_to_content'],
+                'user_name' => $row['reply_to_user_name'],
+            ];
+        } else {
+            $row['reply_to'] = null;
+        }
+        unset($row['reply_to_id'], $row['reply_to_content'], $row['reply_to_user_name']);
+
         $row['deliveries'] = [];
+        $row['reactions']  = [];
         self::pushToMembers($room_id, $auth['user_id'], $row, $msg_id);
         self::wsBroadcast($room_id, $row);
         Response::ok($row);
@@ -105,6 +165,71 @@ class MessageController {
         }
         $db->prepare("DELETE FROM messages WHERE id=?")->execute([$msg_id]);
         Response::ok();
+    }
+
+    public static function reactionToggle(int $room_id, int $msg_id): never {
+        $auth = Auth::require();
+        RoomController::assertMemberStatic($room_id, $auth['user_id']);
+
+        $body  = json_decode(file_get_contents('php://input'), true) ?? [];
+        $emoji = trim($body['emoji'] ?? '');
+        if (!$emoji) Response::abort(400, 'emoji megadása kötelező.');
+
+        $db  = DB::get();
+        $uid = $auth['user_id'];
+
+        // Üzenet ellenőrzése
+        $chk = $db->prepare("SELECT id FROM messages WHERE id=? AND room_id=?");
+        $chk->execute([$msg_id, $room_id]);
+        if (!$chk->fetch()) Response::abort(404, 'Üzenet nem található.');
+
+        // Toggle: ha már van, töröljük; ha nincs, hozzáadjuk
+        $ex = $db->prepare("SELECT id FROM message_reactions WHERE message_id=? AND user_id=? AND emoji=?");
+        $ex->execute([$msg_id, $uid, $emoji]);
+        if ($ex->fetch()) {
+            $db->prepare("DELETE FROM message_reactions WHERE message_id=? AND user_id=? AND emoji=?")
+               ->execute([$msg_id, $uid, $emoji]);
+            $action = 'removed';
+        } else {
+            $db->prepare("INSERT INTO message_reactions (message_id, user_id, emoji) VALUES (?,?,?)")
+               ->execute([$msg_id, $uid, $emoji]);
+            $action = 'added';
+        }
+
+        // Friss reaction aggregát
+        $rs = $db->prepare("SELECT emoji, COUNT(*) AS count, GROUP_CONCAT(user_id) AS user_ids FROM message_reactions WHERE message_id=? GROUP BY emoji");
+        $rs->execute([$msg_id]);
+        $reactions = [];
+        foreach ($rs->fetchAll() as $r) {
+            $reactions[] = [
+                'emoji'    => $r['emoji'],
+                'count'    => (int)$r['count'],
+                'user_ids' => array_map('intval', explode(',', $r['user_ids'])),
+            ];
+        }
+
+        // WS broadcast a szoba tagjainak
+        self::wsBroadcastRaw($room_id, [
+            'type'       => 'reaction',
+            'room_id'    => $room_id,
+            'message_id' => $msg_id,
+            'user_id'    => $uid,
+            'emoji'      => $emoji,
+            'action'     => $action,
+            'reactions'  => $reactions,
+        ]);
+
+        Response::ok(['reactions' => $reactions, 'action' => $action]);
+    }
+
+    private static function wsBroadcastRaw(int $room_id, array $payload): void {
+        try {
+            $sock = @stream_socket_client('tcp://127.0.0.1:9455', $errno, $errstr, 0.3);
+            if ($sock) {
+                fwrite($sock, json_encode($payload, JSON_UNESCAPED_UNICODE));
+                fclose($sock);
+            }
+        } catch (\Throwable) {}
     }
 
     private static function pushToMembers(int $room_id, int $sender_id, array $msg, int $msg_id): void {

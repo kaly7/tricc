@@ -57,6 +57,8 @@ try {
                                                              => MessageController::send((int)$m[1]),
         $method === 'DELETE' && preg_match('#^/rooms/(\d+)/messages/(\d+)$#', $path, $m) > 0
                                                              => MessageController::delete((int)$m[1], (int)$m[2]),
+        $method === 'POST'   && preg_match('#^/rooms/(\d+)/messages/(\d+)/reactions$#', $path, $m) > 0
+                                                             => MessageController::reactionToggle((int)$m[1], (int)$m[2]),
 
         // Upload
         $method === 'POST' && $path === '/upload'            => UploadController::upload(),

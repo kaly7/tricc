@@ -59,16 +59,30 @@ CREATE TABLE IF NOT EXISTS room_members (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS messages (
-    id           BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
-    room_id      INT    NOT NULL,
-    sender_id    INT    NOT NULL,
-    type         ENUM('text','image','file','link','system') NOT NULL DEFAULT 'text',
-    content      TEXT   NOT NULL DEFAULT '',
-    file_url     VARCHAR(500) NOT NULL DEFAULT '',
-    created_at   DATETIME(3)  NOT NULL DEFAULT NOW(3),
+    id                  BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    room_id             INT    NOT NULL,
+    sender_id           INT    NOT NULL,
+    type                ENUM('text','image','file','link','system') NOT NULL DEFAULT 'text',
+    content             TEXT   NOT NULL DEFAULT '',
+    file_url            VARCHAR(500) NOT NULL DEFAULT '',
+    reply_to_id         BIGINT NULL DEFAULT NULL,
+    reply_to_content    VARCHAR(200) NULL DEFAULT NULL,
+    reply_to_user_name  VARCHAR(100) NULL DEFAULT NULL,
+    created_at          DATETIME(3)  NOT NULL DEFAULT NOW(3),
     INDEX idx_room_time (room_id, created_at),
     FOREIGN KEY (room_id)   REFERENCES rooms(id) ON DELETE CASCADE,
     FOREIGN KEY (sender_id) REFERENCES users(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS message_reactions (
+    id           BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    message_id   BIGINT NOT NULL,
+    user_id      INT    NOT NULL,
+    emoji        VARCHAR(10) NOT NULL,
+    created_at   DATETIME NOT NULL DEFAULT NOW(),
+    UNIQUE KEY uq_reaction (message_id, user_id, emoji),
+    FOREIGN KEY (message_id) REFERENCES messages(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id)    REFERENCES users(id)    ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS message_deliveries (
