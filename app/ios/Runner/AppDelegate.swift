@@ -28,11 +28,14 @@ import UserNotifications
       guard let self = self else { return }
       if call.method == "refreshToken" {
         if let token = self.pendingToken {
-          // Token már bufferedben van — azonnal kézbesít, nincs round-trip
           self.sendToFlutter("onToken", arguments: token)
         } else {
           DispatchQueue.main.async { UIApplication.shared.registerForRemoteNotifications() }
         }
+        result(nil as Any?)
+      } else if call.method == "setBadge" {
+        let count = call.arguments as? Int ?? 0
+        DispatchQueue.main.async { UIApplication.shared.applicationIconBadgeNumber = count }
         result(nil as Any?)
       } else {
         result(FlutterMethodNotImplemented)

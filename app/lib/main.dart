@@ -43,6 +43,7 @@ class _TriccAppState extends State<TriccApp> with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed && AuthService().isLoggedIn) {
       WsService().connect();
+      PushService().setBadge(0);
     }
   }
 

@@ -50,6 +50,11 @@ class PushService {
     // Ha nincs mentett token, az init() refreshToken-je kezeli
   }
 
+  Future<void> setBadge(int count) async {
+    if (!Platform.isIOS) return;
+    try { await _channel.invokeMethod('setBadge', count); } catch (_) {}
+  }
+
   Future<void> _saveAndRegister(String token) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_prefKey, token);

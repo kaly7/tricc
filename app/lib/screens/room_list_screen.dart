@@ -52,6 +52,8 @@ class _RoomListScreenState extends State<RoomListScreen> {
     try {
       final rooms = await ApiService().getRooms();
       if (mounted) setState(() { _rooms = rooms; _loading = false; });
+      final totalUnread = rooms.fold<int>(0, (s, r) => s + r.unreadCount);
+      PushService().setBadge(totalUnread);
     } catch (_) {
       if (mounted) setState(() => _loading = false);
     }
@@ -61,6 +63,19 @@ class _RoomListScreenState extends State<RoomListScreen> {
     ApiService().markRead(room.id).catchError((_) {});
     await Navigator.push(context, MaterialPageRoute(builder: (_) => ChatScreen(room: room)));
     _load();
+  }
+
+  Future<void> _toggleMute(Room room) async {
+    try {
+      if (room.isMuted) {
+        await ApiService().unmuteRoom(room.id);
+      } else {
+        await ApiService().muteRoom(room.id);
+      }
+      _load();
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+    }
   }
 
   void _showNewRoomDialog() {
@@ -104,7 +119,11 @@ class _RoomListScreenState extends State<RoomListScreen> {
                   onRefresh: _load,
                   child: ListView.builder(
                     itemCount: _rooms.length,
-                    itemBuilder: (_, i) => _RoomTile(room: _rooms[i], onTap: () => _openRoom(_rooms[i])),
+                    itemBuilder: (_, i) => _RoomTile(
+              room: _rooms[i],
+              onTap: () => _openRoom(_rooms[i]),
+              onMuteToggle: () => _toggleMute(_rooms[i]),
+            ),
                   ),
                 ),
         ],
@@ -120,15 +139,27 @@ class _RoomListScreenState extends State<RoomListScreen> {
 class _RoomTile extends StatelessWidget {
   final Room room;
   final VoidCallback onTap;
-  const _RoomTile({required this.room, required this.onTap});
+  final VoidCallback onMuteToggle;
+  const _RoomTile({required this.room, required this.onTap, required this.onMuteToggle});
 
   @override
   Widget build(BuildContext context) {
     return ListTile(
       leading: _RoomAvatar(room: room),
-      title: Text(
-        room.displayName(AuthService().userId ?? 0),
-        style: TextStyle(fontWeight: room.unreadCount > 0 ? FontWeight.bold : FontWeight.w600),
+      title: Row(
+        children: [
+          Expanded(
+            child: Text(
+              room.displayName(AuthService().userId ?? 0),
+              style: TextStyle(fontWeight: room.unreadCount > 0 ? FontWeight.bold : FontWeight.w600),
+            ),
+          ),
+          if (room.isMuted)
+            const Padding(
+              padding: EdgeInsets.only(left: 4),
+              child: Icon(Icons.notifications_off, size: 14, color: Colors.grey),
+            ),
+        ],
       ),
       subtitle: room.lastMessage != null
           ? Text(
@@ -146,8 +177,14 @@ class _RoomTile extends StatelessWidget {
           if (room.unreadCount > 0) ...[
             const SizedBox(width: 6),
             Container(
-              width: 10, height: 10,
-              decoration: const BoxDecoration(color: kLime, shape: BoxShape.circle),
+              constraints: const BoxConstraints(minWidth: 20),
+              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+              decoration: BoxDecoration(color: Colors.red, borderRadius: BorderRadius.circular(10)),
+              child: Text(
+                room.unreadCount > 99 ? '99+' : '${room.unreadCount}',
+                style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+                textAlign: TextAlign.center,
+              ),
             ),
           ],
           if (room.deleteRequestedBy != null && room.deleteRequestedBy != AuthService().userId) ...[
@@ -157,6 +194,29 @@ class _RoomTile extends StatelessWidget {
         ],
       ),
       onTap: onTap,
+      onLongPress: () => _showContextMenu(context),
+    );
+  }
+
+  void _showContextMenu(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
+      builder: (_) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: Icon(room.isMuted ? Icons.notifications_active : Icons.notifications_off),
+              title: Text(room.isMuted ? 'Értesítések bekapcsolása' : 'Értesítések némítása'),
+              subtitle: Text(room.isMuted
+                  ? 'Push értesítések újra jönnek'
+                  : 'Üzenetek érkeznek, de push nem jön'),
+              onTap: () { Navigator.pop(context); onMuteToggle(); },
+            ),
+          ],
+        ),
+      ),
     );
   }
 

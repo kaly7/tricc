@@ -13,6 +13,7 @@ class Room {
   final Message? pinnedMessage;
   final int unreadCount;
   final int? deleteRequestedBy;
+  final bool isMuted;
 
   Room({
     required this.id,
@@ -26,6 +27,7 @@ class Room {
     this.pinnedMessage,
     this.unreadCount = 0,
     this.deleteRequestedBy,
+    this.isMuted = false,
   });
 
   bool get isDirect => type == 'direct';
@@ -53,5 +55,6 @@ class Room {
         pinnedMessage: j['pinned_message'] != null ? Message.fromJson(j['pinned_message']) : null,
         unreadCount: j['unread_count'] ?? 0,
         deleteRequestedBy: j['delete_requested_by'] as int?,
+        isMuted: j['is_muted'] == true || j['is_muted'] == 1,
       );
 }

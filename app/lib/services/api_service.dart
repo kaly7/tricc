@@ -130,6 +130,12 @@ class ApiService {
   Future<void> hideRoom(int roomId) =>
       _post('/rooms/$roomId/hide', {});
 
+  Future<void> muteRoom(int roomId) =>
+      _post('/rooms/$roomId/mute', {});
+
+  Future<void> unmuteRoom(int roomId) =>
+      _delete('/rooms/$roomId/mute');
+
   // Messages
   Future<List<Message>> getMessages(int roomId, {int? before, int limit = 50}) async {
     var path = '/rooms/$roomId/messages?limit=$limit';
