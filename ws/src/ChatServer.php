@@ -97,7 +97,18 @@ class ChatServer implements MessageComponentInterface {
         if (!in_array($uid, $this->roomUsers[$room_id] ?? [], true)) {
             $this->roomUsers[$room_id][] = $uid;
         }
-        $conn->send(json_encode(['type' => 'joined', 'room_id' => $room_id]));
+        $conn->send(json_encode(['type' => 'joined', 'room_id' => $room_id], JSON_UNESCAPED_UNICODE));
+
+        // Presence list: a szoba melyik tagjai online jelenleg
+        $st = DB::get()->prepare("SELECT user_id FROM room_members WHERE room_id=?");
+        $st->execute([$room_id]);
+        $allMembers   = array_map('intval', array_column($st->fetchAll(), 'user_id'));
+        $onlineInRoom = array_values(array_intersect($allMembers, array_keys($this->userConns)));
+        $conn->send(json_encode([
+            'type'            => 'presence_list',
+            'room_id'         => $room_id,
+            'online_user_ids' => $onlineInRoom,
+        ], JSON_UNESCAPED_UNICODE));
     }
 
     private function handleLeave(ConnectionInterface $conn, array $msg): void {
@@ -190,9 +201,17 @@ class ChatServer implements MessageComponentInterface {
     }
 
     private function broadcastPresence(int $uid, bool $online): void {
-        $payload = json_encode(['type' => 'presence', 'user_id' => $uid, 'online' => $online]);
-        foreach ($this->conns as $conn) {
-            $conn->send($payload);
+        // Csak azoknak küld, akik közös szobában vannak $uid-val
+        $st = DB::get()->prepare("
+            SELECT DISTINCT rm2.user_id
+            FROM room_members rm1
+            JOIN room_members rm2 ON rm2.room_id = rm1.room_id
+            WHERE rm1.user_id = ? AND rm2.user_id != ?
+        ");
+        $st->execute([$uid, $uid]);
+        $payload = ['type' => 'presence', 'user_id' => $uid, 'online' => $online];
+        foreach ($st->fetchAll() as $row) {
+            $this->sendToUser((int)$row['user_id'], $payload);
         }
     }
 
