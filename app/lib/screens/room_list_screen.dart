@@ -169,6 +169,26 @@ class _RoomTile extends StatelessWidget {
             const SizedBox(width: 5),
             PresenceDot(userId: room.otherUserId(AuthService().userId ?? 0)),
           ],
+          if (!room.isDirect) ...[
+            const SizedBox(width: 5),
+            GestureDetector(
+              onTap: () => _showMembersModal(context),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 7, height: 7,
+                    decoration: const BoxDecoration(color: Color(0xFF4CAF50), shape: BoxShape.circle),
+                  ),
+                  const SizedBox(width: 3),
+                  Text(
+                    '${room.members.where((m) => WsService().onlineUsers.contains(m.id)).length}',
+                    style: const TextStyle(fontSize: 12, color: Colors.grey),
+                  ),
+                ],
+              ),
+            ),
+          ],
           if (room.isMuted)
             const Padding(
               padding: EdgeInsets.only(left: 4),
@@ -210,6 +230,57 @@ class _RoomTile extends StatelessWidget {
       ),
       onTap: onTap,
       onLongPress: () => _showContextMenu(context),
+    );
+  }
+
+  static const String _serverBase = 'https://192.168.16.22:9456';
+
+  void _showMembersModal(BuildContext context) {
+    final onlineIds = WsService().onlineUsers;
+    final sorted = [...room.members]..sort((a, b) {
+        final aOnline = onlineIds.contains(a.id) ? 0 : 1;
+        final bOnline = onlineIds.contains(b.id) ? 0 : 1;
+        return aOnline.compareTo(bOnline);
+      });
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (_) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+              child: Text(
+                '${room.displayName(AuthService().userId ?? 0)} — ${sorted.length} tag',
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+            ),
+            ...sorted.map((m) {
+              final online = onlineIds.contains(m.id);
+              return ListTile(
+                leading: CircleAvatar(
+                  backgroundImage: m.avatarUrl != null
+                      ? CachedNetworkImageProvider('$_serverBase${m.avatarUrl}')
+                      : null,
+                  child: m.avatarUrl == null
+                      ? Text(m.name.isNotEmpty ? m.name[0].toUpperCase() : '?',
+                          style: const TextStyle(color: Colors.white))
+                      : null,
+                ),
+                title: Text(m.name),
+                subtitle: Text(
+                  online ? 'Online' : 'Offline',
+                  style: TextStyle(color: online ? const Color(0xFF4CAF50) : Colors.grey, fontSize: 12),
+                ),
+                trailing: PresenceDot(userId: m.id),
+              );
+            }),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
     );
   }
 
