@@ -303,9 +303,10 @@ class MessageController {
         $tokens->execute([$room_id, $sender_id]);
         $tokenRows = $tokens->fetchAll();
 
-        file_put_contents('/tmp/apns_debug.log',
+        file_put_contents('/var/www/html/tricc/uploads/apns_debug.log',
             date('Y-m-d H:i:s') . " pushToMembers room=$room_id sender=$sender_id tokens=" . count($tokenRows) . PHP_EOL,
             FILE_APPEND);
+        error_log("[Tricc] pushToMembers room=$room_id sender=$sender_id tokens=" . count($tokenRows));
 
         $title = $sname;
         $body  = $msg['type'] === 'text' ? ($msg['content'] ?? '') : '📎 Fájl';

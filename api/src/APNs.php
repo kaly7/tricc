@@ -26,9 +26,11 @@ class APNs {
             "https://api.push.apple.com/3/device/{$device_token}",
         ];
 
-        file_put_contents('/tmp/apns_debug.log', date('Y-m-d H:i:s') . ' payload=' . $payload . PHP_EOL, FILE_APPEND);
+        file_put_contents('/var/www/html/tricc/uploads/apns_debug.log', date('Y-m-d H:i:s') . ' payload=' . $payload . PHP_EOL, FILE_APPEND);
         $result = shell_exec(implode(' ', array_map('escapeshellarg', $cmd)));
         $ok = str_contains((string)$result, 'HTTP_STATUS:200');
+        file_put_contents('/var/www/html/tricc/uploads/apns_debug.log',
+            date('Y-m-d H:i:s') . ' result=' . trim((string)$result) . PHP_EOL, FILE_APPEND);
         error_log("[APNs] " . ($ok ? 'OK' : 'HIBA') . " → $title | $body");
         return $ok;
     }
