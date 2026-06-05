@@ -8,7 +8,7 @@ import '../services/auth_service.dart';
 import '../services/push_service.dart';
 import '../services/ws_service.dart';
 import '../app_theme.dart';
-import '../widgets/ws_status_bar.dart';
+import '../widgets/ws_status_bar.dart' show WsDot;
 import 'chat_screen.dart';
 import 'profile_screen.dart';
 
@@ -98,6 +98,7 @@ class _RoomListScreenState extends State<RoomListScreen> {
       appBar: AppBar(
         title: const AppBarLogo(),
         actions: [
+          const WsDot(),
           IconButton(
             icon: const Icon(Icons.person),
             onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfileScreen())),
@@ -106,7 +107,6 @@ class _RoomListScreenState extends State<RoomListScreen> {
       ),
       body: Column(
         children: [
-          const WsStatusBar(),
           Expanded(child: Stack(
         children: [
           Center(
@@ -263,9 +263,13 @@ class _RoomAvatar extends StatelessWidget {
     return Stack(
       children: [
         Container(
+          padding: const EdgeInsets.all(2.5),
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            border: Border.all(color: borderColor, width: 2.5),
+            color: borderColor,
+            boxShadow: borderColor != Colors.transparent
+                ? [BoxShadow(color: borderColor.withOpacity(0.4), blurRadius: 4, spreadRadius: 1)]
+                : null,
           ),
           child: CircleAvatar(
             backgroundColor: room.isDirect ? kBlue : kLime,

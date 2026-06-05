@@ -1,24 +1,27 @@
 import 'package:flutter/material.dart';
 import '../services/ws_service.dart';
 
-class WsStatusBar extends StatefulWidget {
-  const WsStatusBar({super.key});
+// Pulzáló státusz pötty az AppBar-ba (actions között)
+class WsDot extends StatefulWidget {
+  const WsDot({super.key});
 
   @override
-  State<WsStatusBar> createState() => _WsStatusBarState();
+  State<WsDot> createState() => _WsDotState();
 }
 
-class _WsStatusBarState extends State<WsStatusBar> with SingleTickerProviderStateMixin {
+class _WsDotState extends State<WsDot> with SingleTickerProviderStateMixin {
   late AnimationController _pulse;
-  late Animation<double> _opacity;
+  late Animation<double> _scale;
   WsState _state = WsService().state;
 
   @override
   void initState() {
     super.initState();
-    _pulse = AnimationController(vsync: this, duration: const Duration(milliseconds: 900))
+    _pulse = AnimationController(vsync: this, duration: const Duration(milliseconds: 800))
       ..repeat(reverse: true);
-    _opacity = Tween<double>(begin: 0.5, end: 1.0).animate(_pulse);
+    _scale = Tween<double>(begin: 0.7, end: 1.0).animate(
+      CurvedAnimation(parent: _pulse, curve: Curves.easeInOut),
+    );
     WsService().stateStream.listen((s) {
       if (mounted) setState(() => _state = s);
     });
@@ -32,22 +35,36 @@ class _WsStatusBarState extends State<WsStatusBar> with SingleTickerProviderStat
 
   @override
   Widget build(BuildContext context) {
-    if (_state == WsState.connected) return const SizedBox.shrink();
+    final Color color;
+    final bool pulsing;
+    switch (_state) {
+      case WsState.connected:
+        color = const Color(0xFF4CAF50);
+        pulsing = false;
+      case WsState.connecting:
+        color = Colors.amber;
+        pulsing = true;
+      case WsState.disconnected:
+        color = Colors.red;
+        pulsing = true;
+    }
 
-    final color = _state == WsState.connecting ? Colors.amber : Colors.red;
-    final label = _state == WsState.connecting ? 'Csatlakozás...' : 'Nincs kapcsolat';
-
-    return FadeTransition(
-      opacity: _opacity,
-      child: Container(
-        width: double.infinity,
+    final dot = Container(
+      width: 10,
+      height: 10,
+      decoration: BoxDecoration(
         color: color,
-        padding: const EdgeInsets.symmetric(vertical: 3),
-        child: Text(
-          label,
-          textAlign: TextAlign.center,
-          style: const TextStyle(fontSize: 11, color: Colors.white, fontWeight: FontWeight.w600),
-        ),
+        shape: BoxShape.circle,
+        boxShadow: [BoxShadow(color: color.withOpacity(0.5), blurRadius: 4, spreadRadius: 1)],
+      ),
+    );
+
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: Center(
+        child: pulsing
+            ? ScaleTransition(scale: _scale, child: dot)
+            : dot,
       ),
     );
   }

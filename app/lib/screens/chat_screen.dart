@@ -16,7 +16,7 @@ import '../services/api_service.dart';
 import '../services/auth_service.dart';
 import '../services/ws_service.dart';
 import '../app_theme.dart';
-import '../widgets/ws_status_bar.dart';
+import '../widgets/ws_status_bar.dart' show WsDot;
 
 class ChatScreen extends StatefulWidget {
   final Room room;
@@ -515,6 +515,7 @@ class _ChatScreenState extends State<ChatScreen> {
       appBar: AppBar(
         title: Text(_title),
         actions: [
+          const WsDot(),
           if (!_room.isDirect)
             IconButton(icon: const Icon(Icons.info_outline), onPressed: _showRoomInfo),
           PopupMenuButton<String>(
@@ -532,7 +533,6 @@ class _ChatScreenState extends State<ChatScreen> {
       ),
       body: Column(
         children: [
-          const WsStatusBar(),
           if (_someoneRequestedDelete || (_room.deleteRequestedBy != null && _room.deleteRequestedBy != AuthService().userId))
             _DeleteRequestBanner(
               onKeep: () async {
@@ -1151,12 +1151,14 @@ class _MiniAvatar extends StatelessWidget {
     return Stack(
       children: [
         Container(
+          padding: const EdgeInsets.all(2),
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            border: Border.all(color: borderColor, width: 2),
+            color: borderColor,
+            boxShadow: [BoxShadow(color: borderColor.withOpacity(0.4), blurRadius: 4, spreadRadius: 1)],
           ),
           child: CircleAvatar(
-            radius: 13,
+            radius: 12,
             backgroundColor: kBlue,
             backgroundImage: url != null ? CachedNetworkImageProvider(url) : null,
             child: url == null
