@@ -4,6 +4,7 @@ import '../models/room.dart';
 import '../models/user.dart';
 import '../services/api_service.dart';
 import '../services/auth_service.dart';
+import '../services/push_service.dart';
 import '../services/ws_service.dart';
 import '../app_theme.dart';
 import 'chat_screen.dart';
@@ -28,12 +29,23 @@ class _RoomListScreenState extends State<RoomListScreen> {
     _wsSub = WsService().events.listen((msg) {
       if (msg['type'] == 'message' || msg['type'] == 'delete_request') _load();
     });
+    PushService().onNotificationTap = _onPushTap;
   }
 
   @override
   void dispose() {
+    PushService().onNotificationTap = null;
     _wsSub?.cancel();
     super.dispose();
+  }
+
+  Future<void> _onPushTap(Map<String, dynamic> data) async {
+    final roomId = int.tryParse(data['room_id']?.toString() ?? '');
+    if (roomId == null || !mounted) return;
+    try {
+      final room = await ApiService().getRoom(roomId);
+      if (mounted) _openRoom(room);
+    } catch (_) {}
   }
 
   Future<void> _load() async {
