@@ -150,12 +150,14 @@ class ApiService {
     String? content,
     String? fileUrl,
     String? fileName,
+    int? fileSize,
     int? replyToId,
   }) async {
     final body = <String, dynamic>{'type': type};
     if (content != null) body['content'] = content;
     if (fileUrl != null) body['file_url'] = fileUrl;
     if (fileName != null) body['file_name'] = fileName;
+    if (fileSize != null) body['file_size'] = fileSize;
     if (replyToId != null) body['reply_to_id'] = replyToId;
     final r = await _post('/rooms/$roomId/messages', body);
     return Message.fromJson(r);

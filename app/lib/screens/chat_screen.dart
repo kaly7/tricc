@@ -204,6 +204,7 @@ class _ChatScreenState extends State<ChatScreen> {
   );
 
   Future<void> _uploadAndSend(File file, String type) async {
+    final fileSize = await file.length();
     setState(() => _sending = true);
     try {
       final uploaded = await ApiService().uploadFile(file);
@@ -212,6 +213,7 @@ class _ChatScreenState extends State<ChatScreen> {
         type: type,
         fileUrl: uploaded['url'] ?? uploaded['file_url'],
         fileName: uploaded['file_name'],
+        fileSize: fileSize,
       );
       if (!_messages.any((e) => e.id == m.id)) {
         setState(() => _messages.insert(0, m));
@@ -785,18 +787,32 @@ class _MessageBubble extends StatelessWidget {
     }
     return GestureDetector(
       onLongPress: onLongPress,
-      child: Align(
-        alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
-        child: Container(
-          margin: EdgeInsets.only(top: 4, bottom: 4, left: isMine ? 64 : 12, right: isMine ? 12 : 64),
-          child: Column(
-            crossAxisAlignment: isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-            children: [
-              if (!isMine && isGroup)
-                Padding(
-                  padding: const EdgeInsets.only(left: 4, bottom: 2),
-                  child: Text(message.userName, style: const TextStyle(fontSize: 12, color: Colors.grey, fontWeight: FontWeight.w600)),
-                ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 3),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            if (!isMine) ...[
+              const SizedBox(width: 8),
+              GestureDetector(
+                onTap: () => _showAvatarDialog(context, message),
+                child: _MiniAvatar(avatarUrl: message.avatarUrl, name: message.userName),
+              ),
+              const SizedBox(width: 6),
+            ],
+            Expanded(
+              child: Align(
+                alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 280),
+                  child: Column(
+                    crossAxisAlignment: isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+                    children: [
+                      if (!isMine && isGroup)
+                        Padding(
+                          padding: const EdgeInsets.only(left: 4, bottom: 2),
+                          child: Text(message.userName, style: const TextStyle(fontSize: 12, color: Colors.grey, fontWeight: FontWeight.w600)),
+                        ),
               Container(
                 padding: _needsPadding ? const EdgeInsets.symmetric(horizontal: 12, vertical: 8) : EdgeInsets.zero,
                 decoration: BoxDecoration(
@@ -855,8 +871,13 @@ class _MessageBubble extends StatelessWidget {
                   ],
                 ],
               ),
-            ],
-          ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            if (isMine) const SizedBox(width: 8),
+          ],
         ),
       ),
     );
@@ -887,10 +908,10 @@ class _MessageBubble extends StatelessWidget {
       case 'image':
         return _ImageBubble(fileUrl: message.fileUrl ?? '', isMine: isMine);
       case 'file':
-        return _FileBubble(fileName: message.fileName ?? 'Fájl', fileUrl: message.fileUrl ?? '', isMine: isMine);
+        return _FileBubble(fileName: message.fileName ?? 'Fájl', fileUrl: message.fileUrl ?? '', isMine: isMine, fileSize: message.fileSize);
       case 'link':
         return GestureDetector(
-          onTap: () => launchUrl(Uri.parse(message.content ?? ''), mode: LaunchMode.externalApplication),
+          onTap: () => _confirmOpenLink(context, message.content ?? ''),
           child: Text(message.content ?? '', style: TextStyle(color: isMine ? Colors.white : Colors.blue, decoration: TextDecoration.underline)),
         );
       default:
@@ -906,6 +927,62 @@ class _MessageBubble extends StatelessWidget {
       return '';
     }
   }
+}
+
+void _confirmOpenLink(BuildContext context, String url) {
+  showDialog(
+    context: context,
+    builder: (_) => AlertDialog(
+      title: const Text('Link megnyitása'),
+      content: Text(url, maxLines: 3, overflow: TextOverflow.ellipsis,
+          style: const TextStyle(fontSize: 13, color: Colors.black54)),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Mégsem')),
+        TextButton(
+          onPressed: () {
+            Navigator.pop(context);
+            launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+          },
+          child: const Text('Megnyitás'),
+        ),
+      ],
+    ),
+  );
+}
+
+void _showAvatarDialog(BuildContext context, Message message) {
+  const serverBase = 'https://192.168.16.22:9456';
+  showDialog(
+    context: context,
+    barrierColor: Colors.black87,
+    builder: (_) => GestureDetector(
+      onTap: () => Navigator.pop(context),
+      child: Dialog(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            message.avatarUrl != null
+                ? CircleAvatar(
+                    radius: 72,
+                    backgroundImage: CachedNetworkImageProvider('$serverBase${message.avatarUrl}'),
+                  )
+                : CircleAvatar(
+                    radius: 72,
+                    backgroundColor: kBlue,
+                    child: Text(
+                      message.userName.isNotEmpty ? message.userName[0].toUpperCase() : '?',
+                      style: const TextStyle(fontSize: 56, color: Colors.white, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+            const SizedBox(height: 12),
+            Text(message.userName, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+          ],
+        ),
+      ),
+    ),
+  );
 }
 
 // Kép buborék — bélyegkép + letöltés
@@ -962,13 +1039,43 @@ class _ImageBubble extends StatelessWidget {
   }
 }
 
-// Fájl buborék — csak név + letöltés ikon
+class _MiniAvatar extends StatelessWidget {
+  final String? avatarUrl;
+  final String name;
+  static const String _serverBase = 'https://192.168.16.22:9456';
+  const _MiniAvatar({required this.avatarUrl, required this.name});
+
+  @override
+  Widget build(BuildContext context) {
+    final url = avatarUrl != null ? '$_serverBase$avatarUrl' : null;
+    return CircleAvatar(
+      radius: 14,
+      backgroundColor: kBlue,
+      backgroundImage: url != null ? CachedNetworkImageProvider(url) : null,
+      child: url == null
+          ? Text(name.isEmpty ? '?' : name[0].toUpperCase(),
+              style: const TextStyle(fontSize: 11, color: Colors.white, fontWeight: FontWeight.bold))
+          : null,
+    );
+  }
+}
+
+// Fájl buborék — név + méret + letöltés ikon
 class _FileBubble extends StatelessWidget {
   final String fileName;
   final String fileUrl;
   final bool isMine;
+  final int? fileSize;
   static const String _serverBase = 'https://192.168.16.22:9456';
-  const _FileBubble({required this.fileName, required this.fileUrl, required this.isMine});
+  const _FileBubble({required this.fileName, required this.fileUrl, required this.isMine, this.fileSize});
+
+  String get _sizeLabel {
+    final s = fileSize;
+    if (s == null) return '';
+    if (s < 1024) return '$s B';
+    if (s < 1024 * 1024) return '${(s / 1024).toStringAsFixed(1)} KB';
+    return '${(s / (1024 * 1024)).toStringAsFixed(1)} MB';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -977,9 +1084,18 @@ class _FileBubble extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.insert_drive_file_outlined, color: isMine ? Colors.white : kBlue, size: 20),
+          Icon(Icons.insert_drive_file_outlined, color: isMine ? Colors.white : kBlue, size: 22),
           const SizedBox(width: 8),
-          Flexible(child: Text(fileName, style: TextStyle(color: isMine ? Colors.white : Colors.black87))),
+          Flexible(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(fileName, style: TextStyle(color: isMine ? Colors.white : Colors.black87)),
+                if (_sizeLabel.isNotEmpty)
+                  Text(_sizeLabel, style: TextStyle(fontSize: 11, color: isMine ? Colors.white60 : Colors.grey)),
+              ],
+            ),
+          ),
           const SizedBox(width: 8),
           Icon(Icons.download_outlined, color: isMine ? Colors.white70 : Colors.grey, size: 18),
         ],

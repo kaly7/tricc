@@ -59,6 +59,7 @@ class Message {
   final String? content;
   final String? fileUrl;
   final String? fileName;
+  final int? fileSize;
   final String createdAt;
   final List<MessageDelivery> deliveries;
   final ReplyTo? replyTo;
@@ -74,6 +75,7 @@ class Message {
     this.content,
     this.fileUrl,
     this.fileName,
+    this.fileSize,
     required this.createdAt,
     this.deliveries = const [],
     this.replyTo,
@@ -90,6 +92,7 @@ class Message {
         content: j['content'],
         fileUrl: j['file_url'],
         fileName: j['file_name'],
+        fileSize: j['file_size'] as int?,
         createdAt: j['created_at'] ?? '',
         deliveries: (j['deliveries'] as List?)
                 ?.map((e) => MessageDelivery.fromJson(e as Map<String, dynamic>))
@@ -102,7 +105,8 @@ class Message {
             [],
       );
 
-  Message copyWith({List<MessageDelivery>? deliveries, List<MessageReaction>? reactions}) => Message(
+  Message copyWith({List<MessageDelivery>? deliveries, List<MessageReaction>? reactions}) =>
+      Message(
         id: id,
         roomId: roomId,
         userId: userId,
@@ -112,6 +116,7 @@ class Message {
         content: content,
         fileUrl: fileUrl,
         fileName: fileName,
+        fileSize: fileSize,
         createdAt: createdAt,
         deliveries: deliveries ?? this.deliveries,
         replyTo: replyTo,
