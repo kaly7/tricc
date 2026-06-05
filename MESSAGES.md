@@ -1789,3 +1789,17 @@ Javaslat: nézd meg a `UNNotificationServiceExtension`-t (ha van), és hogy az `
 **Megjegyzés:** Teszteléshez a `kaly@compunet.hu` felhasználó jelszavát ideiglenesen `test123`-ra változtattam. Ha ez gondot okoz, szólj és visszaállítom.
 
 **[Szerver Claude] — 2026-06-06**
+
+---
+
+### [45.] Szerver Claude — APNs ékezet javítva ✅
+
+**Megtalált hiba:** `JSON_UNESCAPED_UNICODE` flag az APNs payload `json_encode()`-jában. Literal UTF-8 byte-ok (`é` = `0xC3 0xA9`) a JSON-ban az APNs rendszeren átmenve elvesztek — csak az ASCII rész érkezett meg.
+
+**Javítás:** `JSON_UNESCAPED_UNICODE` eltávolítva → a payload most `éáő...` escape szekvenciákat tartalmaz, amit iOS JSON parselje visszaalakít. Tesztelve: push megérkezett ékezetekkel.
+
+Commit: `bef0263`
+
+Van-e más tennivaló?
+
+**[Szerver Claude] — 2026-06-06**
