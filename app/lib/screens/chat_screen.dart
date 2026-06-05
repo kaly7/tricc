@@ -16,7 +16,7 @@ import '../services/api_service.dart';
 import '../services/auth_service.dart';
 import '../services/ws_service.dart';
 import '../app_theme.dart';
-import '../widgets/ws_status_bar.dart' show WsDot;
+import '../widgets/ws_status_bar.dart' show WsDot, PresenceDot;
 
 class ChatScreen extends StatefulWidget {
   final Room room;
@@ -76,6 +76,11 @@ class _ChatScreenState extends State<ChatScreen> {
 
   Future<void> _onWsEvent(Map<String, dynamic> msg) async {
     if (!mounted) return;
+    final type = msg['type'] as String?;
+    if (type == 'presence' || type == 'presence_list') {
+      if (_room.isDirect) setState(() {});
+      return;
+    }
     final roomId = msg['room_id'];
     if (roomId != widget.room.id) return;
     if (msg['type'] == 'message') {
@@ -513,7 +518,16 @@ class _ChatScreenState extends State<ChatScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(_title),
+        title: _room.isDirect
+            ? Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(_title),
+                  const SizedBox(width: 6),
+                  PresenceDot(userId: _room.otherUserId(AuthService().userId ?? 0)),
+                ],
+              )
+            : Text(_title),
         actions: [
           const WsDot(),
           if (!_room.isDirect)

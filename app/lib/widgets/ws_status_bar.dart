@@ -1,6 +1,25 @@
 import 'package:flutter/material.dart';
 import '../services/ws_service.dart';
 
+// Kis pötty a nevek mellé: zöld = online, szürke = offline
+class PresenceDot extends StatelessWidget {
+  final int? userId;
+  const PresenceDot({super.key, this.userId});
+
+  @override
+  Widget build(BuildContext context) {
+    final online = userId != null && WsService().onlineUsers.contains(userId);
+    return Container(
+      width: 8,
+      height: 8,
+      decoration: BoxDecoration(
+        color: online ? const Color(0xFF4CAF50) : Colors.grey.shade400,
+        shape: BoxShape.circle,
+      ),
+    );
+  }
+}
+
 // Pulzáló státusz pötty az AppBar-ba (actions között)
 class WsDot extends StatefulWidget {
   const WsDot({super.key});

@@ -8,7 +8,7 @@ import '../services/auth_service.dart';
 import '../services/push_service.dart';
 import '../services/ws_service.dart';
 import '../app_theme.dart';
-import '../widgets/ws_status_bar.dart' show WsDot;
+import '../widgets/ws_status_bar.dart' show WsDot, PresenceDot;
 import 'chat_screen.dart';
 import 'profile_screen.dart';
 
@@ -29,7 +29,11 @@ class _RoomListScreenState extends State<RoomListScreen> {
     super.initState();
     _load();
     _wsSub = WsService().events.listen((msg) {
-      if (msg['type'] == 'message' || msg['type'] == 'delete_request') _load();
+      final type = msg['type'] as String?;
+      if (type == 'message' || type == 'delete_request') _load();
+      if (type == 'presence' || type == 'presence_list') {
+        if (mounted) setState(() {});
+      }
     });
     PushService().onNotificationTap = _onPushTap;
   }
@@ -161,6 +165,10 @@ class _RoomTile extends StatelessWidget {
               style: TextStyle(fontWeight: room.unreadCount > 0 ? FontWeight.bold : FontWeight.w600),
             ),
           ),
+          if (room.isDirect) ...[
+            const SizedBox(width: 5),
+            PresenceDot(userId: room.otherUserId(AuthService().userId ?? 0)),
+          ],
           if (room.isMuted)
             const Padding(
               padding: EdgeInsets.only(left: 4),
