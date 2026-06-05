@@ -36,6 +36,7 @@ class _ChatScreenState extends State<ChatScreen> {
   StreamSubscription? _wsSub;
   bool _someoneRequestedDelete = false;
   Message? _replyTo;
+  Message? _editingMessage;
 
   bool get _isAdmin => _room.members
       .any((m) => m.id == AuthService().userId && m.role == 'admin');
@@ -91,6 +92,12 @@ class _ChatScreenState extends State<ChatScreen> {
       _applyStatusUpdate(msg);
     } else if (msg['type'] == 'reaction') {
       _applyReactionUpdate(msg);
+    } else if (msg['type'] == 'message_edited') {
+      final m = Message.fromJson(msg['message']);
+      setState(() {
+        final idx = _messages.indexWhere((e) => e.id == m.id);
+        if (idx != -1) _messages[idx] = m;
+      });
     } else if (msg['type'] == 'member_left') {
       _loadRoom();
     } else if (msg['type'] == 'delete_request') {
@@ -160,6 +167,25 @@ class _ChatScreenState extends State<ChatScreen> {
     final text = _msgCtrl.text.trim();
     if (text.isEmpty) return;
     _msgCtrl.clear();
+
+    // Szerkesztés mód
+    if (_editingMessage != null) {
+      final editing = _editingMessage!;
+      setState(() { _sending = true; _editingMessage = null; });
+      try {
+        final m = await ApiService().editMessage(widget.room.id, editing.id, text);
+        setState(() {
+          final idx = _messages.indexWhere((e) => e.id == m.id);
+          if (idx != -1) _messages[idx] = m;
+        });
+      } catch (e) {
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+      } finally {
+        if (mounted) setState(() => _sending = false);
+      }
+      return;
+    }
+
     final replyId = _replyTo?.id;
     setState(() { _sending = true; _replyTo = null; });
     try {
@@ -174,11 +200,42 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
+  Future<void> _deleteMessage(Message message) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Üzenet törlése'),
+        content: const Text('Biztosan törlöd ezt az üzenetet? Mindenkinél eltűnik.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Mégsem')),
+          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Törlés', style: TextStyle(color: Colors.red))),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    try {
+      await ApiService().deleteMessage(_room.id, message.id);
+      setState(() => _messages.removeWhere((m) => m.id == message.id));
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+    }
+  }
+
+  void _startEdit(Message message) {
+    setState(() {
+      _editingMessage = message;
+      _replyTo = null;
+    });
+    _msgCtrl.text = message.content ?? '';
+    _msgCtrl.selection = TextSelection.fromPosition(TextPosition(offset: _msgCtrl.text.length));
+  }
+
   Future<void> _pickImage() async {
     final picker = ImagePicker();
     final picked = await picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
     if (picked == null) return;
-    final ok = await _confirmSend(picked.name, 'kép');
+    final size = await File(picked.path).length();
+    final ok = await _confirmSend(picked.name, 'kép', size);
     if (ok != true) return;
     await _uploadAndSend(File(picked.path), 'image');
   }
@@ -186,16 +243,25 @@ class _ChatScreenState extends State<ChatScreen> {
   Future<void> _pickFile() async {
     final result = await FilePicker.platform.pickFiles();
     if (result == null || result.files.single.path == null) return;
-    final ok = await _confirmSend(result.files.single.name, 'fájl');
+    final size = await File(result.files.single.path!).length();
+    final ok = await _confirmSend(result.files.single.name, 'fájl', size);
     if (ok != true) return;
     await _uploadAndSend(File(result.files.single.path!), 'file');
   }
 
-  Future<bool?> _confirmSend(String name, String label) => showDialog<bool>(
+  Future<bool?> _confirmSend(String name, String label, int size) => showDialog<bool>(
     context: context,
     builder: (_) => AlertDialog(
       title: Text('$label küldése'),
-      content: Text(name, style: const TextStyle(fontWeight: FontWeight.w500)),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(name, style: const TextStyle(fontWeight: FontWeight.w500)),
+          const SizedBox(height: 4),
+          Text(_formatBytes(size), style: const TextStyle(fontSize: 12, color: Colors.grey)),
+        ],
+      ),
       actions: [
         TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Mégsem')),
         TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Küldés')),
@@ -293,6 +359,18 @@ class _ChatScreenState extends State<ChatScreen> {
                     if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
                   }
                 },
+              ),
+            if (isMine && (message.type == 'text' || message.type == 'link'))
+              ListTile(
+                leading: const Icon(Icons.edit_outlined, color: kBlue),
+                title: const Text('Szerkesztés'),
+                onTap: () { Navigator.pop(context); _startEdit(message); },
+              ),
+            if (isMine)
+              ListTile(
+                leading: const Icon(Icons.delete_outline, color: Colors.red),
+                title: const Text('Törlés', style: TextStyle(color: Colors.red)),
+                onTap: () { Navigator.pop(context); _deleteMessage(message); },
               ),
           ],
         ),
@@ -521,6 +599,11 @@ class _ChatScreenState extends State<ChatScreen> {
                     ],
                   ),
           ),
+          if (_editingMessage != null)
+            _EditBar(
+              message: _editingMessage!,
+              onCancel: () { setState(() { _editingMessage = null; _msgCtrl.clear(); }); },
+            ),
           if (_replyTo != null)
             _ReplyBar(
               message: _replyTo!,
@@ -863,7 +946,10 @@ class _MessageBubble extends StatelessWidget {
                   ],
                   Padding(
                     padding: const EdgeInsets.only(top: 2, left: 4, right: 4),
-                    child: Text(_formatTime(message.createdAt), style: const TextStyle(fontSize: 10, color: Colors.grey)),
+                    child: Text(
+                      '${_formatTime(message.createdAt)}${message.isEdited ? ' · szerk.' : ''}',
+                      style: const TextStyle(fontSize: 10, color: Colors.grey),
+                    ),
                   ),
                   if (isMine) ...[
                     const SizedBox(width: 2),
@@ -927,6 +1013,12 @@ class _MessageBubble extends StatelessWidget {
       return '';
     }
   }
+}
+
+String _formatBytes(int bytes) {
+  if (bytes < 1024) return '$bytes B';
+  if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
+  return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
 }
 
 void _confirmOpenLink(BuildContext context, String url) {
@@ -1069,13 +1161,8 @@ class _FileBubble extends StatelessWidget {
   static const String _serverBase = 'https://192.168.16.22:9456';
   const _FileBubble({required this.fileName, required this.fileUrl, required this.isMine, this.fileSize});
 
-  String get _sizeLabel {
-    final s = fileSize;
-    if (s == null) return '';
-    if (s < 1024) return '$s B';
-    if (s < 1024 * 1024) return '${(s / 1024).toStringAsFixed(1)} KB';
-    return '${(s / (1024 * 1024)).toStringAsFixed(1)} MB';
-  }
+  String get _sizeLabel => fileSize != null ? _formatBytes(fileSize!) : '';
+
 
   @override
   Widget build(BuildContext context) {
@@ -1203,6 +1290,35 @@ class _ReplyBar extends StatelessWidget {
                   style: const TextStyle(fontSize: 12, color: Colors.black54),
                 ),
               ],
+            ),
+          ),
+          IconButton(icon: const Icon(Icons.close, size: 18), onPressed: onCancel, padding: EdgeInsets.zero),
+        ],
+      ),
+    );
+  }
+}
+
+class _EditBar extends StatelessWidget {
+  final Message message;
+  final VoidCallback onCancel;
+  const _EditBar({required this.message, required this.onCancel});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      color: Colors.orange.withOpacity(0.08),
+      child: Row(
+        children: [
+          const Icon(Icons.edit_outlined, size: 16, color: Colors.orange),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              message.content ?? '',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 12, color: Colors.black54),
             ),
           ),
           IconButton(icon: const Icon(Icons.close, size: 18), onPressed: onCancel, padding: EdgeInsets.zero),

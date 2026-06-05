@@ -166,6 +166,11 @@ class ApiService {
   Future<void> deleteMessage(int roomId, int messageId) =>
       _delete('/rooms/$roomId/messages/$messageId');
 
+  Future<Message> editMessage(int roomId, int messageId, String content) async {
+    final r = await _put('/rooms/$roomId/messages/$messageId', {'content': content});
+    return Message.fromJson(r);
+  }
+
   Future<Map<String, dynamic>> toggleReaction(int roomId, int messageId, String emoji) =>
       _post('/rooms/$roomId/messages/$messageId/reactions', {'emoji': emoji});
 

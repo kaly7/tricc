@@ -61,6 +61,7 @@ class Message {
   final String? fileName;
   final int? fileSize;
   final String createdAt;
+  final bool isEdited;
   final List<MessageDelivery> deliveries;
   final ReplyTo? replyTo;
   final List<MessageReaction> reactions;
@@ -77,6 +78,7 @@ class Message {
     this.fileName,
     this.fileSize,
     required this.createdAt,
+    this.isEdited = false,
     this.deliveries = const [],
     this.replyTo,
     this.reactions = const [],
@@ -94,6 +96,7 @@ class Message {
         fileName: j['file_name'],
         fileSize: j['file_size'] as int?,
         createdAt: j['created_at'] ?? '',
+        isEdited: j['is_edited'] == true || j['is_edited'] == 1,
         deliveries: (j['deliveries'] as List?)
                 ?.map((e) => MessageDelivery.fromJson(e as Map<String, dynamic>))
                 .toList() ??
@@ -118,6 +121,7 @@ class Message {
         fileName: fileName,
         fileSize: fileSize,
         createdAt: createdAt,
+        isEdited: isEdited,
         deliveries: deliveries ?? this.deliveries,
         replyTo: replyTo,
         reactions: reactions ?? this.reactions,
