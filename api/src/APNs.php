@@ -12,7 +12,7 @@ class APNs {
                 'badge' => $badge,
             ],
             'data' => $data,
-        ], JSON_UNESCAPED_UNICODE);
+        ]);
 
         $cmd = [
             'curl', '--http2', '--silent', '--show-error',
