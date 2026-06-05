@@ -150,17 +150,22 @@ class ApiService {
     String? content,
     String? fileUrl,
     String? fileName,
+    int? replyToId,
   }) async {
     final body = <String, dynamic>{'type': type};
     if (content != null) body['content'] = content;
     if (fileUrl != null) body['file_url'] = fileUrl;
     if (fileName != null) body['file_name'] = fileName;
+    if (replyToId != null) body['reply_to_id'] = replyToId;
     final r = await _post('/rooms/$roomId/messages', body);
     return Message.fromJson(r);
   }
 
   Future<void> deleteMessage(int roomId, int messageId) =>
       _delete('/rooms/$roomId/messages/$messageId');
+
+  Future<Map<String, dynamic>> toggleReaction(int roomId, int messageId, String emoji) =>
+      _post('/rooms/$roomId/messages/$messageId/reactions', {'emoji': emoji});
 
   // Upload
   Future<Map<String, dynamic>> uploadFile(File file) async {

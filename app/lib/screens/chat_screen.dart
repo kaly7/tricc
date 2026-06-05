@@ -35,6 +35,7 @@ class _ChatScreenState extends State<ChatScreen> {
   bool _hasMore = true;
   StreamSubscription? _wsSub;
   bool _someoneRequestedDelete = false;
+  Message? _replyTo;
 
   bool get _isAdmin => _room.members
       .any((m) => m.id == AuthService().userId && m.role == 'admin');
@@ -88,6 +89,8 @@ class _ChatScreenState extends State<ChatScreen> {
       }
     } else if (msg['type'] == 'status_update') {
       _applyStatusUpdate(msg);
+    } else if (msg['type'] == 'reaction') {
+      _applyReactionUpdate(msg);
     } else if (msg['type'] == 'member_left') {
       _loadRoom();
     } else if (msg['type'] == 'delete_request') {
@@ -126,6 +129,18 @@ class _ChatScreenState extends State<ChatScreen> {
     });
   }
 
+  void _applyReactionUpdate(Map<String, dynamic> msg) {
+    final messageId = msg['message_id'] as int?;
+    if (messageId == null) return;
+    final rawReactions = msg['reactions'] as List?;
+    if (rawReactions == null) return;
+    final reactions = rawReactions.map((e) => MessageReaction.fromJson(e as Map<String, dynamic>)).toList();
+    setState(() {
+      final idx = _messages.indexWhere((m) => m.id == messageId);
+      if (idx != -1) _messages[idx] = _messages[idx].copyWith(reactions: reactions);
+    });
+  }
+
   Future<void> _loadMessages({bool older = false}) async {
     final before = older && _messages.isNotEmpty ? _messages.last.id : null;
     try {
@@ -145,9 +160,10 @@ class _ChatScreenState extends State<ChatScreen> {
     final text = _msgCtrl.text.trim();
     if (text.isEmpty) return;
     _msgCtrl.clear();
-    setState(() => _sending = true);
+    final replyId = _replyTo?.id;
+    setState(() { _sending = true; _replyTo = null; });
     try {
-      final m = await ApiService().sendMessage(widget.room.id, type: 'text', content: text);
+      final m = await ApiService().sendMessage(widget.room.id, type: 'text', content: text, replyToId: replyId);
       if (!_messages.any((e) => e.id == m.id)) {
         setState(() => _messages.insert(0, m));
       }
@@ -205,6 +221,147 @@ class _ChatScreenState extends State<ChatScreen> {
     } finally {
       if (mounted) setState(() => _sending = false);
     }
+  }
+
+  void _showMessageActions(Message message, bool isMine) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (_) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 8),
+            // Emoji reakciók
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: ['👍', '❤️', '😂', '😮', '😢', '🔥'].map((emoji) {
+                  final reaction = message.reactions.where((r) => r.emoji == emoji).firstOrNull;
+                  final mine = reaction?.mine ?? false;
+                  return GestureDetector(
+                    onTap: () {
+                      Navigator.pop(context);
+                      _toggleReaction(message, emoji);
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: mine ? kBlue.withOpacity(0.15) : Colors.grey.shade100,
+                        borderRadius: BorderRadius.circular(12),
+                        border: mine ? Border.all(color: kBlue, width: 1.5) : null,
+                      ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(emoji, style: const TextStyle(fontSize: 24)),
+                          if (reaction != null && reaction.count > 0)
+                            Text('${reaction.count}', style: const TextStyle(fontSize: 11)),
+                        ],
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+            const Divider(),
+            ListTile(
+              leading: const Icon(Icons.reply),
+              title: const Text('Válasz'),
+              onTap: () { Navigator.pop(context); setState(() => _replyTo = message); },
+            ),
+            if (isMine && message.deliveries.isNotEmpty)
+              ListTile(
+                leading: const Icon(Icons.people_outline),
+                title: const Text('Kézbesítés részletei'),
+                onTap: () { Navigator.pop(context); _showDeliveryDetails(message); },
+              ),
+            if (!_room.isDirect && _isAdmin)
+              ListTile(
+                leading: const Icon(Icons.push_pin, color: kBlue),
+                title: const Text('Kiemelés'),
+                onTap: () async {
+                  Navigator.pop(context);
+                  try {
+                    await ApiService().pinMessage(_room.id, message.id);
+                    await _loadRoom();
+                    if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Üzenet kiemelve.')));
+                  } catch (e) {
+                    if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+                  }
+                },
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _toggleReaction(Message message, String emoji) async {
+    try {
+      final result = await ApiService().toggleReaction(_room.id, message.id, emoji);
+      final reactions = (result['reactions'] as List?)
+          ?.map((e) => MessageReaction.fromJson(e as Map<String, dynamic>))
+          .toList() ?? [];
+      setState(() {
+        final idx = _messages.indexWhere((m) => m.id == message.id);
+        if (idx != -1) _messages[idx] = _messages[idx].copyWith(reactions: reactions);
+      });
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+    }
+  }
+
+  void _showDeliveryDetails(Message message) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (_) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Padding(
+              padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
+              child: Text('Kézbesítés részletei', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+            ),
+            ..._room.members
+                .where((u) => u.id != AuthService().userId)
+                .map((u) {
+              final d = message.deliveries.where((d) => d.userId == u.id).firstOrNull;
+              final icon = d?.readAt != null
+                  ? const Icon(Icons.done_all, color: Colors.green, size: 18)
+                  : d?.deliveredAt != null
+                      ? const Icon(Icons.done_all, color: Colors.amber, size: 18)
+                      : const Icon(Icons.done, color: Colors.grey, size: 18);
+              final label = d?.readAt != null
+                  ? 'Elolvasta ${_fmtFull(d!.readAt!)}'
+                  : d?.deliveredAt != null
+                      ? 'Megkapta ${_fmtFull(d!.deliveredAt!)}'
+                      : 'Nem érkezett meg';
+              return ListTile(
+                leading: CircleAvatar(
+                  radius: 16,
+                  backgroundColor: kBlue,
+                  child: Text(u.name.isNotEmpty ? u.name[0].toUpperCase() : '?',
+                      style: const TextStyle(color: Colors.white, fontSize: 12)),
+                ),
+                title: Text(u.name),
+                subtitle: Text(label, style: const TextStyle(fontSize: 12)),
+                trailing: icon,
+              );
+            }),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _fmtFull(DateTime dt) {
+    final l = dt.toLocal();
+    return '${l.month}.${l.day}. ${l.hour.toString().padLeft(2,'0')}:${l.minute.toString().padLeft(2,'0')}';
   }
 
   void _showRoomInfo() async {
@@ -345,27 +502,28 @@ class _ChatScreenState extends State<ChatScreen> {
                       controller: _scroll,
                       reverse: true,
                       itemCount: _messages.length,
-                      itemBuilder: (_, i) => _MessageBubble(
-                        message: _messages[i],
-                        isMine: _messages[i].userId != null && _messages[i].userId == AuthService().userId,
-                        isGroup: !_room.isDirect,
-                        isPinned: _room.pinnedMessage?.id == _messages[i].id,
-                        canPin: !_room.isDirect,
-                        onPin: () async {
-                          try {
-                            await ApiService().pinMessage(_room.id, _messages[i].id);
-                            await _loadRoom();
-                            if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Üzenet kiemelve.')));
-                          } catch (e) {
-                            if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
-                          }
-                        },
-                      ),
+                      itemBuilder: (_, i) {
+                        final msg = _messages[i];
+                        final isMine = msg.userId != null && msg.userId == AuthService().userId;
+                        return _MessageBubble(
+                          message: msg,
+                          isMine: isMine,
+                          isGroup: !_room.isDirect,
+                          isPinned: _room.pinnedMessage?.id == msg.id,
+                          onLongPress: () => _showMessageActions(msg, isMine),
+                          onReactionTap: (emoji) => _toggleReaction(msg, emoji),
+                        );
+                      },
                     ),
                   ),
                     ],
                   ),
           ),
+          if (_replyTo != null)
+            _ReplyBar(
+              message: _replyTo!,
+              onCancel: () => setState(() => _replyTo = null),
+            ),
           _InputBar(
             controller: _msgCtrl,
             sending: _sending,
@@ -605,10 +763,17 @@ class _MessageBubble extends StatelessWidget {
   final Message message;
   final bool isMine;
   final bool isGroup;
-  final bool canPin;
-  final VoidCallback? onPin;
   final bool isPinned;
-  const _MessageBubble({required this.message, required this.isMine, required this.isGroup, this.canPin = false, this.onPin, this.isPinned = false});
+  final VoidCallback? onLongPress;
+  final void Function(String emoji)? onReactionTap;
+  const _MessageBubble({
+    required this.message,
+    required this.isMine,
+    required this.isGroup,
+    this.isPinned = false,
+    this.onLongPress,
+    this.onReactionTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -619,59 +784,80 @@ class _MessageBubble extends StatelessWidget {
       );
     }
     return GestureDetector(
-      onLongPress: canPin ? () => showModalBottomSheet(
-        context: context,
-        builder: (_) => SafeArea(
-          child: ListTile(
-            leading: const Icon(Icons.push_pin, color: kBlue),
-            title: const Text('Üzenet kiemelése'),
-            onTap: () { Navigator.pop(context); onPin?.call(); },
+      onLongPress: onLongPress,
+      child: Align(
+        alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
+        child: Container(
+          margin: EdgeInsets.only(top: 4, bottom: 4, left: isMine ? 64 : 12, right: isMine ? 12 : 64),
+          child: Column(
+            crossAxisAlignment: isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+            children: [
+              if (!isMine && isGroup)
+                Padding(
+                  padding: const EdgeInsets.only(left: 4, bottom: 2),
+                  child: Text(message.userName, style: const TextStyle(fontSize: 12, color: Colors.grey, fontWeight: FontWeight.w600)),
+                ),
+              Container(
+                padding: _needsPadding ? const EdgeInsets.symmetric(horizontal: 12, vertical: 8) : EdgeInsets.zero,
+                decoration: BoxDecoration(
+                  color: isMine ? kBlue : const Color(0xFFEEEEEE),
+                  borderRadius: BorderRadius.only(
+                    topLeft: const Radius.circular(16),
+                    topRight: const Radius.circular(16),
+                    bottomLeft: Radius.circular(isMine ? 16 : 4),
+                    bottomRight: Radius.circular(isMine ? 4 : 16),
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (message.replyTo != null)
+                      _ReplyQuoteBox(replyTo: message.replyTo!, isMine: isMine),
+                    _buildContent(context),
+                  ],
+                ),
+              ),
+              // Reakciók
+              if (message.reactions.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 2),
+                  child: Wrap(
+                    spacing: 4,
+                    children: message.reactions.map((r) => GestureDetector(
+                      onTap: () => onReactionTap?.call(r.emoji),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: r.mine ? kBlue.withOpacity(0.15) : Colors.grey.shade200,
+                          border: r.mine ? Border.all(color: kBlue, width: 1) : null,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Text('${r.emoji} ${r.count}', style: const TextStyle(fontSize: 12)),
+                      ),
+                    )).toList(),
+                  ),
+                ),
+              // Idő + delivery ikon
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (isPinned) ...[
+                    const Icon(Icons.push_pin, size: 10, color: kBlue),
+                    const SizedBox(width: 2),
+                  ],
+                  Padding(
+                    padding: const EdgeInsets.only(top: 2, left: 4, right: 4),
+                    child: Text(_formatTime(message.createdAt), style: const TextStyle(fontSize: 10, color: Colors.grey)),
+                  ),
+                  if (isMine) ...[
+                    const SizedBox(width: 2),
+                    _DeliveryIcon(deliveries: message.deliveries),
+                  ],
+                ],
+              ),
+            ],
           ),
         ),
-      ) : null,
-      child: Align(
-      alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
-      child: Container(
-        margin: EdgeInsets.only(top: 4, bottom: 4, left: isMine ? 64 : 12, right: isMine ? 12 : 64),
-        child: Column(
-          crossAxisAlignment: isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-          children: [
-            if (!isMine && isGroup)
-              Padding(
-                padding: const EdgeInsets.only(left: 4, bottom: 2),
-                child: Text(message.userName, style: const TextStyle(fontSize: 12, color: Colors.grey, fontWeight: FontWeight.w600)),
-              ),
-            Container(
-              padding: _needsPadding ? const EdgeInsets.symmetric(horizontal: 12, vertical: 8) : EdgeInsets.zero,
-              decoration: BoxDecoration(
-                color: isMine ? kBlue : const Color(0xFFEEEEEE),
-                borderRadius: BorderRadius.only(
-                  topLeft: const Radius.circular(16),
-                  topRight: const Radius.circular(16),
-                  bottomLeft: Radius.circular(isMine ? 16 : 4),
-                  bottomRight: Radius.circular(isMine ? 4 : 16),
-                ),
-              ),
-              child: _buildContent(context),
-            ),
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (isPinned) const Icon(Icons.push_pin, size: 10, color: kBlue),
-                if (isPinned) const SizedBox(width: 2),
-                Padding(
-                  padding: const EdgeInsets.only(top: 2, left: 4, right: 4),
-                  child: Text(_formatTime(message.createdAt), style: const TextStyle(fontSize: 10, color: Colors.grey)),
-                ),
-                if (isMine && message.deliveries.isNotEmpty) ...[
-                  const SizedBox(width: 2),
-                  _DeliveryDots(deliveries: message.deliveries),
-                ],
-              ],
-            ),
-          ],
-        ),
-      ),
       ),
     );
   }
@@ -815,37 +1001,97 @@ class _FileBubble extends StatelessWidget {
   }
 }
 
-// Kézbesítési pöttyök (🔴 elküldve → 🟡 odaért → 🟢 elolvasva)
-class _DeliveryDots extends StatelessWidget {
+// ✓ / ✓✓ delivery ikon — piros=elküldve, sárga=megkapta, zöld=olvasta
+class _DeliveryIcon extends StatelessWidget {
   final List<MessageDelivery> deliveries;
-  const _DeliveryDots({required this.deliveries});
+  const _DeliveryIcon({required this.deliveries});
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: deliveries.map((d) => _StatusDot(delivery: d)).toList(),
+    if (deliveries.isEmpty) {
+      return const Icon(Icons.done, size: 14, color: Colors.white54);
+    }
+    final allRead = deliveries.every((d) => d.readAt != null);
+    final allDelivered = deliveries.every((d) => d.deliveredAt != null);
+    final color = allRead
+        ? const Color(0xFF66BB6A)
+        : allDelivered
+            ? const Color(0xFFFFD54F)
+            : const Color(0xFFEF9A9A);
+    return Icon(
+      allDelivered || allRead ? Icons.done_all : Icons.done,
+      size: 14,
+      color: color,
     );
   }
 }
 
-class _StatusDot extends StatelessWidget {
-  final MessageDelivery delivery;
-  const _StatusDot({required this.delivery});
-
-  Color get _color {
-    if (delivery.readAt != null) return const Color(0xFF43A047);      // zöld
-    if (delivery.deliveredAt != null) return const Color(0xFFFDD835); // sárga
-    return const Color(0xFFE53935);                                    // piros
-  }
+// Idézet doboz a buborékon belül
+class _ReplyQuoteBox extends StatelessWidget {
+  final ReplyTo replyTo;
+  final bool isMine;
+  const _ReplyQuoteBox({required this.replyTo, required this.isMine});
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 7,
-      height: 7,
-      margin: const EdgeInsets.only(left: 2),
-      decoration: BoxDecoration(color: _color, shape: BoxShape.circle),
+      margin: const EdgeInsets.only(bottom: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      decoration: BoxDecoration(
+        color: isMine ? Colors.white.withOpacity(0.2) : Colors.black.withOpacity(0.07),
+        borderRadius: BorderRadius.circular(8),
+        border: Border(left: BorderSide(color: isMine ? Colors.white54 : kBlue, width: 3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(replyTo.userName, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: isMine ? Colors.white70 : kBlue)),
+          const SizedBox(height: 2),
+          Text(
+            replyTo.content,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(fontSize: 12, color: isMine ? Colors.white70 : Colors.black54),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// Reply sáv az input felett
+class _ReplyBar extends StatelessWidget {
+  final Message message;
+  final VoidCallback onCancel;
+  const _ReplyBar({required this.message, required this.onCancel});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      color: kBlue.withOpacity(0.08),
+      child: Row(
+        children: [
+          const Icon(Icons.reply, size: 16, color: kBlue),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(message.userName, style: const TextStyle(fontSize: 11, color: kBlue, fontWeight: FontWeight.bold)),
+                Text(
+                  message.content ?? message.fileName ?? '',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 12, color: Colors.black54),
+                ),
+              ],
+            ),
+          ),
+          IconButton(icon: const Icon(Icons.close, size: 18), onPressed: onCancel, padding: EdgeInsets.zero),
+        ],
+      ),
     );
   }
 }
