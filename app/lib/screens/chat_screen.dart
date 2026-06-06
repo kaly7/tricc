@@ -16,7 +16,7 @@ import '../services/api_service.dart';
 import '../services/auth_service.dart';
 import '../services/ws_service.dart';
 import '../app_theme.dart';
-import '../widgets/ws_status_bar.dart' show WsDot, PresenceDot;
+import '../widgets/ws_status_bar.dart' show WsDot, PresenceDot, showAvatarDialog;
 
 class ChatScreen extends StatefulWidget {
   final Room room;
@@ -60,6 +60,7 @@ class _ChatScreenState extends State<ChatScreen> {
   void dispose() {
     _wsSub?.cancel();
     WsService().leave(widget.room.id);
+    ApiService().markRead(widget.room.id).catchError((_) {});
     _msgCtrl.dispose();
     _scroll.dispose();
     super.dispose();
@@ -805,9 +806,12 @@ class _RoomInfoSheetState extends State<_RoomInfoSheet> {
             final online = WsService().onlineUsers.contains(u.id);
             return ListTile(
               contentPadding: EdgeInsets.zero,
-              leading: CircleAvatar(
-                backgroundColor: kBlue,
-                child: Text(u.name.isNotEmpty ? u.name[0].toUpperCase() : '?', style: const TextStyle(color: Colors.white)),
+              leading: GestureDetector(
+                onTap: () => showAvatarDialog(context, u.name, u.avatarUrl),
+                child: CircleAvatar(
+                  backgroundColor: kBlue,
+                  child: Text(u.name.isNotEmpty ? u.name[0].toUpperCase() : '?', style: const TextStyle(color: Colors.white)),
+                ),
               ),
               title: Text(u.name),
               subtitle: Text(
@@ -931,7 +935,7 @@ class _MessageBubble extends StatelessWidget {
             if (!isMine) ...[
               const SizedBox(width: 8),
               GestureDetector(
-                onTap: () => _showAvatarDialog(context, message),
+                onTap: () => showAvatarDialog(context, message.userName, message.avatarUrl),
                 child: _MiniAvatar(avatarUrl: message.avatarUrl, name: message.userName, userId: message.userId),
               ),
               const SizedBox(width: 6),
@@ -1095,40 +1099,6 @@ void _confirmOpenLink(BuildContext context, String url) {
   );
 }
 
-void _showAvatarDialog(BuildContext context, Message message) {
-  const serverBase = 'https://192.168.16.22:9456';
-  showDialog(
-    context: context,
-    barrierColor: Colors.black87,
-    builder: (_) => GestureDetector(
-      onTap: () => Navigator.pop(context),
-      child: Dialog(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            message.avatarUrl != null
-                ? CircleAvatar(
-                    radius: 72,
-                    backgroundImage: CachedNetworkImageProvider('$serverBase${message.avatarUrl}'),
-                  )
-                : CircleAvatar(
-                    radius: 72,
-                    backgroundColor: kBlue,
-                    child: Text(
-                      message.userName.isNotEmpty ? message.userName[0].toUpperCase() : '?',
-                      style: const TextStyle(fontSize: 56, color: Colors.white, fontWeight: FontWeight.bold),
-                    ),
-                  ),
-            const SizedBox(height: 12),
-            Text(message.userName, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
-          ],
-        ),
-      ),
-    ),
-  );
-}
 
 // Kép buborék — bélyegkép + letöltés
 class _ImageBubble extends StatelessWidget {
@@ -1199,11 +1169,11 @@ class _MiniAvatar extends StatelessWidget {
     return Stack(
       children: [
         Container(
-          padding: const EdgeInsets.all(2),
+          padding: const EdgeInsets.all(3),
           decoration: BoxDecoration(
             shape: BoxShape.circle,
             color: borderColor,
-            boxShadow: [BoxShadow(color: borderColor.withOpacity(0.4), blurRadius: 4, spreadRadius: 1)],
+            boxShadow: [BoxShadow(color: borderColor.withOpacity(0.5), blurRadius: 6, spreadRadius: 1)],
           ),
           child: CircleAvatar(
             radius: 12,

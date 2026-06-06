@@ -8,7 +8,7 @@ import '../services/auth_service.dart';
 import '../services/push_service.dart';
 import '../services/ws_service.dart';
 import '../app_theme.dart';
-import '../widgets/ws_status_bar.dart' show WsDot, PresenceDot;
+import '../widgets/ws_status_bar.dart' show WsDot, PresenceDot, showAvatarDialog;
 import 'chat_screen.dart';
 import 'profile_screen.dart';
 
@@ -156,7 +156,14 @@ class _RoomTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListTile(
-      leading: _RoomAvatar(room: room),
+      leading: GestureDetector(
+        onTap: () {
+          final myId = AuthService().userId ?? 0;
+          showAvatarDialog(context, room.displayName(myId),
+              room.isDirect ? room.otherAvatarUrl(myId) : null);
+        },
+        child: _RoomAvatar(room: room),
+      ),
       title: Row(
         children: [
           Expanded(
@@ -299,12 +306,12 @@ class _RoomAvatar extends StatelessWidget {
     return Stack(
       children: [
         Container(
-          padding: const EdgeInsets.all(2.5),
+          padding: const EdgeInsets.all(4),
           decoration: BoxDecoration(
             shape: BoxShape.circle,
             color: borderColor,
             boxShadow: borderColor != Colors.transparent
-                ? [BoxShadow(color: borderColor.withOpacity(0.4), blurRadius: 4, spreadRadius: 1)]
+                ? [BoxShadow(color: borderColor.withOpacity(0.5), blurRadius: 6, spreadRadius: 1)]
                 : null,
           ),
           child: CircleAvatar(
@@ -527,14 +534,17 @@ class _MembersModalState extends State<_MembersModal> {
             ...sorted.map((m) {
               final online = onlineIds.contains(m.id);
               return ListTile(
-                leading: CircleAvatar(
-                  backgroundImage: m.avatarUrl != null
-                      ? CachedNetworkImageProvider('$_serverBase${m.avatarUrl}')
-                      : null,
-                  child: m.avatarUrl == null
-                      ? Text(m.name.isNotEmpty ? m.name[0].toUpperCase() : '?',
-                          style: const TextStyle(color: Colors.white))
-                      : null,
+                leading: GestureDetector(
+                  onTap: () => showAvatarDialog(context, m.name, m.avatarUrl),
+                  child: CircleAvatar(
+                    backgroundImage: m.avatarUrl != null
+                        ? CachedNetworkImageProvider('$_serverBase${m.avatarUrl}')
+                        : null,
+                    child: m.avatarUrl == null
+                        ? Text(m.name.isNotEmpty ? m.name[0].toUpperCase() : '?',
+                            style: const TextStyle(color: Colors.white))
+                        : null,
+                  ),
                 ),
                 title: Text(m.name),
                 subtitle: Text(
