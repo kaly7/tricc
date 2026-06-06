@@ -822,14 +822,30 @@ class _RoomInfoSheetState extends State<_RoomInfoSheet> {
           Text('${widget.room.members.length} tag', style: const TextStyle(color: Colors.grey, fontSize: 13)),
           const Divider(height: 20),
           ...widget.room.members.map((u) {
+            const serverBase = 'https://192.168.16.22:9456';
             final online = WsService().onlineUsers.contains(u.id);
+            final borderColor = online ? const Color(0xFF4CAF50) : Colors.grey.shade400;
             return ListTile(
               contentPadding: EdgeInsets.zero,
               leading: GestureDetector(
                 onTap: () => showAvatarDialog(context, u.name, u.avatarUrl),
-                child: CircleAvatar(
-                  backgroundColor: kBlue,
-                  child: Text(u.name.isNotEmpty ? u.name[0].toUpperCase() : '?', style: const TextStyle(color: Colors.white)),
+                child: Container(
+                  padding: const EdgeInsets.all(3),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: borderColor,
+                    boxShadow: [BoxShadow(color: borderColor.withOpacity(0.5), blurRadius: 5, spreadRadius: 1)],
+                  ),
+                  child: CircleAvatar(
+                    backgroundColor: kBlue,
+                    backgroundImage: u.avatarUrl != null
+                        ? CachedNetworkImageProvider('$serverBase${u.avatarUrl}')
+                        : null,
+                    child: u.avatarUrl == null
+                        ? Text(u.name.isNotEmpty ? u.name[0].toUpperCase() : '?',
+                            style: const TextStyle(color: Colors.white))
+                        : null,
+                  ),
                 ),
               ),
               title: Text(u.name),
