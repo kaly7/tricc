@@ -12,7 +12,7 @@ $wsPort      = (int)($argv[1] ?? 9454);
 $broadcastPort = (int)($argv[2] ?? 9455);
 
 $loop = LoopFactory::create();
-$chat = new ChatServer();
+$chat = new ChatServer($loop);
 
 // WebSocket szerver (publikus, 9454)
 $wsSocket = new ReactSocket('0.0.0.0:' . $wsPort, $loop);

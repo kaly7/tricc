@@ -3,6 +3,7 @@ namespace Tricc\WS;
 
 use Ratchet\MessageComponentInterface;
 use Ratchet\ConnectionInterface;
+use React\EventLoop\LoopInterface;
 use Tricc\{DB, Auth};
 
 class ChatServer implements MessageComponentInterface {
@@ -18,8 +19,25 @@ class ChatServer implements MessageComponentInterface {
     /** @var array<int, int[]> room_id → [user_id, ...] */
     private array $roomUsers = [];
 
+    /** @var array<int, int> conn_id → utolsó ping időbélyeg */
+    private array $lastPing = [];
+
+    public function __construct(LoopInterface $loop) {
+        // 15 másodpercenként ellenőrzi: aki 60 másodperce nem pingelt, azt lezárja
+        $loop->addPeriodicTimer(15, function () {
+            $now = time();
+            foreach ($this->lastPing as $cid => $ts) {
+                if ($now - $ts > 60 && isset($this->conns[$cid])) {
+                    echo "[WS] idle timeout #{$cid}, closing\n";
+                    $this->conns[$cid]->close();
+                }
+            }
+        });
+    }
+
     public function onOpen(ConnectionInterface $conn): void {
         $this->conns[$conn->resourceId] = $conn;
+        $this->lastPing[$conn->resourceId] = time();
         echo "[WS] connected #{$conn->resourceId}\n";
     }
 
@@ -43,6 +61,10 @@ class ChatServer implements MessageComponentInterface {
             case 'delivered':
                 $this->handleDelivered($from, $msg);
                 break;
+            case 'ping':
+                $this->lastPing[$from->resourceId] = time();
+                $from->send(json_encode(['type' => 'pong']));
+                break;
         }
     }
 
@@ -61,6 +83,7 @@ class ChatServer implements MessageComponentInterface {
             unset($this->users[$id]);
         }
         unset($this->conns[$id]);
+        unset($this->lastPing[$id]);
         echo "[WS] disconnected #{$id}\n";
     }
 
