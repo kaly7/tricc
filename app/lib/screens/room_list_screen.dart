@@ -540,17 +540,26 @@ class _MembersModalState extends State<_MembersModal> {
           else
             ...sorted.map((m) {
               final online = onlineIds.contains(m.id);
+              final borderColor = online ? const Color(0xFF4CAF50) : Colors.grey.shade400;
               return ListTile(
                 leading: GestureDetector(
                   onTap: () => showAvatarDialog(context, m.name, m.avatarUrl),
-                  child: CircleAvatar(
-                    backgroundImage: m.avatarUrl != null
-                        ? CachedNetworkImageProvider('$_serverBase${m.avatarUrl}')
-                        : null,
-                    child: m.avatarUrl == null
-                        ? Text(m.name.isNotEmpty ? m.name[0].toUpperCase() : '?',
-                            style: const TextStyle(color: Colors.white))
-                        : null,
+                  child: Container(
+                    padding: const EdgeInsets.all(3),
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: borderColor,
+                      boxShadow: [BoxShadow(color: borderColor.withOpacity(0.5), blurRadius: 5, spreadRadius: 1)],
+                    ),
+                    child: CircleAvatar(
+                      backgroundImage: m.avatarUrl != null
+                          ? CachedNetworkImageProvider('$_serverBase${m.avatarUrl}')
+                          : null,
+                      child: m.avatarUrl == null
+                          ? Text(m.name.isNotEmpty ? m.name[0].toUpperCase() : '?',
+                              style: const TextStyle(color: Colors.white))
+                          : null,
+                    ),
                   ),
                 ),
                 title: Text(m.name),

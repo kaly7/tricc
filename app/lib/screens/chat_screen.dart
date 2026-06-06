@@ -404,6 +404,7 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   void _showDeliveryDetails(Message message) {
+    const serverBase = 'https://192.168.16.22:9456';
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
@@ -420,6 +421,8 @@ class _ChatScreenState extends State<ChatScreen> {
                 .where((u) => u.id != AuthService().userId)
                 .map((u) {
               final d = message.deliveries.where((d) => d.userId == u.id).firstOrNull;
+              final online = WsService().onlineUsers.contains(u.id);
+              final borderColor = online ? const Color(0xFF4CAF50) : Colors.grey.shade400;
               final icon = d?.readAt != null
                   ? const Icon(Icons.done_all, color: Colors.green, size: 18)
                   : d?.deliveredAt != null
@@ -431,11 +434,27 @@ class _ChatScreenState extends State<ChatScreen> {
                       ? 'Megkapta ${_fmtFull(d!.deliveredAt!)}'
                       : 'Nem érkezett meg';
               return ListTile(
-                leading: CircleAvatar(
-                  radius: 16,
-                  backgroundColor: kBlue,
-                  child: Text(u.name.isNotEmpty ? u.name[0].toUpperCase() : '?',
-                      style: const TextStyle(color: Colors.white, fontSize: 12)),
+                leading: GestureDetector(
+                  onTap: () => showAvatarDialog(context, u.name, u.avatarUrl),
+                  child: Container(
+                    padding: const EdgeInsets.all(2.5),
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: borderColor,
+                      boxShadow: [BoxShadow(color: borderColor.withOpacity(0.5), blurRadius: 4, spreadRadius: 1)],
+                    ),
+                    child: CircleAvatar(
+                      radius: 16,
+                      backgroundColor: kBlue,
+                      backgroundImage: u.avatarUrl != null
+                          ? CachedNetworkImageProvider('$serverBase${u.avatarUrl}')
+                          : null,
+                      child: u.avatarUrl == null
+                          ? Text(u.name.isNotEmpty ? u.name[0].toUpperCase() : '?',
+                              style: const TextStyle(color: Colors.white, fontSize: 12))
+                          : null,
+                    ),
+                  ),
                 ),
                 title: Text(u.name),
                 subtitle: Text(label, style: const TextStyle(fontSize: 12)),
@@ -1190,7 +1209,7 @@ class _MiniAvatar extends StatelessWidget {
   }
 }
 
-// Fájl buborék — név + méret + letöltés ikon
+// Fájl buborék — név + méret + típus ikon + letöltés
 class _FileBubble extends StatelessWidget {
   final String fileName;
   final String fileUrl;
@@ -1201,15 +1220,30 @@ class _FileBubble extends StatelessWidget {
 
   String get _sizeLabel => fileSize != null ? _formatBytes(fileSize!) : '';
 
+  IconData _typeIcon() {
+    final ext = fileName.contains('.') ? fileName.split('.').last.toLowerCase() : '';
+    switch (ext) {
+      case 'pdf':                          return Icons.picture_as_pdf;
+      case 'doc': case 'docx':            return Icons.description;
+      case 'xls': case 'xlsx':            return Icons.table_chart;
+      case 'ppt': case 'pptx':            return Icons.slideshow;
+      case 'zip': case 'rar': case '7z':  return Icons.folder_zip;
+      case 'mp3': case 'wav': case 'aac': return Icons.audio_file;
+      case 'mp4': case 'mov': case 'avi': return Icons.video_file;
+      case 'txt':                          return Icons.text_snippet;
+      default:                             return Icons.insert_drive_file_outlined;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    final color = isMine ? Colors.white : kBlue;
     return GestureDetector(
       onTap: () => _open(context),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.insert_drive_file_outlined, color: isMine ? Colors.white : kBlue, size: 22),
+          Icon(_typeIcon(), color: color, size: 22),
           const SizedBox(width: 8),
           Flexible(
             child: Column(
