@@ -12,7 +12,9 @@ class RoomController {
                    r.delete_requested_by,
                    rm.is_muted,
                    COUNT(DISTINCT rm2.user_id) AS member_count,
-                   (SELECT content FROM messages WHERE room_id=r.id ORDER BY created_at DESC LIMIT 1) AS last_message,
+                   (SELECT CASE WHEN m.content != '' THEN m.content
+                               ELSE SUBSTRING_INDEX(m.file_url, '/', -1) END
+                    FROM messages m WHERE m.room_id=r.id ORDER BY m.created_at DESC LIMIT 1) AS last_message,
                    (SELECT created_at FROM messages WHERE room_id=r.id ORDER BY created_at DESC LIMIT 1) AS last_message_at,
                    (SELECT COUNT(*) FROM messages m
                     WHERE m.room_id=r.id
