@@ -22,7 +22,7 @@ A BabL42 egy privát, meghívásos alapú csevegő alkalmazás, amelyet zárt sz
 | Bundle ID | `com.rv42.babl42` |
 | Platform | iOS (Flutter) |
 | Backend | PHP 8 + Ratchet WebSocket + MySQL |
-| Aktuális verzió | 1.0.6 (26) |
+| Aktuális verzió | 1.0.8 (29) |
 | Fejlesztői csapat | K7Z734X92Z |
 
 ---
@@ -99,7 +99,7 @@ Több tagból álló szoba névvel. Az admin tagokat adhat hozzá és távolíth
 | Chat info panel (ⓘ gomb) | Minden tag mellett Online / Offline felirat és pötty |
 | Üzenet avatarjának karikája | Zöld (online) vagy szürke (offline) keret |
 
-Az online állapot valós időben frissül — belépéskor és kilépéskor azonnal.
+Az online állapot valós időben frissül. A pontosság érdekében a kliens 30 másodpercenként ping üzenetet küld a szervernek — ha a kapcsolat "csendben" megszakad (pl. iOS háttérben levágja), a szerver ezt 60 másodpercen belül észleli és offline-nak jelöli a felhasználót.
 
 ## 1.5 Push értesítések (APNs)
 
@@ -255,7 +255,33 @@ PresenceDot / avatar keret szín frissül
 
 Szobába lépéskor a szerver `presence_list` eseményt küld az éppen online tagok ID listájával.
 
-## 3.5 Push értesítések (APNs)
+## 3.5 Ping/pong heartbeat
+
+Az online jelenlét pontosítása érdekében a kliens és szerver rendszeres "életjel" cserét folytat:
+
+```
+Kliens                          Szerver
+  │                               │
+  │── ping (30 mp-enként) ───────▶│
+  │◀─ pong ────────────────────── │
+  │                               │
+  │  [ha 10 mp-en belül nem jön pong]
+  │── kapcsolat bontva ───────────▶ onClose() → offline
+  │── 5 mp múlva reconnect ───────▶ onOpen() → auth → online
+```
+
+**Miért szükséges:** iOS agresszívan bezárja a háttér WebSocket kapcsolatokat, de nem mindig küld TCP FIN csomagot. Enélkül a szerver nem értesülne a kilépésről — a felhasználó "szellemként" online maradna órákon át.
+
+**Időzítések:**
+
+| Esemény | Időzítés |
+|---|---|
+| Kliens ping küldése | 30 másodpercenként |
+| Pong várakozási idő | 10 másodperc |
+| Szerver idle timeout | 60 másodperc ping nélkül |
+| Automatikus reconnect | 5 másodperccel a bontás után |
+
+## 3.6 Push értesítések (APNs)
 
 **Autentikáció:** Token alapú (`.p8` privát kulcs, ES256 algoritmus, JWT)
 
@@ -282,7 +308,7 @@ MethodChannel → PushService.dart → API /push-token
 
 **Entitlement:** `aps-environment = production` szükséges a `Runner.entitlements`-ben.
 
-## 3.6 SSL kezelés (önaláírt tanúsítvány)
+## 3.7 SSL kezelés (önaláírt tanúsítvány)
 
 ```dart
 final client = IOClient(
@@ -292,7 +318,7 @@ final client = IOClient(
 
 Ez kizárólag fejlesztési/belső használatra alkalmas megoldás. Éles, nyilvános alkalmazásban érvényes tanúsítvány szükséges.
 
-## 3.7 Üzenet buborék
+## 3.8 Üzenet buborék
 
 A buborék maximális szélessége a képernyőhöz igazodik:
 
@@ -304,7 +330,7 @@ BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75)
 width: MediaQuery.of(context).size.width * 0.65
 ```
 
-## 3.8 Build és kiadás folyamat
+## 3.9 Build és kiadás folyamat
 
 ```bash
 # 1. Flutter fordítás (aláírás nélkül)
@@ -339,7 +365,9 @@ xcodebuild \
 | 1.0.4 | 21–22 | Üzenet szerkesztés és törlés, WS reconnect javítás, online jelenlét (pötty + avatar keret) |
 | 1.0.5 | 23–25 | Presence pötty a nevek mellé, csoportos jelenlét modal, chat info panel online állapottal |
 | 1.0.6 | 26 | Üzenet buborék szélesség képernyőarányos |
+| 1.0.7 | 27 | Avatar karika hangsúlyosabb, statikus AppBar pötty, avatar dialog bárhol, saját üzenet olvasatlan bug fix |
+| 1.0.8 | 29 | Ping/pong heartbeat — pontos online/offline érzékelés |
 
 ---
 
-*Dokumentáció generálva: 2026. június · BabL42 v1.0.6*
+*Dokumentáció generálva: 2026. június · BabL42 v1.0.8*
