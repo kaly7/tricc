@@ -9,7 +9,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 VER=$(tr -d '[:space:]' < "$SCRIPT_DIR/version.txt" 2>/dev/null || echo "unknown")
 DATE=$(date '+%Y%m%d')
 PKG_NAME="agvmgr-v${VER}-${DATE}"
-OUT="/tmp/${PKG_NAME}.tar.gz"
+OUT="/tmp/${PKG_NAME}.zip"
 
 echo ""
 echo "╔══════════════════════════════════════════════════════════════╗"
@@ -30,16 +30,15 @@ echo "  Csomagolás..."
 # /var/www/html/pm/agvmgr/ alá kerüljön.
 cd "$(dirname "$SCRIPT_DIR")"
 
-tar -czf "$OUT" \
-    --transform "s|^$(basename "$SCRIPT_DIR")|agvmgr|" \
-    --exclude="$(basename "$SCRIPT_DIR")/.git" \
-    --exclude="$(basename "$SCRIPT_DIR")/.gitignore" \
-    --exclude="$(basename "$SCRIPT_DIR")/docs/plans" \
-    --exclude="$(basename "$SCRIPT_DIR")/worker/mqtt_worker.py" \
-    --exclude="$(basename "$SCRIPT_DIR")/worker/requirements.txt" \
-    --exclude="$(basename "$SCRIPT_DIR")/worker/__pycache__" \
-    --exclude="$(basename "$SCRIPT_DIR")/worker/*.pyc" \
-    "$(basename "$SCRIPT_DIR")"
+zip -r "$OUT" "$(basename "$SCRIPT_DIR")" \
+    --exclude "*/.git/*" \
+    --exclude "*/.gitignore" \
+    --exclude "*/docs/plans/*" \
+    --exclude "*/worker/mqtt_worker.py" \
+    --exclude "*/worker/requirements.txt" \
+    --exclude "*/__pycache__/*" \
+    --exclude "*.pyc" \
+    > /dev/null
 
 if [ $? -ne 0 ]; then
     echo "  HIBA: csomagolás sikertelen."
@@ -62,7 +61,7 @@ echo "  │  Telepítés a célgépen                                   │"
 echo "  └─────────────────────────────────────────────────────────┘"
 echo "    # Kicsomagolás a pm/ könyvtárba:"
 echo "    mkdir -p /var/www/html/pm"
-echo "    tar -xzf /tmp/$(basename "$OUT") -C /var/www/html/pm/"
+echo "    unzip /tmp/$(basename "$OUT") -d /var/www/html/pm/"
 echo ""
 echo "    # Telepítő futtatása (sudo jelszót kéri):"
 echo "    bash /var/www/html/pm/agvmgr/agvmgr_setup.sh"
@@ -70,5 +69,5 @@ echo ""
 echo "  ┌─────────────────────────────────────────────────────────┐"
 echo "  │  Tartalom ellenőrzése                                   │"
 echo "  └─────────────────────────────────────────────────────────┘"
-echo "    tar -tzf $OUT | head -30"
+echo "    unzip -l $OUT | head -30"
 echo ""

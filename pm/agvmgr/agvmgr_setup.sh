@@ -322,44 +322,19 @@ fi
 # ════════════════════════════════════════════════════════════════════
 _head "14. Apache vhost"
 
-PM_VHOST_EXISTS=0
 PM_PORT=""
 for conf in /etc/apache2/sites-enabled/*.conf; do
     if grep -q "/var/www/html/pm" "$conf" 2>/dev/null; then
         PM_PORT=$(grep -m1 "VirtualHost" "$conf" | grep -oP ':\K[0-9]+')
-        PM_VHOST_EXISTS=1
         _ok "PM vhost megtalálva: port $PM_PORT ($(basename "$conf"))"
         break
     fi
 done
 
-if [ "$PM_VHOST_EXISTS" -eq 0 ]; then
-    _warn "PM vhost nem található – létrehozás..."
-    VHOST_PORT="$DEFAULT_PORT"
-
-    if ! grep -q "Listen $VHOST_PORT" /etc/apache2/ports.conf 2>/dev/null; then
-        echo "Listen $VHOST_PORT" >> /etc/apache2/ports.conf
-        _fix "ports.conf: Listen $VHOST_PORT hozzáadva"
-    fi
-
-    VHOST_FILE="/etc/apache2/sites-available/agvmgr-${VHOST_PORT}.conf"
-    cat > "$VHOST_FILE" << VHEOF
-<VirtualHost *:${VHOST_PORT}>
-    ServerAdmin webmaster@localhost
-    DocumentRoot /var/www/html/pm
-    <Directory /var/www/html/pm>
-        Options FollowSymLinks
-        AllowOverride All
-        Require all granted
-    </Directory>
-    ErrorLog \${APACHE_LOG_DIR}/agvmgr_error.log
-    CustomLog \${APACHE_LOG_DIR}/agvmgr.log combined
-</VirtualHost>
-VHEOF
-    a2ensite "agvmgr-${VHOST_PORT}.conf" > /dev/null 2>&1
-    systemctl reload apache2 > /dev/null 2>&1
-    _fix "Vhost létrehozva: port $VHOST_PORT"
-    PM_PORT="$VHOST_PORT"
+if [ -z "$PM_PORT" ]; then
+    _warn "PM vhost nem található az /etc/apache2/sites-enabled/ könyvtárban"
+    _info "→ Az agvmgr-hez Apache vhost szükséges a /var/www/html/pm könyvtárra"
+    _info "→ Állítsd be kézzel, majd futtasd újra ezt a scriptet"
 fi
 
 # ════════════════════════════════════════════════════════════════════
