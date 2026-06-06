@@ -52,7 +52,7 @@ Hat emoji érhető el reakcióként: 👍 ❤️ 😂 😮 😢 🔥
 Hosszú nyomásra megnyíló kontextusmenüből választható. A reakció száma megjelenik a buborékon, saját reakció kiemelve látszik.
 
 ### Válasz / idézet
-Jobbra húzással (swipe) idézni lehet bármelyik üzenetet. Az idézet buborékon belül jelenik meg, halvány háttérrel.
+Hosszú nyomás az üzeneten → **Válasz** menüpont. Az idézett üzenet buborékon belül jelenik meg, halvány háttérrel.
 
 ### Üzenet szerkesztése
 Saját szöveges vagy link üzeneten hosszú nyomás → **Szerkesztés**. Szerkesztés közben narancssárga sáv jelzi az aktív módot. A szerkesztés valós időben frissül minden kliensnél, és `· szerk.` jelzés kerül az időbélyeg mellé.
@@ -136,7 +136,7 @@ Az alkalmazás meghívásos — fiókot csak az adminisztrátor tud létrehozni.
 - Szöveg: beírás → küldés gomb
 - Kép: 📎 ikon → Kamera vagy Fotótár
 - Fájl: 📎 ikon → Fájl
-- Válasz: jobbra húzás az üzeneten
+- Válasz: hosszú nyomás → Válasz
 - Reakció / szerkesztés / törlés: hosszú nyomás az üzeneten
 
 ## 2.4 Tagok kezelése csoportban
