@@ -22,7 +22,7 @@ A BabL42 egy privát, meghívásos alapú csevegő alkalmazás, amelyet zárt sz
 | Bundle ID | `com.rv42.babl42` |
 | Platform | iOS (Flutter) |
 | Backend | PHP 8 + Ratchet WebSocket + MySQL |
-| Aktuális verzió | 1.0.8 (29) |
+| Aktuális verzió | 1.0.9 (30) |
 | Fejlesztői csapat | K7Z734X92Z |
 
 ---
@@ -36,7 +36,7 @@ Egyszerű szöveg írható és küldhető. Az üzenetek valós időben jelennek 
 
 ### Képek és fájlok küldése
 - **Képek:** kamera vagy fotótár — előnézet, letöltés és megosztás lehetséges
-- **Fájlok:** tetszőleges fájltípus — a buborékban megjelenik a fájlnév és a méret (B / KB / MB formátumban)
+- **Fájlok:** tetszőleges fájltípus — a buborékban megjelenik a fájlnév, a méret (B / KB / MB) és a kiterjesztéstől függő típusikon (PDF, Word, Excel, PowerPoint, archív, hang, videó, szöveg)
 - Küldés előtt megerősítő dialog jelenik meg a fájlnévvel és mérettel
 
 ### Linkek
@@ -66,7 +66,7 @@ Saját üzenetek mellett kézbesítési ikon jelenik meg:
 - `✓✓` — kézbesítve (legalább egy résztvevőhöz megérkezett)
 - `✓✓` kék — olvasva
 
-Hosszú nyomás → **Kézbesítés részletei** — ki és mikor kapta meg / olvasta el.
+Hosszú nyomás → **Kézbesítés részletei** — ki és mikor kapta meg / olvasta el. A listában minden taghoz avatar jelenik meg a jelenlét-karikával (zöld = online, szürke = offline). Az időpontok egységesen Budapest-időzónában (UTC+2) jelennek meg.
 
 ### Kiemelés (pin)
 Adminisztrátorok kiemelhetnek egy üzenetet. A kiemelt üzenet a chat tetején megjelenik egy sárga sávban.
@@ -80,7 +80,7 @@ Két felhasználó közötti privát csevegő szoba. Automatikusan jön létre, 
 Több tagból álló szoba névvel. Az admin tagokat adhat hozzá és távolíthat el, üzeneteket emelhet ki.
 
 ### Szoba lista
-- Utolsó üzenet és időbélyeg
+- Utolsó üzenet és időbélyeg (fájlküldésnél a fájl neve jelenik meg)
 - Olvasatlan üzenetek piros badge-dzsel
 - Hosszú nyomásra: értesítések némítása / visszakapcsolása
 
@@ -367,7 +367,8 @@ xcodebuild \
 | 1.0.6 | 26 | Üzenet buborék szélesség képernyőarányos |
 | 1.0.7 | 27 | Avatar karika hangsúlyosabb, statikus AppBar pötty, avatar dialog bárhol, saját üzenet olvasatlan bug fix |
 | 1.0.8 | 29 | Ping/pong heartbeat — pontos online/offline érzékelés |
+| 1.0.9 | 30 | Avatar + presence karika a kézbesítési részleteknél és tagok modalnál; fájltípus ikon üzenetbuborékban; időzóna egységesítés (szerver); szobalistán fájlnév megjelenítés (szerver) |
 
 ---
 
-*Dokumentáció generálva: 2026. június · BabL42 v1.0.8*
+*Dokumentáció generálva: 2026. június · BabL42 v1.0.9*
