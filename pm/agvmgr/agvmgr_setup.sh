@@ -71,7 +71,7 @@ PHP_FILES=(
     "_header.php" "_footer.php"
     "styles.css" "setup.sql"
 )
-WORKER_FILES=("worker/mqtt_worker.php" "worker/phpMQTT.php")
+WORKER_FILES=("worker/mqtt_worker.php")
 ASSET_FILES=("assets/bootstrap/bootstrap.min.css" "assets/bootstrap/bootstrap.bundle.min.js")
 
 ALL_MISSING=0
@@ -388,10 +388,11 @@ else
         _err "mqtt_worker.php hiányzik: $WORKER_DIR/mqtt_worker.php"
     fi
 
-    if [ -f "$WORKER_DIR/phpMQTT.php" ]; then
-        _ok "phpMQTT.php megtalálva"
+    # mosquitto_sub ellenőrzés
+    if command -v mosquitto_sub > /dev/null 2>&1; then
+        _ok "mosquitto_sub elérhető: $(which mosquitto_sub)"
     else
-        _err "phpMQTT.php hiányzik: $WORKER_DIR/phpMQTT.php"
+        _err "mosquitto_sub hiányzik – telepítés: apt install mosquitto-clients"
     fi
 fi
 
