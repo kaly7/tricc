@@ -160,6 +160,7 @@ class ApiService {
     if (fileSize != null) body['file_size'] = fileSize;
     if (replyToId != null) body['reply_to_id'] = replyToId;
     final r = await _post('/rooms/$roomId/messages', body);
+    if (fileName != null && r['file_name'] == null) r['file_name'] = fileName;
     return Message.fromJson(r);
   }
 
