@@ -226,7 +226,11 @@ PHP_BIN=$(command -v php || true)
 if [ -z "$PHP_BIN" ]; then
     _err "php-cli nem található"
 else
+    PHP_VER=$(php -r "echo PHP_MAJOR_VERSION;")
     _ok "php-cli: $PHP_BIN ($(php --version | head -1))"
+    if [ "${PHP_VER:-0}" -lt 7 ]; then
+        _err "PHP 7.0+ szükséges – telepített verzió túl régi (strict_types nem támogatott)"
+    fi
     if php -r "new PDO('mysql:host=127.0.0.1', 'x', 'x');" 2>&1 | grep -q "could not find driver"; then
         _err "php-mysql (PDO) nincs telepítve"
     else
@@ -264,13 +268,26 @@ find "$AGVMGR_DIR" -type d       -exec chmod 755 {} \;
 _fix "Jogosultságok beállítva (PHP:644, SH:755, könyvtárak:755, tulajdonos:www-data)"
 
 # ════════════════════════════════════════════════════════════════════
-_head "13. Systemd service (agvmgr-worker)"
+_head "13. Worker háttérfutás"
 
 PHP_BIN=$(command -v php || echo "/usr/bin/php")
+INITD_FILE="/etc/init.d/agvmgr-worker"
+PIDFILE="/var/run/agvmgr-worker.pid"
 
-if [ ! -f "$SERVICE_FILE" ]; then
-    _fix "Service fájl létrehozása: $SERVICE_FILE"
-    cat > "$SERVICE_FILE" << EOF
+# Systemd vagy SysV init?
+USE_SYSTEMD=0
+if command -v systemctl > /dev/null 2>&1 && systemctl --version > /dev/null 2>&1; then
+    USE_SYSTEMD=1
+    _ok "Init rendszer: systemd"
+else
+    _ok "Init rendszer: SysV init (régi Raspbian)"
+fi
+
+if [ "$USE_SYSTEMD" -eq 1 ]; then
+    # ── systemd ──────────────────────────────────────────────────────
+    if [ ! -f "$SERVICE_FILE" ]; then
+        _fix "Service fájl létrehozása: $SERVICE_FILE"
+        cat > "$SERVICE_FILE" << EOF
 [Unit]
 Description=agvmgr MQTT Worker – VDA5050 pozíció rögzítő
 After=network.target mysql.service mariadb.service
@@ -288,35 +305,117 @@ StandardError=append:$LOG_FILE
 [Install]
 WantedBy=multi-user.target
 EOF
-    _ok "Service fájl létrehozva"
-else
-    _ok "Service fájl létezik: $SERVICE_FILE"
-fi
+        _ok "Service fájl létrehozva: $SERVICE_FILE"
+    else
+        _ok "Service fájl létezik: $SERVICE_FILE"
+    fi
 
-systemctl daemon-reload > /dev/null 2>&1
+    systemctl daemon-reload > /dev/null 2>&1
 
-if ! systemctl is-enabled agvmgr-worker > /dev/null 2>&1; then
-    systemctl enable agvmgr-worker > /dev/null 2>&1
-    _fix "Service engedélyezve (autostart)"
-else
-    _ok "Service engedélyezve (autostart)"
-fi
+    if ! systemctl is-enabled agvmgr-worker > /dev/null 2>&1; then
+        systemctl enable agvmgr-worker > /dev/null 2>&1
+        _fix "Service engedélyezve (autostart)"
+    else
+        _ok "Service engedélyezve (autostart)"
+    fi
 
-if systemctl is-active --quiet agvmgr-worker; then
-    _fix "Worker fut – újraindítás (új kód betöltése)"
-    systemctl restart agvmgr-worker > /dev/null 2>&1
+    if systemctl is-active --quiet agvmgr-worker; then
+        _fix "Worker fut – újraindítás (új kód betöltése)"
+        systemctl restart agvmgr-worker > /dev/null 2>&1
+    else
+        systemctl start agvmgr-worker > /dev/null 2>&1
+    fi
     sleep 2
-else
-    systemctl start agvmgr-worker > /dev/null 2>&1
-    sleep 2
-fi
 
-if systemctl is-active --quiet agvmgr-worker; then
-    _ok "Worker FUT (agvmgr-worker active)"
+    if systemctl is-active --quiet agvmgr-worker; then
+        _ok "Worker FUT (agvmgr-worker active)"
+    else
+        _err "Worker indítása sikertelen"
+        _info "→ Ellenőrzés: systemctl status agvmgr-worker"
+        _info "→ Log:        tail -20 $LOG_FILE"
+    fi
+
 else
-    _err "Worker indítása sikertelen"
-    _info "→ Ellenőrzés: systemctl status agvmgr-worker"
-    _info "→ Log:        tail -20 $LOG_FILE"
+    # ── SysV init (régi Raspbian / Debian Wheezy) ─────────────────────
+    if [ ! -f "$INITD_FILE" ]; then
+        _fix "init.d script létrehozása: $INITD_FILE"
+        cat > "$INITD_FILE" << EOF
+#!/bin/bash
+### BEGIN INIT INFO
+# Provides:          agvmgr-worker
+# Required-Start:    \$network \$local_fs mysql
+# Required-Stop:     \$network \$local_fs mysql
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+# Short-Description: agvmgr MQTT Worker
+### END INIT INFO
+
+DAEMON=$PHP_BIN
+DAEMON_ARGS="$WORKER_DIR/mqtt_worker.php"
+PIDFILE=$PIDFILE
+LOGFILE=$LOG_FILE
+USER=www-data
+NAME=agvmgr-worker
+
+case "\$1" in
+    start)
+        echo -n "Indítás: \$NAME ... "
+        start-stop-daemon --start --background --make-pidfile --pidfile \$PIDFILE \\
+            --chuid \$USER --exec \$DAEMON -- \$DAEMON_ARGS >> \$LOGFILE 2>&1
+        echo "OK"
+        ;;
+    stop)
+        echo -n "Leállítás: \$NAME ... "
+        start-stop-daemon --stop --quiet --pidfile \$PIDFILE
+        rm -f \$PIDFILE
+        echo "OK"
+        ;;
+    restart)
+        \$0 stop; sleep 2; \$0 start
+        ;;
+    status)
+        if [ -f \$PIDFILE ] && kill -0 \$(cat \$PIDFILE) 2>/dev/null; then
+            echo "\$NAME fut (PID \$(cat \$PIDFILE))"
+        else
+            echo "\$NAME nem fut"
+            exit 1
+        fi
+        ;;
+    *)
+        echo "Használat: \$0 {start|stop|restart|status}"
+        exit 1
+        ;;
+esac
+exit 0
+EOF
+        chmod 755 "$INITD_FILE"
+        _ok "init.d script létrehozva: $INITD_FILE"
+    else
+        _ok "init.d script létezik: $INITD_FILE"
+    fi
+
+    # Autostart engedélyezése
+    if command -v update-rc.d > /dev/null 2>&1; then
+        update-rc.d agvmgr-worker defaults > /dev/null 2>&1
+        _fix "Autostart engedélyezve (update-rc.d)"
+    fi
+
+    # Worker indítása / újraindítása
+    if [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
+        _fix "Worker fut – újraindítás..."
+        "$INITD_FILE" restart > /dev/null 2>&1
+    else
+        "$INITD_FILE" start > /dev/null 2>&1
+    fi
+    sleep 2
+
+    if [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
+        _ok "Worker FUT (PID $(cat "$PIDFILE"))"
+    else
+        _err "Worker indítása sikertelen"
+        _info "→ Kézzel: $INITD_FILE start"
+        _info "→ Log:    tail -20 $LOG_FILE"
+    fi
 fi
 
 # ════════════════════════════════════════════════════════════════════
