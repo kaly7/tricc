@@ -11,23 +11,24 @@ class WsService {
   WsService._();
 
   static const String _url = 'wss://192.168.16.22:9456/ws';
+  static const Duration _pingInterval = Duration(seconds: 30);
+  static const Duration _pongTimeout  = Duration(seconds: 10);
 
   WebSocketChannel? _channel;
   Timer? _reconnectTimer;
+  Timer? _pingTimer;
+  Timer? _pongTimer;
   bool _intentionalDisconnect = false;
   final Set<int> _joinedRooms = {};
 
-  // Események streame
   final _controller = StreamController<Map<String, dynamic>>.broadcast();
   Stream<Map<String, dynamic>> get events => _controller.stream;
 
-  // Kapcsolat állapot
   final _stateController = StreamController<WsState>.broadcast();
   Stream<WsState> get stateStream => _stateController.stream;
   WsState _state = WsState.disconnected;
   WsState get state => _state;
 
-  // Online userek
   final Set<int> _onlineUsers = {};
   Set<int> get onlineUsers => Set.unmodifiable(_onlineUsers);
 
@@ -73,12 +74,16 @@ class WsService {
   }
 
   void _handleIncoming(Map<String, dynamic> msg) {
-    // Auth OK → connected
     if (msg['type'] == 'auth_ok') {
       _setState(WsState.connected);
+      _startPingTimer();
     }
 
-    // Presence → online user tracking
+    if (msg['type'] == 'pong') {
+      _pongTimer?.cancel();
+      return;
+    }
+
     if (msg['type'] == 'presence') {
       final userId = msg['user_id'] as int?;
       final online = msg['online'] as bool? ?? false;
@@ -89,14 +94,12 @@ class WsService {
       return;
     }
 
-    // Presence list → szobába lépéskor kapott online lista
     if (msg['type'] == 'presence_list') {
       final ids = (msg['online_user_ids'] as List?)?.map((e) => e as int).toList() ?? [];
       _onlineUsers.addAll(ids);
       return;
     }
 
-    // Delivered ACK más user üzenetére
     if (msg['type'] == 'message') {
       final message = msg['message'] as Map<String, dynamic>?;
       if (message == null) return;
@@ -110,7 +113,29 @@ class WsService {
     }
   }
 
+  void _startPingTimer() {
+    _pingTimer?.cancel();
+    _pingTimer = Timer.periodic(_pingInterval, (_) => _sendPing());
+  }
+
+  void _sendPing() {
+    _send({'type': 'ping'});
+    _pongTimer?.cancel();
+    // Ha 10 másodpercen belül nem jön pong, a kapcsolat halott → reconnect
+    _pongTimer = Timer(_pongTimeout, () {
+      _onDisconnected();
+    });
+  }
+
+  void _stopTimers() {
+    _pingTimer?.cancel();
+    _pongTimer?.cancel();
+    _pingTimer = null;
+    _pongTimer = null;
+  }
+
   void _onDisconnected() {
+    _stopTimers();
     _channel = null;
     _setState(WsState.disconnected);
     if (!_intentionalDisconnect) _scheduleReconnect();
@@ -144,6 +169,7 @@ class WsService {
   void disconnect() {
     _intentionalDisconnect = true;
     _reconnectTimer?.cancel();
+    _stopTimers();
     _onlineUsers.clear();
     _channel?.sink.close();
     _channel = null;
