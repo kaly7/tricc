@@ -66,6 +66,7 @@ CREATE TABLE IF NOT EXISTS messages (
     content             TEXT   NOT NULL DEFAULT '',
     is_edited           TINYINT(1)   NOT NULL DEFAULT 0,
     file_url            VARCHAR(500) NOT NULL DEFAULT '',
+    file_name           VARCHAR(255) NULL DEFAULT NULL,
     file_size           BIGINT NULL DEFAULT NULL,
     reply_to_id         BIGINT NULL DEFAULT NULL,
     reply_to_content    VARCHAR(200) NULL DEFAULT NULL,
