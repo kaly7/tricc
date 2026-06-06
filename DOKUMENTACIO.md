@@ -7,6 +7,15 @@ pdf_options:
 stylesheet: doc_style.css
 ---
 
+<div style="page-break-after: always; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 90vh; text-align: center;">
+  <img src="app/assets/logo.png" style="width: 160px; height: 160px; border-radius: 32px; margin-bottom: 40px;" />
+  <h1 style="font-size: 2.6em; margin: 0 0 12px 0; color: #0d1b3e;">BabL42</h1>
+  <p style="font-size: 1.2em; color: #4a5568; margin: 0 0 40px 0;">Meghívásos belső csevegő alkalmazás</p>
+  <hr style="width: 60px; border: 2px solid #7ec81b; margin: 0 0 40px 0;" />
+  <p style="color: #718096; font-size: 0.95em; margin: 0;">iOS · Flutter · PHP 8 · WebSocket</p>
+  <p style="color: #a0aec0; font-size: 0.85em; margin: 8px 0 0 0;">v1.0.11 · 2026. június</p>
+</div>
+
 # BabL42
 
 > **Meghívásos belső csevegő alkalmazás** — zárt körű, valós idejű üzenetküldő iOS alkalmazás PHP/WebSocket backenddel.
