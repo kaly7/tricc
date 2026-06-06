@@ -940,7 +940,7 @@ class _MessageBubble extends StatelessWidget {
               child: Align(
                 alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
                 child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 280),
+                  constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
                   child: Column(
                     crossAxisAlignment: isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
                     children: [
@@ -1148,7 +1148,7 @@ class _ImageBubble extends StatelessWidget {
           borderRadius: BorderRadius.circular(12),
           child: CachedNetworkImage(
             imageUrl: fullUrl,
-            width: 220,
+            width: MediaQuery.of(context).size.width * 0.65,
             fit: BoxFit.cover,
             placeholder: (context, url) => const SizedBox(height: 120, child: Center(child: CircularProgressIndicator())),
             errorWidget: (context, url, err) => const SizedBox(height: 60, child: Center(child: Icon(Icons.broken_image))),
