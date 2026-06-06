@@ -692,6 +692,22 @@ class _RoomInfoSheet extends StatefulWidget {
 class _RoomInfoSheetState extends State<_RoomInfoSheet> {
   List<User> _allUsers = [];
   bool _loadingUsers = false;
+  StreamSubscription? _presSub;
+
+  @override
+  void initState() {
+    super.initState();
+    _presSub = WsService().events.listen((msg) {
+      final type = msg['type'] as String?;
+      if ((type == 'presence' || type == 'presence_list') && mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _presSub?.cancel();
+    super.dispose();
+  }
 
   void _showAddMember() async {
     setState(() => _loadingUsers = true);
@@ -785,21 +801,39 @@ class _RoomInfoSheetState extends State<_RoomInfoSheet> {
           ),
           Text('${widget.room.members.length} tag', style: const TextStyle(color: Colors.grey, fontSize: 13)),
           const Divider(height: 20),
-          ...widget.room.members.map((u) => ListTile(
-            contentPadding: EdgeInsets.zero,
-            leading: CircleAvatar(
-              backgroundColor: kBlue,
-              child: Text(u.name.isNotEmpty ? u.name[0].toUpperCase() : '?', style: const TextStyle(color: Colors.white)),
-            ),
-            title: Text(u.name),
-            trailing: u.id != me
-                ? IconButton(
-                    icon: const Icon(Icons.message_outlined, color: kBlue),
-                    tooltip: 'Üzenet küldése',
-                    onPressed: () => widget.onDirectMessage(u.id),
-                  )
-                : const Text('(én)', style: TextStyle(color: Colors.grey, fontSize: 12)),
-          )),
+          ...widget.room.members.map((u) {
+            final online = WsService().onlineUsers.contains(u.id);
+            return ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: CircleAvatar(
+                backgroundColor: kBlue,
+                child: Text(u.name.isNotEmpty ? u.name[0].toUpperCase() : '?', style: const TextStyle(color: Colors.white)),
+              ),
+              title: Text(u.name),
+              subtitle: Text(
+                online ? 'Online' : 'Offline',
+                style: TextStyle(color: online ? const Color(0xFF4CAF50) : Colors.grey, fontSize: 12),
+              ),
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  PresenceDot(userId: u.id),
+                  const SizedBox(width: 4),
+                  if (u.id != me)
+                    IconButton(
+                      icon: const Icon(Icons.message_outlined, color: kBlue),
+                      tooltip: 'Üzenet küldése',
+                      onPressed: () => widget.onDirectMessage(u.id),
+                    )
+                  else
+                    const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 8),
+                      child: Text('(én)', style: TextStyle(color: Colors.grey, fontSize: 12)),
+                    ),
+                ],
+              ),
+            );
+          }),
           const Divider(height: 20),
           TextButton.icon(
             onPressed: _confirmLeave,

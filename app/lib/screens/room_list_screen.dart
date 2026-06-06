@@ -176,13 +176,10 @@ class _RoomTile extends StatelessWidget {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Container(
-                    width: 7, height: 7,
-                    decoration: const BoxDecoration(color: Color(0xFF4CAF50), shape: BoxShape.circle),
-                  ),
+                  const Icon(Icons.group, size: 13, color: Colors.grey),
                   const SizedBox(width: 3),
                   Text(
-                    '${room.members.where((m) => WsService().onlineUsers.contains(m.id)).length}',
+                    '${room.memberCount}',
                     style: const TextStyle(fontSize: 12, color: Colors.grey),
                   ),
                 ],
@@ -233,53 +230,13 @@ class _RoomTile extends StatelessWidget {
     );
   }
 
-  static const String _serverBase = 'https://192.168.16.22:9456';
-
   void _showMembersModal(BuildContext context) {
-    final onlineIds = WsService().onlineUsers;
-    final sorted = [...room.members]..sort((a, b) {
-        final aOnline = onlineIds.contains(a.id) ? 0 : 1;
-        final bOnline = onlineIds.contains(b.id) ? 0 : 1;
-        return aOnline.compareTo(bOnline);
-      });
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (_) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-              child: Text(
-                '${room.displayName(AuthService().userId ?? 0)} — ${sorted.length} tag',
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-              ),
-            ),
-            ...sorted.map((m) {
-              final online = onlineIds.contains(m.id);
-              return ListTile(
-                leading: CircleAvatar(
-                  backgroundImage: m.avatarUrl != null
-                      ? CachedNetworkImageProvider('$_serverBase${m.avatarUrl}')
-                      : null,
-                  child: m.avatarUrl == null
-                      ? Text(m.name.isNotEmpty ? m.name[0].toUpperCase() : '?',
-                          style: const TextStyle(color: Colors.white))
-                      : null,
-                ),
-                title: Text(m.name),
-                subtitle: Text(
-                  online ? 'Online' : 'Offline',
-                  style: TextStyle(color: online ? const Color(0xFF4CAF50) : Colors.grey, fontSize: 12),
-                ),
-                trailing: PresenceDot(userId: m.id),
-              );
-            }),
-            const SizedBox(height: 8),
-          ],
-        ),
+      builder: (_) => _MembersModal(
+        roomId: room.id,
+        roomName: room.displayName(AuthService().userId ?? 0),
       ),
     );
   }
@@ -497,6 +454,99 @@ class _NewRoomSheetState extends State<_NewRoomSheet> {
                 ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
                 : const Text('Létrehozás'),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MembersModal extends StatefulWidget {
+  final int roomId;
+  final String roomName;
+  const _MembersModal({required this.roomId, required this.roomName});
+
+  @override
+  State<_MembersModal> createState() => _MembersModalState();
+}
+
+class _MembersModalState extends State<_MembersModal> {
+  static const String _serverBase = 'https://192.168.16.22:9456';
+  List<User> _members = [];
+  bool _loading = true;
+  StreamSubscription? _presSub;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+    _presSub = WsService().events.listen((msg) {
+      final type = msg['type'] as String?;
+      if ((type == 'presence' || type == 'presence_list') && mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _presSub?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _load() async {
+    try {
+      final room = await ApiService().getRoom(widget.roomId);
+      if (mounted) setState(() { _members = room.members; _loading = false; });
+    } catch (_) {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final onlineIds = WsService().onlineUsers;
+    final sorted = [..._members]..sort((a, b) =>
+        (onlineIds.contains(a.id) ? 0 : 1).compareTo(onlineIds.contains(b.id) ? 0 : 1));
+
+    return SafeArea(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+            child: Text(
+              _loading ? widget.roomName : '${widget.roomName} — ${_members.length} tag',
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+          ),
+          if (_loading)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 24),
+              child: Center(child: CircularProgressIndicator()),
+            )
+          else
+            ...sorted.map((m) {
+              final online = onlineIds.contains(m.id);
+              return ListTile(
+                leading: CircleAvatar(
+                  backgroundImage: m.avatarUrl != null
+                      ? CachedNetworkImageProvider('$_serverBase${m.avatarUrl}')
+                      : null,
+                  child: m.avatarUrl == null
+                      ? Text(m.name.isNotEmpty ? m.name[0].toUpperCase() : '?',
+                          style: const TextStyle(color: Colors.white))
+                      : null,
+                ),
+                title: Text(m.name),
+                subtitle: Text(
+                  online ? 'Online' : 'Offline',
+                  style: TextStyle(
+                      color: online ? const Color(0xFF4CAF50) : Colors.grey,
+                      fontSize: 12),
+                ),
+                trailing: PresenceDot(userId: m.id),
+              );
+            }),
+          const SizedBox(height: 8),
         ],
       ),
     );
