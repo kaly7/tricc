@@ -30,7 +30,13 @@ class _RoomListScreenState extends State<RoomListScreen> {
     _load();
     _wsSub = WsService().events.listen((msg) {
       final type = msg['type'] as String?;
-      if (type == 'message' || type == 'delete_request') _load();
+      if (type == 'message') {
+        // Saját üzenetre ne töltsük újra — azt a szerver olvasatlannak jelölné
+        final senderId = (msg['message'] as Map?)?['user_id'];
+        if (senderId != AuthService().userId) _load();
+      } else if (type == 'delete_request') {
+        _load();
+      }
       if (type == 'presence' || type == 'presence_list') {
         if (mounted) setState(() {});
       }
@@ -68,6 +74,7 @@ class _RoomListScreenState extends State<RoomListScreen> {
   void _openRoom(Room room) async {
     ApiService().markRead(room.id).catchError((_) {});
     await Navigator.push(context, MaterialPageRoute(builder: (_) => ChatScreen(room: room)));
+    try { await ApiService().markRead(room.id); } catch (_) {}
     _load();
   }
 
