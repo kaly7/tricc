@@ -22,7 +22,7 @@ A BabL42 egy privát, meghívásos alapú csevegő alkalmazás, amelyet zárt sz
 | Bundle ID | `com.rv42.babl42` |
 | Platform | iOS (Flutter) |
 | Backend | PHP 8 + Ratchet WebSocket + MySQL |
-| Aktuális verzió | 1.0.9 (30) |
+| Aktuális verzió | 1.0.11 (32) |
 | Fejlesztői csapat | K7Z734X92Z |
 
 ---
@@ -35,8 +35,8 @@ A BabL42 egy privát, meghívásos alapú csevegő alkalmazás, amelyet zárt sz
 Egyszerű szöveg írható és küldhető. Az üzenetek valós időben jelennek meg minden csatlakozott kliensnél WebSocket kapcsolaton keresztül.
 
 ### Képek és fájlok küldése
-- **Képek:** kamera vagy fotótár — előnézet, letöltés és megosztás lehetséges
-- **Fájlok:** tetszőleges fájltípus — a buborékban megjelenik a fájlnév, a méret (B / KB / MB) és a kiterjesztéstől függő típusikon (PDF, Word, Excel, PowerPoint, archív, hang, videó, szöveg)
+- **Képek:** kamera vagy fotótár — előnézet, letöltés és megosztás lehetséges; a szoba lista előnézetben a fájlnév jelenik meg
+- **Fájlok:** tetszőleges fájltípus — a buborékban megjelenik az eredeti fájlnév, a méret (B / KB / MB) és a kiterjesztéstől függő típusikon (PDF, Word, Excel, PowerPoint, archív, hang, videó, szöveg); a szoba lista előnézetben is az eredeti fájlnév látható
 - Küldés előtt megerősítő dialog jelenik meg a fájlnévvel és mérettel
 
 ### Linkek
@@ -96,7 +96,7 @@ Több tagból álló szoba névvel. Az admin tagokat adhat hozzá és távolíth
 | Direkt szoba neve mellé | 🟢 / ⚫ pötty — a partner online állapota |
 | Direkt szoba avatarjának karikája | Zöld vagy szürke szegély + árnyék |
 | Csoport szoba neve mellé | 👥 tagszám — koppintásra tagok listája online állapottal |
-| Chat info panel (ⓘ gomb) | Minden tag mellett Online / Offline felirat és pötty |
+| Chat info panel (ⓘ gomb) | Minden tag mellett avatar (jelenlét-karikával), Online / Offline felirat és pötty |
 | Üzenet avatarjának karikája | Zöld (online) vagy szürke (offline) keret |
 
 Az online állapot valós időben frissül. A pontosság érdekében a kliens 30 másodpercenként ping üzenetet küld a szervernek — ha a kapcsolat "csendben" megszakad (pl. iOS háttérben levágja), a szerver ezt 60 másodpercen belül észleli és offline-nak jelöli a felhasználót.
@@ -368,7 +368,9 @@ xcodebuild \
 | 1.0.7 | 27 | Avatar karika hangsúlyosabb, statikus AppBar pötty, avatar dialog bárhol, saját üzenet olvasatlan bug fix |
 | 1.0.8 | 29 | Ping/pong heartbeat — pontos online/offline érzékelés |
 | 1.0.9 | 30 | Avatar + presence karika a kézbesítési részleteknél és tagok modalnál; fájltípus ikon üzenetbuborékban; időzóna egységesítés (szerver); szobalistán fájlnév megjelenítés (szerver) |
+| 1.0.10 | 31 | Chat info panel (ⓘ) taglistájánál avatar + jelenlét-karika |
+| 1.0.11 | 32 | Fájlnév helyes megjelenítése küldőnél és fogadónál egyaránt (buborék + szoba lista előnézet) |
 
 ---
 
-*Dokumentáció generálva: 2026. június · BabL42 v1.0.9*
+*Dokumentáció generálva: 2026. június · BabL42 v1.0.11*
