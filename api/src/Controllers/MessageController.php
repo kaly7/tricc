@@ -114,7 +114,7 @@ class MessageController {
 
         $msg = $db->prepare("
             SELECT m.id, m.room_id, m.sender_id AS user_id, u.name AS user_name, u.avatar_url,
-                   m.type, m.content, m.is_edited, m.file_url, m.file_size, m.created_at,
+                   m.type, m.content, m.is_edited, m.file_url, m.file_name, m.file_size, m.created_at,
                    m.reply_to_id, m.reply_to_content, m.reply_to_user_name
             FROM messages m JOIN users u ON u.id = m.sender_id WHERE m.id = ?
         ");
@@ -196,7 +196,7 @@ class MessageController {
 
         $msg = $db->prepare("
             SELECT m.id, m.room_id, m.sender_id AS user_id, u.name AS user_name, u.avatar_url,
-                   m.type, m.content, m.is_edited, m.file_url, m.file_size, m.created_at,
+                   m.type, m.content, m.is_edited, m.file_url, m.file_name, m.file_size, m.created_at,
                    m.reply_to_id, m.reply_to_content, m.reply_to_user_name
             FROM messages m JOIN users u ON u.id = m.sender_id WHERE m.id = ?
         ");
