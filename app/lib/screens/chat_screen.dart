@@ -379,6 +379,69 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     }
   }
 
+  void _showReactionDetails(Message message) {
+    const serverBase = 'https://192.168.16.22:9456';
+    final items = <(User, String)>[];
+    for (final reaction in message.reactions) {
+      for (final userId in reaction.userIds) {
+        final user = _room.members.firstWhere(
+          (m) => m.id == userId,
+          orElse: () => User(id: userId, name: 'Ismeretlen', email: ''),
+        );
+        items.add((user, reaction.emoji));
+      }
+    }
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (_) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Padding(
+              padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
+              child: Text('Reakciók', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+            ),
+            ...items.map((item) {
+              final user = item.$1;
+              final emoji = item.$2;
+              final online = WsService().onlineUsers.contains(user.id);
+              final borderColor = online ? const Color(0xFF4CAF50) : Colors.grey.shade400;
+              return ListTile(
+                leading: GestureDetector(
+                  onTap: () => showAvatarDialog(context, user.name, user.avatarUrl),
+                  child: Container(
+                    padding: const EdgeInsets.all(2.5),
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: borderColor,
+                      boxShadow: [BoxShadow(color: borderColor.withOpacity(0.5), blurRadius: 4, spreadRadius: 1)],
+                    ),
+                    child: CircleAvatar(
+                      radius: 16,
+                      backgroundColor: kBlue,
+                      backgroundImage: user.avatarUrl != null
+                          ? CachedNetworkImageProvider('$serverBase${user.avatarUrl}')
+                          : null,
+                      child: user.avatarUrl == null
+                          ? Text(user.name.isNotEmpty ? user.name[0].toUpperCase() : '?',
+                              style: const TextStyle(color: Colors.white, fontSize: 12))
+                          : null,
+                    ),
+                  ),
+                ),
+                title: Text(user.name),
+                trailing: Text(emoji, style: const TextStyle(fontSize: 20)),
+              );
+            }),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+
   void _showMessageActions(Message message, bool isMine) {
     showModalBottomSheet(
       context: context,
@@ -724,6 +787,9 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                           isMentioned: isMentioned,
                           onLongPress: () => _showMessageActions(msg, isMine),
                           onReactionTap: (emoji) => _toggleReaction(msg, emoji),
+                          onReactionLongPress: msg.reactions.isNotEmpty
+                              ? () => _showReactionDetails(msg)
+                              : null,
                         );
                       },
                     ),
@@ -1043,6 +1109,7 @@ class _MessageBubble extends StatelessWidget {
   final bool isMentioned;
   final VoidCallback? onLongPress;
   final void Function(String emoji)? onReactionTap;
+  final VoidCallback? onReactionLongPress;
   const _MessageBubble({
     required this.message,
     required this.isMine,
@@ -1051,6 +1118,7 @@ class _MessageBubble extends StatelessWidget {
     this.isMentioned = false,
     this.onLongPress,
     this.onReactionTap,
+    this.onReactionLongPress,
   });
 
   @override
@@ -1120,6 +1188,7 @@ class _MessageBubble extends StatelessWidget {
                     spacing: 4,
                     children: message.reactions.map((r) => GestureDetector(
                       onTap: () => onReactionTap?.call(r.emoji),
+                      onLongPress: onReactionLongPress,
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                         decoration: BoxDecoration(
