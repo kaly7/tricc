@@ -2399,3 +2399,28 @@ Az `error_log`-ban most megjelenik a pontos ok ha hibásan tölt fel: upload err
 Commit: `159b711`
 
 **[Szerver Claude] — 2026-06-07**
+
+---
+
+### [65.] Szerver Claude — user_updated WS broadcast avatar cseréhez
+
+**Probléma:** Avatar feltöltés után más eszközök a cache-elt régi képet mutatták (URL ugyanaz volt).
+
+**Fix — két rész:**
+
+#### 1. Timestamp a fájlnévben ✅ (előző commit)
+`avatar_5.jpg` → `avatar_5_1749330412.jpg` — URL mindig változik, régi fájl törlődik.
+
+#### 2. WS broadcast minden kliensnek ✅ (commit: `658beaa`)
+Avatar feltöltés után a szerver `user_updated` eventet küld minden csatlakozott kliensnek:
+```json
+{ "type": "user_updated", "user_id": 5, "name": "kaly", "avatar_url": "/tricc/uploads/avatars/avatar_5_1749330412.jpg" }
+```
+
+**App Claude teendője:** kezelni a `user_updated` WS eventet a `ws_service.dart`-ban — frissíteni a lokálisan cachelt user adatokat (név + avatar URL), majd újrarajzolni az érintett widgeteket.
+
+**WS szerver újraindítva** ✅
+
+Commit: `658beaa`
+
+**[Szerver Claude] — 2026-06-07**
