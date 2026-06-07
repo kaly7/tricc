@@ -1090,6 +1090,7 @@ class _MessageBubble extends StatelessWidget {
                     bottomLeft: Radius.circular(isMine ? 16 : 4),
                     bottomRight: Radius.circular(isMine ? 4 : 16),
                   ),
+                  border: isMine ? null : Border.all(color: Colors.grey.shade300, width: 1),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
