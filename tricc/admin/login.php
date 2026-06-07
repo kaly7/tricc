@@ -4,22 +4,14 @@ if (isset($_SESSION['tricc_admin'])) { header('Location: users.php'); exit; }
 
 $error = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    require '_db.php';
-    $email = trim($_POST['email'] ?? '');
-    $pass  = $_POST['password'] ?? '';
-    $st = tricc_db()->prepare("SELECT id, name, password, is_admin, is_active FROM users WHERE email=?");
-    $st->execute([$email]);
-    $u = $st->fetch();
-    if (!$u || !password_verify($pass, $u['password'])) {
-        $error = 'Hibás email vagy jelszó.';
-    } elseif (!$u['is_active']) {
-        $error = 'Ez a fiók le van tiltva.';
-    } elseif (!$u['is_admin']) {
-        $error = 'Admin jogosultság szükséges.';
-    } else {
-        $_SESSION['tricc_admin'] = ['id' => $u['id'], 'name' => $u['name']];
+    $cfg  = require __DIR__ . '/../config.php';
+    $user = trim($_POST['username'] ?? '');
+    $pass = $_POST['password'] ?? '';
+    if ($user === $cfg['admin_user'] && $pass === $cfg['admin_pass']) {
+        $_SESSION['tricc_admin'] = ['name' => $user];
         header('Location: users.php'); exit;
     }
+    $error = 'Hibás felhasználónév vagy jelszó.';
 }
 ?>
 <!doctype html>
@@ -27,7 +19,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Tricc Admin — Belépés</title>
+<title>BabL42 Admin — Belépés</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
 <style>
 body { background: #f0f2f5; }
@@ -41,7 +33,8 @@ body { background: #f0f2f5; }
   <div class="card shadow-sm">
     <div class="card-body p-4">
       <div class="text-center mb-4">
-        <div class="brand">Tri<span>cc</span></div>
+        <img src="/tricc/docs/logo.png" alt="BabL42" style="height:64px;margin-bottom:8px;display:block;margin-left:auto;margin-right:auto;">
+        <div class="brand">BabL<span>42</span></div>
         <div class="text-muted small">Admin panel</div>
       </div>
       <?php if ($error): ?>
@@ -50,7 +43,8 @@ body { background: #f0f2f5; }
       <form method="post">
         <div class="mb-3">
           <label class="form-label fw-semibold">Email</label>
-          <input type="email" name="email" class="form-control" autofocus required value="<?= htmlspecialchars($_POST['email'] ?? '') ?>">
+          <input type="email" name="username" class="form-control" autofocus required
+                 value="<?= htmlspecialchars($_POST['username'] ?? '') ?>">
         </div>
         <div class="mb-4">
           <label class="form-label fw-semibold">Jelszó</label>
