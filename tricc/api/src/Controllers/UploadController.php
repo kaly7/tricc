@@ -80,7 +80,30 @@ class UploadController {
         }
 
         $url = self::PUBLIC_BASE . 'avatars/' . $name;
-        \Tricc\DB::get()->prepare("UPDATE users SET avatar_url=? WHERE id=?")->execute([$url, $auth['user_id']]);
+        $db = \Tricc\DB::get();
+        $db->prepare("UPDATE users SET avatar_url=? WHERE id=?")->execute([$url, $auth['user_id']]);
+
+        $st = $db->prepare("SELECT name FROM users WHERE id=?");
+        $st->execute([$auth['user_id']]);
+        $uname = $st->fetchColumn();
+
+        // WS broadcast minden csatlakozott kliensnek
+        try {
+            $sock = @stream_socket_client('tcp://127.0.0.1:9455', $errno, $errstr, 0.3);
+            if ($sock) {
+                fwrite($sock, json_encode([
+                    'broadcast_all' => true,
+                    'payload' => [
+                        'type'       => 'user_updated',
+                        'user_id'    => $auth['user_id'],
+                        'name'       => $uname,
+                        'avatar_url' => $url,
+                    ],
+                ], JSON_UNESCAPED_UNICODE));
+                fclose($sock);
+            }
+        } catch (\Throwable) {}
+
         Response::ok(['avatar_url' => $url]);
     }
 }

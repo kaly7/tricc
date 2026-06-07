@@ -3,6 +3,7 @@ namespace Tricc\WS;
 
 use Ratchet\MessageComponentInterface;
 use Ratchet\ConnectionInterface;
+use React\EventLoop\LoopInterface;
 use Tricc\{DB, Auth};
 
 class ChatServer implements MessageComponentInterface {
@@ -18,8 +19,25 @@ class ChatServer implements MessageComponentInterface {
     /** @var array<int, int[]> room_id → [user_id, ...] */
     private array $roomUsers = [];
 
+    /** @var array<int, int> conn_id → utolsó ping időbélyeg */
+    private array $lastPing = [];
+
+    public function __construct(LoopInterface $loop) {
+        // 15 másodpercenként ellenőrzi: aki 60 másodperce nem pingelt, azt lezárja
+        $loop->addPeriodicTimer(15, function () {
+            $now = time();
+            foreach ($this->lastPing as $cid => $ts) {
+                if ($now - $ts > 60 && isset($this->conns[$cid])) {
+                    echo "[WS] idle timeout #{$cid}, closing\n";
+                    $this->conns[$cid]->close();
+                }
+            }
+        });
+    }
+
     public function onOpen(ConnectionInterface $conn): void {
         $this->conns[$conn->resourceId] = $conn;
+        $this->lastPing[$conn->resourceId] = time();
         echo "[WS] connected #{$conn->resourceId}\n";
     }
 
@@ -40,6 +58,13 @@ class ChatServer implements MessageComponentInterface {
             case 'typing':
                 $this->handleTyping($from, $msg);
                 break;
+            case 'delivered':
+                $this->handleDelivered($from, $msg);
+                break;
+            case 'ping':
+                $this->lastPing[$from->resourceId] = time();
+                $from->send(json_encode(['type' => 'pong']));
+                break;
         }
     }
 
@@ -58,6 +83,7 @@ class ChatServer implements MessageComponentInterface {
             unset($this->users[$id]);
         }
         unset($this->conns[$id]);
+        unset($this->lastPing[$id]);
         echo "[WS] disconnected #{$id}\n";
     }
 
@@ -94,7 +120,18 @@ class ChatServer implements MessageComponentInterface {
         if (!in_array($uid, $this->roomUsers[$room_id] ?? [], true)) {
             $this->roomUsers[$room_id][] = $uid;
         }
-        $conn->send(json_encode(['type' => 'joined', 'room_id' => $room_id]));
+        $conn->send(json_encode(['type' => 'joined', 'room_id' => $room_id], JSON_UNESCAPED_UNICODE));
+
+        // Presence list: a szoba melyik tagjai online jelenleg
+        $st = DB::get()->prepare("SELECT user_id FROM room_members WHERE room_id=?");
+        $st->execute([$room_id]);
+        $allMembers   = array_map('intval', array_column($st->fetchAll(), 'user_id'));
+        $onlineInRoom = array_values(array_intersect($allMembers, array_keys($this->userConns)));
+        $conn->send(json_encode([
+            'type'            => 'presence_list',
+            'room_id'         => $room_id,
+            'online_user_ids' => $onlineInRoom,
+        ], JSON_UNESCAPED_UNICODE));
     }
 
     private function handleLeave(ConnectionInterface $conn, array $msg): void {
@@ -104,6 +141,35 @@ class ChatServer implements MessageComponentInterface {
         $this->roomUsers[$room_id] = array_values(
             array_filter($this->roomUsers[$room_id] ?? [], fn($u) => $u !== $uid)
         );
+    }
+
+    private function handleDelivered(ConnectionInterface $conn, array $msg): void {
+        $uid    = $this->users[$conn->resourceId] ?? null;
+        $msg_id = (int)($msg['message_id'] ?? 0);
+        $room_id = (int)($msg['room_id'] ?? 0);
+        if (!$uid || !$msg_id || !$room_id) return;
+
+        $db = DB::get();
+        $db->prepare("UPDATE message_deliveries SET delivered_at=NOW() WHERE message_id=? AND user_id=? AND delivered_at IS NULL")
+           ->execute([$msg_id, $uid]);
+
+        $st = $db->prepare("SELECT sender_id FROM messages WHERE id=?");
+        $st->execute([$msg_id]);
+        $sender_id = (int)($st->fetchColumn() ?: 0);
+        if (!$sender_id) return;
+
+        $dr = $db->prepare("SELECT delivered_at, read_at FROM message_deliveries WHERE message_id=? AND user_id=?");
+        $dr->execute([$msg_id, $uid]);
+        $row = $dr->fetch();
+
+        $this->sendToUser($sender_id, [
+            'type'         => 'status_update',
+            'room_id'      => $room_id,
+            'message_id'   => $msg_id,
+            'user_id'      => $uid,
+            'delivered_at' => $row['delivered_at'] ?? null,
+            'read_at'      => $row['read_at'] ?? null,
+        ]);
     }
 
     private function handleTyping(ConnectionInterface $conn, array $msg): void {
@@ -121,11 +187,35 @@ class ChatServer implements MessageComponentInterface {
     // ── public broadcast (called from outside, e.g. REST API) ──
 
     public function broadcastMessage(int $room_id, array $message): void {
-        $this->broadcastRoom($room_id, null, [
-            'type'    => 'message',
-            'room_id' => $room_id,
-            'message' => $message,
-        ]);
+        $json = json_encode(['type' => 'message', 'room_id' => $room_id, 'message' => $message], JSON_UNESCAPED_UNICODE);
+        foreach ($this->users as $cid => $uid) {
+            if ($this->isMember($room_id, $uid)) {
+                $this->conns[$cid]?->send($json);
+            }
+        }
+    }
+
+    public function sendToUser(int $user_id, array $payload): void {
+        $json = json_encode($payload, JSON_UNESCAPED_UNICODE);
+        foreach ($this->userConns[$user_id] ?? [] as $cid) {
+            $this->conns[$cid]?->send($json);
+        }
+    }
+
+    public function broadcastRaw(int $room_id, array $payload): void {
+        $json = json_encode($payload, JSON_UNESCAPED_UNICODE);
+        foreach ($this->users as $cid => $uid) {
+            if ($this->isMember($room_id, $uid)) {
+                $this->conns[$cid]?->send($json);
+            }
+        }
+    }
+
+    public function broadcastAll(array $payload): void {
+        $json = json_encode($payload, JSON_UNESCAPED_UNICODE);
+        foreach ($this->users as $cid => $uid) {
+            $this->conns[$cid]?->send($json);
+        }
     }
 
     // ── helpers ─────────────────────────────────────────────────
@@ -141,9 +231,17 @@ class ChatServer implements MessageComponentInterface {
     }
 
     private function broadcastPresence(int $uid, bool $online): void {
-        $payload = json_encode(['type' => 'presence', 'user_id' => $uid, 'online' => $online]);
-        foreach ($this->conns as $conn) {
-            $conn->send($payload);
+        // Csak azoknak küld, akik közös szobában vannak $uid-val
+        $st = DB::get()->prepare("
+            SELECT DISTINCT rm2.user_id
+            FROM room_members rm1
+            JOIN room_members rm2 ON rm2.room_id = rm1.room_id
+            WHERE rm1.user_id = ? AND rm2.user_id != ?
+        ");
+        $st->execute([$uid, $uid]);
+        $payload = ['type' => 'presence', 'user_id' => $uid, 'online' => $online];
+        foreach ($st->fetchAll() as $row) {
+            $this->sendToUser((int)$row['user_id'], $payload);
         }
     }
 
