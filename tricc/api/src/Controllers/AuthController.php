@@ -74,6 +74,28 @@ class AuthController {
         Response::ok();
     }
 
+    public static function changePassword(): never {
+        $auth = Auth::require();
+        $body = json_decode(file_get_contents('php://input'), true) ?? [];
+        $current = $body['current_password'] ?? '';
+        $new     = $body['new_password'] ?? '';
+
+        if (strlen($new) < 6) Response::abort(400, 'Az új jelszó legalább 6 karakter legyen.');
+
+        $db = DB::get();
+        $st = $db->prepare("SELECT password FROM users WHERE id=?");
+        $st->execute([$auth['user_id']]);
+        $row = $st->fetch();
+
+        if (!$row || !password_verify($current, $row['password'])) {
+            Response::abort(400, 'Hibás jelenlegi jelszó.');
+        }
+
+        $db->prepare("UPDATE users SET password=? WHERE id=?")
+           ->execute([password_hash($new, PASSWORD_DEFAULT), $auth['user_id']]);
+        Response::ok();
+    }
+
     public static function users(): never {
         Auth::require();
         $st = DB::get()->prepare("SELECT id, name, avatar_url FROM users WHERE is_active=1 ORDER BY name");
