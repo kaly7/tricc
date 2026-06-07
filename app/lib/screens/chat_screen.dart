@@ -27,7 +27,7 @@ class ChatScreen extends StatefulWidget {
   State<ChatScreen> createState() => _ChatScreenState();
 }
 
-class _ChatScreenState extends State<ChatScreen> {
+class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   final _msgCtrl = TextEditingController();
   final _scroll = ScrollController();
   final List<Message> _messages = [];
@@ -60,6 +60,7 @@ class _ChatScreenState extends State<ChatScreen> {
     WsService().join(widget.room.id);
     _wsSub = WsService().events.listen((msg) => _onWsEvent(msg));
     _msgCtrl.addListener(_onTextChanged);
+    WidgetsBinding.instance.addObserver(this);
   }
 
   @override
@@ -67,6 +68,7 @@ class _ChatScreenState extends State<ChatScreen> {
     _wsSub?.cancel();
     WsService().leave(widget.room.id);
     ApiService().markRead(widget.room.id).catchError((_) {});
+    WidgetsBinding.instance.removeObserver(this);
     _msgCtrl.removeListener(_onTextChanged);
     _msgCtrl.dispose();
     _scroll.dispose();
@@ -79,6 +81,13 @@ class _ChatScreenState extends State<ChatScreen> {
       if (mounted) setState(() => _room = r);
     } catch (e) {
       debugPrint('[_loadRoom] hiba: $e');
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && mounted) {
+      _loadMessages();
     }
   }
 
