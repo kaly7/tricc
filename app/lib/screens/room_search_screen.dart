@@ -87,6 +87,7 @@ class _RoomSearchScreenState extends State<RoomSearchScreen> {
                       itemBuilder: (_, i) {
                         final msg = _results[i];
                         return ListTile(
+                          onTap: () => Navigator.pop(context, msg),
                           leading: CircleAvatar(
                             radius: 18,
                             backgroundColor: kBlue,

@@ -50,6 +50,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   Timer? _typingThrottle;
   bool _showScrollDown = false;
   int _unreadWhileScrolled = 0;
+  int? _highlightMessageId;
 
   bool get _isAdmin => _room.members
       .any((m) => m.id == AuthService().userId && m.role == 'admin');
@@ -292,6 +293,23 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       });
     } catch (_) {
       setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _jumpToMessage(Message msg) async {
+    setState(() { _messages.clear(); _hasMore = true; _loading = true; _highlightMessageId = msg.id; });
+    try {
+      final msgs = await ApiService().getMessages(widget.room.id, before: msg.id + 1);
+      if (!mounted) return;
+      setState(() { _messages.addAll(msgs.reversed); _hasMore = msgs.length >= 50; _loading = false; });
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (_scroll.hasClients) _scroll.jumpTo(0);
+      });
+      Future.delayed(const Duration(seconds: 2), () {
+        if (mounted) setState(() => _highlightMessageId = null);
+      });
+    } catch (_) {
+      if (mounted) setState(() => _loading = false);
     }
   }
 
@@ -795,7 +813,10 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
           const WsDot(),
           IconButton(
             icon: const Icon(Icons.search),
-            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => RoomSearchScreen(room: _room))),
+            onPressed: () async {
+              final msg = await Navigator.push<Message>(context, MaterialPageRoute(builder: (_) => RoomSearchScreen(room: _room)));
+              if (msg != null) _jumpToMessage(msg);
+            },
           ),
           if (!_room.isDirect)
             IconButton(icon: const Icon(Icons.info_outline), onPressed: _showRoomInfo),
@@ -917,6 +938,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                           isGroup: !_room.isDirect,
                           isPinned: _room.pinnedMessage?.id == msg.id,
                           isMentioned: isMentioned,
+                          highlighted: msg.id == _highlightMessageId,
                           onLongPress: () => _showMessageActions(msg, isMine),
                           onReactionTap: (emoji) => _toggleReaction(msg, emoji),
                           onReactionLongPress: msg.reactions.isNotEmpty
@@ -1245,6 +1267,7 @@ class _MessageBubble extends StatelessWidget {
   final bool isGroup;
   final bool isPinned;
   final bool isMentioned;
+  final bool highlighted;
   final VoidCallback? onLongPress;
   final void Function(String emoji)? onReactionTap;
   final VoidCallback? onReactionLongPress;
@@ -1254,6 +1277,7 @@ class _MessageBubble extends StatelessWidget {
     required this.isGroup,
     this.isPinned = false,
     this.isMentioned = false,
+    this.highlighted = false,
     this.onLongPress,
     this.onReactionTap,
     this.onReactionLongPress,
@@ -1267,7 +1291,10 @@ class _MessageBubble extends StatelessWidget {
         child: Center(child: Text(message.content ?? '', style: const TextStyle(color: Colors.grey, fontStyle: FontStyle.italic, fontSize: 12), textAlign: TextAlign.center)),
       );
     }
-    return GestureDetector(
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 600),
+      color: highlighted ? Colors.amber.withOpacity(0.25) : Colors.transparent,
+      child: GestureDetector(
       onLongPress: onLongPress,
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 3),
@@ -1369,6 +1396,7 @@ class _MessageBubble extends StatelessWidget {
           ],
         ),
       ),
+    ),
     );
   }
 
