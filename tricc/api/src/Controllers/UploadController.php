@@ -51,17 +51,28 @@ class UploadController {
 
         if (empty($_FILES['file'])) Response::abort(400, 'Fájl nem érkezett.');
         $f = $_FILES['file'];
-        if ($f['error'] !== UPLOAD_ERR_OK) Response::abort(400, 'Feltöltési hiba: ' . $f['error']);
+        if ($f['error'] !== UPLOAD_ERR_OK) {
+            error_log("[Tricc] avatar upload error code: " . $f['error'] . " user=" . $auth['user_id']);
+            Response::abort(400, 'Feltöltési hiba: ' . $f['error']);
+        }
         if ($f['size'] > 5 * 1024 * 1024) Response::abort(413, 'Max 5 MB.');
+
         $mime = mime_content_type($f['tmp_name']);
-        if (!in_array($mime, ['image/jpeg', 'image/png', 'image/webp'], true))
-            Response::abort(415, 'Csak JPEG/PNG/WebP avatar engedélyezett.');
+        // iOS néha image/jpg-t küld image/jpeg helyett
+        if ($mime === 'image/jpg') $mime = 'image/jpeg';
+        $extMap = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp'];
+        if (!isset($extMap[$mime])) {
+            error_log("[Tricc] avatar tiltott MIME: $mime user=" . $auth['user_id']);
+            Response::abort(415, 'Csak JPEG/PNG/WebP avatar engedélyezett. (kapott: ' . $mime . ')');
+        }
 
         $dir  = self::UPLOAD_DIR . 'avatars/';
         if (!is_dir($dir)) mkdir($dir, 0755, true);
-        $ext  = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp'][$mime];
-        $name = 'avatar_' . $auth['user_id'] . '.' . $ext;
-        if (!move_uploaded_file($f['tmp_name'], $dir . $name)) Response::abort(500, 'Mentési hiba.');
+        $name = 'avatar_' . $auth['user_id'] . '.' . $extMap[$mime];
+        if (!move_uploaded_file($f['tmp_name'], $dir . $name)) {
+            error_log("[Tricc] avatar move_uploaded_file hiba: src={$f['tmp_name']} dest={$dir}{$name}");
+            Response::abort(500, 'Mentési hiba.');
+        }
 
         $url = self::PUBLIC_BASE . 'avatars/' . $name;
         \Tricc\DB::get()->prepare("UPDATE users SET avatar_url=? WHERE id=?")->execute([$url, $auth['user_id']]);
