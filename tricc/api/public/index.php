@@ -1,6 +1,8 @@
 <?php
 require_once __DIR__ . '/../../vendor/autoload.php';
 
+date_default_timezone_set('Europe/Budapest');
+
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Headers: Authorization, Content-Type');
 header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
@@ -29,22 +31,42 @@ try {
         $method === 'POST' && $path === '/rooms'             => RoomController::create(),
         $method === 'GET'  && preg_match('#^/rooms/(\d+)$#', $path, $m) > 0
                                                              => RoomController::get((int)$m[1]),
+        $method === 'POST' && preg_match('#^/rooms/(\d+)/hide$#', $path, $m) > 0
+                                                             => RoomController::hide((int)$m[1]),
+        $method === 'POST' && preg_match('#^/rooms/(\d+)/read$#', $path, $m) > 0
+                                                             => RoomController::markRead((int)$m[1]),
         $method === 'POST' && preg_match('#^/rooms/(\d+)/members$#', $path, $m) > 0
                                                              => RoomController::addMember((int)$m[1]),
         $method === 'DELETE' && preg_match('#^/rooms/(\d+)/members/(\d+)$#', $path, $m) > 0
                                                              => RoomController::removeMember((int)$m[1], (int)$m[2]),
+        $method === 'POST' && preg_match('#^/rooms/(\d+)/delete-request$#', $path, $m) > 0
+                                                             => RoomController::deleteRequest((int)$m[1]),
+        $method === 'POST' && preg_match('#^/rooms/(\d+)/keep$#', $path, $m) > 0
+                                                             => RoomController::keep((int)$m[1]),
         $method === 'POST'   && preg_match('#^/rooms/(\d+)/pin$#', $path, $m) > 0
                                                              => RoomController::pin((int)$m[1]),
         $method === 'DELETE' && preg_match('#^/rooms/(\d+)/pin$#', $path, $m) > 0
                                                              => RoomController::unpin((int)$m[1]),
+        $method === 'POST'   && preg_match('#^/rooms/(\d+)/mute$#', $path, $m) > 0
+                                                             => RoomController::mute((int)$m[1]),
+        $method === 'DELETE' && preg_match('#^/rooms/(\d+)/mute$#', $path, $m) > 0
+                                                             => RoomController::unmute((int)$m[1]),
 
         // Messages
+        $method === 'GET'  && preg_match('#^/rooms/(\d+)/messages/search$#', $path, $m) > 0
+                                                             => MessageController::search((int)$m[1]),
+        $method === 'GET'  && preg_match('#^/rooms/(\d+)/media$#', $path, $m) > 0
+                                                             => MessageController::media((int)$m[1]),
         $method === 'GET'  && preg_match('#^/rooms/(\d+)/messages$#', $path, $m) > 0
                                                              => MessageController::list((int)$m[1]),
         $method === 'POST' && preg_match('#^/rooms/(\d+)/messages$#', $path, $m) > 0
                                                              => MessageController::send((int)$m[1]),
+        $method === 'PUT'    && preg_match('#^/rooms/(\d+)/messages/(\d+)$#', $path, $m) > 0
+                                                             => MessageController::edit((int)$m[1], (int)$m[2]),
         $method === 'DELETE' && preg_match('#^/rooms/(\d+)/messages/(\d+)$#', $path, $m) > 0
                                                              => MessageController::delete((int)$m[1], (int)$m[2]),
+        $method === 'POST'   && preg_match('#^/rooms/(\d+)/messages/(\d+)/reactions$#', $path, $m) > 0
+                                                             => MessageController::reactionToggle((int)$m[1], (int)$m[2]),
 
         // Upload
         $method === 'POST' && $path === '/upload'            => UploadController::upload(),

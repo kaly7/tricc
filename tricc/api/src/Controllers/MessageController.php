@@ -4,6 +4,51 @@ namespace Tricc\Controllers;
 use Tricc\{DB, Auth, Response, APNs};
 
 class MessageController {
+
+    private static function enrichRows(array $rows, int $my_id, \PDO $db): array {
+        foreach ($rows as &$row) {
+            if ((int)$row['user_id'] === $my_id) {
+                $ds = $db->prepare("SELECT user_id, delivered_at, read_at FROM message_deliveries WHERE message_id=?");
+                $ds->execute([$row['id']]);
+                $row['deliveries'] = $ds->fetchAll();
+            } else {
+                $row['deliveries'] = [];
+            }
+
+            if ($row['reply_to_id']) {
+                $row['reply_to'] = [
+                    'id'        => (int)$row['reply_to_id'],
+                    'content'   => $row['reply_to_content'],
+                    'user_name' => $row['reply_to_user_name'],
+                ];
+            } else {
+                $row['reply_to'] = null;
+            }
+            unset($row['reply_to_id'], $row['reply_to_content'], $row['reply_to_user_name']);
+
+            $rs = $db->prepare("SELECT emoji, COUNT(*) AS count, GROUP_CONCAT(user_id) AS user_ids FROM message_reactions WHERE message_id=? GROUP BY emoji");
+            $rs->execute([$row['id']]);
+            $reactions = [];
+            foreach ($rs->fetchAll() as $r) {
+                $uids = array_map('intval', explode(',', $r['user_ids']));
+                $reactions[] = [
+                    'emoji'    => $r['emoji'],
+                    'count'    => (int)$r['count'],
+                    'user_ids' => $uids,
+                    'mine'     => in_array($my_id, $uids),
+                ];
+            }
+            $row['reactions'] = $reactions;
+
+            $ms = $db->prepare("SELECT user_id FROM message_mentions WHERE message_id=?");
+            $ms->execute([$row['id']]);
+            $row['mention_user_ids'] = array_map('intval', array_column($ms->fetchAll(), 'user_id'));
+            $row['mention_all']      = (bool)$row['mention_all'];
+        }
+        unset($row);
+        return $rows;
+    }
+
     public static function list(int $room_id): never {
         $auth = Auth::require();
         RoomController::assertMemberStatic($room_id, $auth['user_id']);
@@ -33,53 +78,44 @@ class MessageController {
             $st->execute([$room_id]);
         }
         $rows = array_reverse($st->fetchAll());
+        Response::ok(self::enrichRows($rows, $auth['user_id'], $db));
+    }
 
-        $my_id = $auth['user_id'];
-        foreach ($rows as &$row) {
-            // Deliveries (csak saját üzenetekhez)
-            if ((int)$row['user_id'] === $my_id) {
-                $ds = $db->prepare("SELECT user_id, delivered_at, read_at FROM message_deliveries WHERE message_id=?");
-                $ds->execute([$row['id']]);
-                $row['deliveries'] = $ds->fetchAll();
-            } else {
-                $row['deliveries'] = [];
-            }
+    public static function search(int $room_id): never {
+        $auth = Auth::require();
+        RoomController::assertMemberStatic($room_id, $auth['user_id']);
 
-            // Reply/quote
-            if ($row['reply_to_id']) {
-                $row['reply_to'] = [
-                    'id'        => (int)$row['reply_to_id'],
-                    'content'   => $row['reply_to_content'],
-                    'user_name' => $row['reply_to_user_name'],
-                ];
-            } else {
-                $row['reply_to'] = null;
-            }
-            unset($row['reply_to_id'], $row['reply_to_content'], $row['reply_to_user_name']);
+        $q = trim($_GET['q'] ?? '');
+        if (mb_strlen($q) < 2) Response::ok([]);
 
-            // Reactions
-            $rs = $db->prepare("SELECT emoji, COUNT(*) AS count, GROUP_CONCAT(user_id) AS user_ids FROM message_reactions WHERE message_id=? GROUP BY emoji");
-            $rs->execute([$row['id']]);
-            $reactions = [];
-            foreach ($rs->fetchAll() as $r) {
-                $reactions[] = [
-                    'emoji'    => $r['emoji'],
-                    'count'    => (int)$r['count'],
-                    'user_ids' => array_map('intval', explode(',', $r['user_ids'])),
-                    'mine'     => in_array($my_id, array_map('intval', explode(',', $r['user_ids']))),
-                ];
-            }
-            $row['reactions'] = $reactions;
+        $db = DB::get();
+        $st = $db->prepare("
+            SELECT m.id, m.room_id, m.sender_id AS user_id, u.name AS user_name, u.avatar_url,
+                   m.type, m.content, m.mention_all, m.is_edited, m.file_url, m.file_name, m.file_size, m.created_at,
+                   m.reply_to_id, m.reply_to_content, m.reply_to_user_name
+            FROM messages m JOIN users u ON u.id = m.sender_id
+            WHERE m.room_id = ? AND m.content LIKE ?
+            ORDER BY m.id DESC LIMIT 50
+        ");
+        $st->execute([$room_id, '%' . $q . '%']);
+        Response::ok(self::enrichRows($st->fetchAll(), $auth['user_id'], $db));
+    }
 
-            // Mentions
-            $ms = $db->prepare("SELECT user_id FROM message_mentions WHERE message_id=?");
-            $ms->execute([$row['id']]);
-            $row['mention_user_ids'] = array_map('intval', array_column($ms->fetchAll(), 'user_id'));
-            $row['mention_all'] = (bool)$row['mention_all'];
-        }
-        unset($row);
+    public static function media(int $room_id): never {
+        $auth = Auth::require();
+        RoomController::assertMemberStatic($room_id, $auth['user_id']);
 
-        Response::ok($rows);
+        $db = DB::get();
+        $st = $db->prepare("
+            SELECT m.id, m.room_id, m.sender_id AS user_id, u.name AS user_name, u.avatar_url,
+                   m.type, m.content, m.mention_all, m.is_edited, m.file_url, m.file_name, m.file_size, m.created_at,
+                   m.reply_to_id, m.reply_to_content, m.reply_to_user_name
+            FROM messages m JOIN users u ON u.id = m.sender_id
+            WHERE m.room_id = ? AND m.type IN ('image', 'file')
+            ORDER BY m.id DESC LIMIT 100
+        ");
+        $st->execute([$room_id]);
+        Response::ok(self::enrichRows($st->fetchAll(), $auth['user_id'], $db));
     }
 
     public static function send(int $room_id): never {
