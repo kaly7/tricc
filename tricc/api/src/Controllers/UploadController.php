@@ -68,7 +68,12 @@ class UploadController {
 
         $dir  = self::UPLOAD_DIR . 'avatars/';
         if (!is_dir($dir)) mkdir($dir, 0755, true);
-        $name = 'avatar_' . $auth['user_id'] . '.' . $extMap[$mime];
+
+        // Régi avatar fájlok törlése (minden kiterjesztés + régi és új névkonvenció)
+        foreach (glob($dir . 'avatar_' . $auth['user_id'] . '_*') as $old) @unlink($old);
+        foreach (['jpg','png','webp'] as $e) @unlink($dir . 'avatar_' . $auth['user_id'] . '.' . $e);
+
+        $name = 'avatar_' . $auth['user_id'] . '_' . time() . '.' . $extMap[$mime];
         if (!move_uploaded_file($f['tmp_name'], $dir . $name)) {
             error_log("[Tricc] avatar move_uploaded_file hiba: src={$f['tmp_name']} dest={$dir}{$name}");
             Response::abort(500, 'Mentési hiba.');
