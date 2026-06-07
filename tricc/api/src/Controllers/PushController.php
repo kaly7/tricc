@@ -3,18 +3,20 @@ namespace Tricc\Controllers;
 
 use Tricc\{DB, Auth, Response};
 
+
 class PushController {
     public static function register(): never {
         $auth  = Auth::require();
         $body  = json_decode(file_get_contents('php://input'), true) ?? [];
-        $token = trim($body['device_token'] ?? '');
+        $token    = trim($body['device_token'] ?? '');
+        $platform = in_array($body['platform'] ?? '', ['ios', 'android']) ? $body['platform'] : 'ios';
         if (!$token) Response::abort(400, 'device_token megadása kötelező.');
 
         DB::get()->prepare("
-            INSERT INTO push_tokens (user_id, token)
-            VALUES (?, ?)
-            ON DUPLICATE KEY UPDATE updated_at = NOW()
-        ")->execute([$auth['user_id'], $token]);
+            INSERT INTO push_tokens (user_id, token, platform)
+            VALUES (?, ?, ?)
+            ON DUPLICATE KEY UPDATE platform = VALUES(platform), updated_at = NOW()
+        ")->execute([$auth['user_id'], $token, $platform]);
 
         Response::ok();
     }

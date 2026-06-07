@@ -12,4 +12,8 @@ return [
     'apns_key_id'    => 'XXXXXXXXXX',
     'apns_team_id'   => 'XXXXXXXXXX',
     'apns_bundle_id' => 'hu.example.tricc',
+
+    // Google FCM HTTP v1 (Android push) — service account JSON fájl elérési útja
+    // Firebase Console → Project Settings → Service Accounts → Generate new private key
+    'fcm_service_account' => '/opt/tricc/firebase-service-account.json',
 ];

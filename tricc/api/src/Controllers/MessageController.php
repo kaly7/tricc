@@ -1,7 +1,7 @@
 <?php
 namespace Tricc\Controllers;
 
-use Tricc\{DB, Auth, Response, APNs};
+use Tricc\{DB, Auth, Response, APNs, FCM};
 
 class MessageController {
 
@@ -364,7 +364,7 @@ class MessageController {
         }
 
         $tokens = $db->prepare("
-            SELECT pt.token, pt.user_id, rm.is_muted FROM push_tokens pt
+            SELECT pt.token, pt.user_id, pt.platform, rm.is_muted FROM push_tokens pt
             JOIN room_members rm ON rm.user_id = pt.user_id
             WHERE rm.room_id = ? AND pt.user_id != ?
         ");
@@ -393,10 +393,12 @@ class MessageController {
             $badgeSt->execute([$t['user_id']]);
             $badge = (int)$badgeSt->fetchColumn();
 
-            $status = APNs::send($t['token'], $title, $body, [
-                'room_id'    => $room_id,
-                'message_id' => $msg['id'],
-            ], $badge, $subtitle);
+            $pushData = ['room_id' => $room_id, 'message_id' => $msg['id']];
+            if (($t['platform'] ?? 'ios') === 'android') {
+                $status = FCM::send($t['token'], $title, $body, $pushData, $subtitle);
+            } else {
+                $status = APNs::send($t['token'], $title, $body, $pushData, $badge, $subtitle);
+            }
             if ($status === 200) {
                 $db->prepare("UPDATE message_deliveries SET delivered_at=? WHERE message_id=? AND user_id=?")
                    ->execute([$now, $msg_id, $t['user_id']]);
