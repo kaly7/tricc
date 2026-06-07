@@ -2,7 +2,7 @@
 namespace Tricc;
 
 class APNs {
-    public static function send(string $device_token, string $title, string $body, array $data = [], int $badge = 1, string $subtitle = ''): bool {
+    public static function send(string $device_token, string $title, string $body, array $data = [], int $badge = 1, string $subtitle = ''): int {
         $cfg = require __DIR__ . '/../../config.php';
 
         $alert = [
@@ -36,11 +36,12 @@ class APNs {
 
         file_put_contents('/var/www/html/tricc/uploads/apns_debug.log', date('Y-m-d H:i:s') . ' payload=' . $payload . PHP_EOL, FILE_APPEND);
         $result = shell_exec(implode(' ', array_map('escapeshellarg', $cmd)));
-        $ok = str_contains((string)$result, 'HTTP_STATUS:200');
+        preg_match('/HTTP_STATUS:(\d+)/', (string)$result, $sm);
+        $status = (int)($sm[1] ?? 0);
         file_put_contents('/var/www/html/tricc/uploads/apns_debug.log',
             date('Y-m-d H:i:s') . ' result=' . trim((string)$result) . PHP_EOL, FILE_APPEND);
-        error_log("[APNs] " . ($ok ? 'OK' : 'HIBA') . " → $title | $body");
-        return $ok;
+        error_log("[APNs] HTTP $status → $title | $body");
+        return $status;
     }
 
     private static function jwtToken(array $cfg): string {

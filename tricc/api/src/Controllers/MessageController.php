@@ -393,11 +393,11 @@ class MessageController {
             $badgeSt->execute([$t['user_id']]);
             $badge = (int)$badgeSt->fetchColumn();
 
-            $ok = APNs::send($t['token'], $title, $body, [
+            $status = APNs::send($t['token'], $title, $body, [
                 'room_id'    => $room_id,
                 'message_id' => $msg['id'],
             ], $badge, $subtitle);
-            if ($ok) {
+            if ($status === 200) {
                 $db->prepare("UPDATE message_deliveries SET delivered_at=? WHERE message_id=? AND user_id=?")
                    ->execute([$now, $msg_id, $t['user_id']]);
                 self::wsToUser($sender_id, [
@@ -408,6 +408,9 @@ class MessageController {
                     'delivered_at' => $now,
                     'read_at'      => null,
                 ]);
+            } elseif ($status === 410 || $status === 400) {
+                $db->prepare("DELETE FROM push_tokens WHERE token=?")->execute([$t['token']]);
+                error_log("[APNs] Token törölve (HTTP $status): " . substr($t['token'], 0, 20) . '...');
             }
         }
     }

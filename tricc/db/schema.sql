@@ -27,9 +27,10 @@ CREATE TABLE IF NOT EXISTS invite_codes (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS push_tokens (
-    user_id      INT          NOT NULL PRIMARY KEY,
+    user_id      INT          NOT NULL,
     token        VARCHAR(200) NOT NULL,
     updated_at   DATETIME     NOT NULL DEFAULT NOW() ON UPDATE NOW(),
+    PRIMARY KEY (user_id, token),
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 

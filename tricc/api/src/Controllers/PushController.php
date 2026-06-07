@@ -13,7 +13,7 @@ class PushController {
         DB::get()->prepare("
             INSERT INTO push_tokens (user_id, token)
             VALUES (?, ?)
-            ON DUPLICATE KEY UPDATE token = VALUES(token), updated_at = NOW()
+            ON DUPLICATE KEY UPDATE updated_at = NOW()
         ")->execute([$auth['user_id'], $token]);
 
         Response::ok();
