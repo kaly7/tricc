@@ -8,6 +8,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:http/http.dart' as http;
 import 'package:open_filex/open_filex.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import '../models/user.dart';
 import '../models/room.dart';
@@ -38,6 +39,10 @@ class _ChatScreenState extends State<ChatScreen> {
   bool _someoneRequestedDelete = false;
   Message? _replyTo;
   Message? _editingMessage;
+  final Set<int> _pendingMentionIds = {};
+  bool _mentionAll = false;
+  bool _showMentionPicker = false;
+  String _mentionQuery = '';
 
   bool get _isAdmin => _room.members
       .any((m) => m.id == AuthService().userId && m.role == 'admin');
@@ -54,6 +59,7 @@ class _ChatScreenState extends State<ChatScreen> {
     _loadMessages();
     WsService().join(widget.room.id);
     _wsSub = WsService().events.listen((msg) => _onWsEvent(msg));
+    _msgCtrl.addListener(_onTextChanged);
   }
 
   @override
@@ -61,6 +67,7 @@ class _ChatScreenState extends State<ChatScreen> {
     _wsSub?.cancel();
     WsService().leave(widget.room.id);
     ApiService().markRead(widget.room.id).catchError((_) {});
+    _msgCtrl.removeListener(_onTextChanged);
     _msgCtrl.dispose();
     _scroll.dispose();
     super.dispose();
@@ -73,6 +80,59 @@ class _ChatScreenState extends State<ChatScreen> {
     } catch (e) {
       debugPrint('[_loadRoom] hiba: $e');
     }
+  }
+
+  String? _getMentionQuery() {
+    if (_editingMessage != null) return null;
+    final text = _msgCtrl.text;
+    final cursor = _msgCtrl.selection.baseOffset;
+    if (cursor < 0 || cursor > text.length) return null;
+    final before = text.substring(0, cursor);
+    final atIdx = before.lastIndexOf('@');
+    if (atIdx < 0) return null;
+    final query = before.substring(atIdx + 1);
+    if (query.contains(' ') || query.contains('\n')) return null;
+    return query;
+  }
+
+  void _onTextChanged() {
+    final query = _getMentionQuery();
+    final show = query != null;
+    if (_showMentionPicker != show || _mentionQuery != (query ?? '')) {
+      setState(() {
+        _showMentionPicker = show;
+        _mentionQuery = query ?? '';
+      });
+    }
+  }
+
+  void _selectMention(User? user) {
+    final text = _msgCtrl.text;
+    final cursor = _msgCtrl.selection.baseOffset;
+    if (cursor < 0) return;
+    final before = text.substring(0, cursor);
+    final atIdx = before.lastIndexOf('@');
+    if (atIdx < 0) return;
+    final after = text.substring(cursor);
+    final name = user?.name ?? 'all';
+    final newText = '${text.substring(0, atIdx)}@$name $after';
+    _msgCtrl.text = newText;
+    _msgCtrl.selection = TextSelection.fromPosition(
+      TextPosition(offset: atIdx + name.length + 2),
+    );
+    if (user == null) {
+      setState(() { _mentionAll = true; _showMentionPicker = false; });
+    } else {
+      setState(() { _pendingMentionIds.add(user.id); _showMentionPicker = false; });
+    }
+  }
+
+  List<User> _getMentionSuggestions() {
+    final query = _mentionQuery.toLowerCase();
+    return _room.members
+        .where((m) => m.id != AuthService().userId)
+        .where((m) => query.isEmpty || m.name.toLowerCase().contains(query))
+        .toList();
   }
 
   Future<void> _onWsEvent(Map<String, dynamic> msg) async {
@@ -197,9 +257,18 @@ class _ChatScreenState extends State<ChatScreen> {
     }
 
     final replyId = _replyTo?.id;
-    setState(() { _sending = true; _replyTo = null; });
+    final mentionAll = _mentionAll;
+    final mentionIds = List<int>.from(_pendingMentionIds);
+    setState(() { _sending = true; _replyTo = null; _mentionAll = false; _pendingMentionIds.clear(); });
     try {
-      final m = await ApiService().sendMessage(widget.room.id, type: 'text', content: text, replyToId: replyId);
+      final m = await ApiService().sendMessage(
+        widget.room.id,
+        type: 'text',
+        content: text,
+        replyToId: replyId,
+        mentionAll: mentionAll,
+        mentionUserIds: mentionIds.isEmpty ? null : mentionIds,
+      );
       if (!_messages.any((e) => e.id == m.id)) {
         setState(() => _messages.insert(0, m));
       }
@@ -349,6 +418,18 @@ class _ChatScreenState extends State<ChatScreen> {
               title: const Text('Válasz'),
               onTap: () { Navigator.pop(context); setState(() => _replyTo = message); },
             ),
+            if (message.type == 'text' || message.type == 'link')
+              ListTile(
+                leading: const Icon(Icons.copy_outlined),
+                title: const Text('Másolás'),
+                onTap: () {
+                  Navigator.pop(context);
+                  Clipboard.setData(ClipboardData(text: message.content ?? ''));
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Vágólapra másolva.'), duration: Duration(seconds: 1)),
+                  );
+                },
+              ),
             if (isMine && message.deliveries.isNotEmpty)
               ListTile(
                 leading: const Icon(Icons.people_outline),
@@ -624,11 +705,14 @@ class _ChatScreenState extends State<ChatScreen> {
                       itemBuilder: (_, i) {
                         final msg = _messages[i];
                         final isMine = msg.userId != null && msg.userId == AuthService().userId;
+                        final isMentioned = !isMine &&
+                            (msg.mentionAll || msg.mentionUserIds.contains(AuthService().userId));
                         return _MessageBubble(
                           message: msg,
                           isMine: isMine,
                           isGroup: !_room.isDirect,
                           isPinned: _room.pinnedMessage?.id == msg.id,
+                          isMentioned: isMentioned,
                           onLongPress: () => _showMessageActions(msg, isMine),
                           onReactionTap: (emoji) => _toggleReaction(msg, emoji),
                         );
@@ -647,6 +731,12 @@ class _ChatScreenState extends State<ChatScreen> {
             _ReplyBar(
               message: _replyTo!,
               onCancel: () => setState(() => _replyTo = null),
+            ),
+          if (_showMentionPicker)
+            _MentionSuggestionBar(
+              suggestions: _getMentionSuggestions(),
+              showAll: 'all'.startsWith(_mentionQuery.toLowerCase()),
+              onSelect: _selectMention,
             ),
           _InputBar(
             controller: _msgCtrl,
@@ -941,6 +1031,7 @@ class _MessageBubble extends StatelessWidget {
   final bool isMine;
   final bool isGroup;
   final bool isPinned;
+  final bool isMentioned;
   final VoidCallback? onLongPress;
   final void Function(String emoji)? onReactionTap;
   const _MessageBubble({
@@ -948,6 +1039,7 @@ class _MessageBubble extends StatelessWidget {
     required this.isMine,
     required this.isGroup,
     this.isPinned = false,
+    this.isMentioned = false,
     this.onLongPress,
     this.onReactionTap,
   });
@@ -1004,6 +1096,8 @@ class _MessageBubble extends StatelessWidget {
                   children: [
                     if (message.replyTo != null)
                       _ReplyQuoteBox(replyTo: message.replyTo!, isMine: isMine),
+                    if (isMentioned)
+                      _MentionBadge(isAll: message.mentionAll),
                     _buildContent(context),
                   ],
                 ),
@@ -1412,6 +1506,75 @@ class _EditBar extends StatelessWidget {
           IconButton(icon: const Icon(Icons.close, size: 18), onPressed: onCancel, padding: EdgeInsets.zero),
         ],
       ),
+    );
+  }
+}
+
+// @ mention badge — piros ! vagy !all az üzenet buborékon belül
+class _MentionBadge extends StatelessWidget {
+  final bool isAll;
+  const _MentionBadge({required this.isAll});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: Colors.red,
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Text(
+        isAll ? '!all' : '!',
+        style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+      ),
+    );
+  }
+}
+
+// @ taggelés javaslatlista az input felett
+class _MentionSuggestionBar extends StatelessWidget {
+  final List<User> suggestions;
+  final bool showAll;
+  final void Function(User?) onSelect;
+  const _MentionSuggestionBar({required this.suggestions, required this.showAll, required this.onSelect});
+
+  @override
+  Widget build(BuildContext context) {
+    final items = <Widget>[];
+    if (showAll) {
+      items.add(ListTile(
+        dense: true,
+        leading: const CircleAvatar(radius: 14, backgroundColor: kLime, child: Icon(Icons.group, color: Colors.white, size: 16)),
+        title: const Text('@all', style: TextStyle(fontWeight: FontWeight.w600)),
+        subtitle: const Text('Mindenki', style: TextStyle(fontSize: 11)),
+        onTap: () => onSelect(null),
+      ));
+    }
+    for (final u in suggestions) {
+      items.add(ListTile(
+        dense: true,
+        leading: CircleAvatar(
+          radius: 14,
+          backgroundColor: kBlue,
+          child: Text(
+            u.name.isNotEmpty ? u.name[0].toUpperCase() : '?',
+            style: const TextStyle(color: Colors.white, fontSize: 11),
+          ),
+        ),
+        title: Text('@${u.name}'),
+        onTap: () => onSelect(u),
+      ));
+    }
+    if (items.isEmpty) return const SizedBox.shrink();
+    return Container(
+      constraints: const BoxConstraints(maxHeight: 180),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border(top: BorderSide(color: Colors.grey.shade200)),
+        boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 4, offset: Offset(0, -2))],
+      ),
+      child: ListView(shrinkWrap: true, children: items),
     );
   }
 }

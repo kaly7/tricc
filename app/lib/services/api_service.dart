@@ -152,6 +152,8 @@ class ApiService {
     String? fileName,
     int? fileSize,
     int? replyToId,
+    bool mentionAll = false,
+    List<int>? mentionUserIds,
   }) async {
     final body = <String, dynamic>{'type': type};
     if (content != null) body['content'] = content;
@@ -159,6 +161,8 @@ class ApiService {
     if (fileName != null) body['file_name'] = fileName;
     if (fileSize != null) body['file_size'] = fileSize;
     if (replyToId != null) body['reply_to_id'] = replyToId;
+    if (mentionAll) body['mention_all'] = true;
+    if (mentionUserIds != null && mentionUserIds.isNotEmpty) body['mention_user_ids'] = mentionUserIds;
     final r = await _post('/rooms/$roomId/messages', body);
     if (fileName != null && r['file_name'] == null) r['file_name'] = fileName;
     return Message.fromJson(r);

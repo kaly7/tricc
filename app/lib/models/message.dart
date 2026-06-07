@@ -65,6 +65,8 @@ class Message {
   final List<MessageDelivery> deliveries;
   final ReplyTo? replyTo;
   final List<MessageReaction> reactions;
+  final bool mentionAll;
+  final List<int> mentionUserIds;
 
   Message({
     required this.id,
@@ -82,6 +84,8 @@ class Message {
     this.deliveries = const [],
     this.replyTo,
     this.reactions = const [],
+    this.mentionAll = false,
+    this.mentionUserIds = const [],
   });
 
   factory Message.fromJson(Map<String, dynamic> j) => Message(
@@ -106,6 +110,8 @@ class Message {
                 ?.map((e) => MessageReaction.fromJson(e as Map<String, dynamic>))
                 .toList() ??
             [],
+        mentionAll: j['mention_all'] == true || j['mention_all'] == 1,
+        mentionUserIds: (j['mention_user_ids'] as List?)?.map((e) => e as int).toList() ?? [],
       );
 
   Message copyWith({List<MessageDelivery>? deliveries, List<MessageReaction>? reactions}) =>
@@ -125,5 +131,7 @@ class Message {
         deliveries: deliveries ?? this.deliveries,
         replyTo: replyTo,
         reactions: reactions ?? this.reactions,
+        mentionAll: mentionAll,
+        mentionUserIds: mentionUserIds,
       );
 }
