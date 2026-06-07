@@ -111,7 +111,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final avatarUrl = AuthService().avatarUrl;
     return Scaffold(
       appBar: AppBar(title: const Text('Profil')),
-      body: Padding(
+      body: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
