@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "614733279610",
+    "project_id": "babl42",
+    "storage_bucket": "babl42.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:614733279610:android:89cd0fb14dd94a83e4e6c3",
+        "android_client_info": {
+          "package_name": "com.rv42.babl42"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBdyxRLmt4DvtT4v3UrnKELEOLPKEOAggM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

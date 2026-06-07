@@ -7,7 +7,7 @@ plugins {
 
 android {
     namespace = "com.rv42.tricc"
-    compileSdk = flutter.compileSdkVersion
+    compileSdk = 36
     ndkVersion = flutter.ndkVersion
 
     compileOptions {

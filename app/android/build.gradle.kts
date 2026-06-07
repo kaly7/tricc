@@ -1,4 +1,8 @@
 buildscript {
+    repositories {
+        google()
+        mavenCentral()
+    }
     dependencies {
         classpath("com.google.gms:google-services:4.4.2")
     }
@@ -23,6 +27,12 @@ subprojects {
 }
 subprojects {
     project.evaluationDependsOn(":app")
+}
+gradle.afterProject {
+    val android = extensions.findByType(com.android.build.api.dsl.LibraryExtension::class)
+    if (android != null && (android.compileSdk ?: 0) < 36) {
+        android.compileSdk = 36
+    }
 }
 
 tasks.register<Delete>("clean") {
