@@ -106,7 +106,7 @@ class _RoomSearchScreenState extends State<RoomSearchScreen> {
                                   style: const TextStyle(fontSize: 11, color: Colors.grey)),
                             ],
                           ),
-                          subtitle: _buildHighlighted(msg.content ?? '', _ctrl.text.trim()),
+                          subtitle: _buildHighlighted(context, msg.content ?? '', _ctrl.text.trim()),
                           isThreeLine: false,
                         );
                       },
@@ -114,7 +114,7 @@ class _RoomSearchScreenState extends State<RoomSearchScreen> {
     );
   }
 
-  Widget _buildHighlighted(String text, String query) {
+  Widget _buildHighlighted(BuildContext context, String text, String query) {
     if (query.isEmpty) return Text(text, maxLines: 2, overflow: TextOverflow.ellipsis);
     final lower = text.toLowerCase();
     final idx = lower.indexOf(query.toLowerCase());
@@ -123,7 +123,7 @@ class _RoomSearchScreenState extends State<RoomSearchScreen> {
       maxLines: 2,
       overflow: TextOverflow.ellipsis,
       text: TextSpan(
-        style: const TextStyle(color: Colors.black87, fontSize: 14),
+        style: TextStyle(color: Theme.of(context).colorScheme.onSurface, fontSize: 14),
         children: [
           if (idx > 0) TextSpan(text: text.substring(0, idx)),
           TextSpan(

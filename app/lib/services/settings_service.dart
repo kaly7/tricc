@@ -7,6 +7,7 @@ class SettingsService extends ChangeNotifier {
   SettingsService._();
 
   static const _keyFontScale = 'font_scale';
+  static const _keyThemeMode = 'theme_mode';
   static const double minScale = 0.8;
   static const double maxScale = 1.5;
   static const double step = 0.1;
@@ -14,10 +15,23 @@ class SettingsService extends ChangeNotifier {
   double _fontScale = 1.0;
   double get fontScale => _fontScale;
 
+  ThemeMode _themeMode = ThemeMode.system;
+  ThemeMode get themeMode => _themeMode;
+
   Future<void> init() async {
     final prefs = await SharedPreferences.getInstance();
     _fontScale = (prefs.getDouble(_keyFontScale) ?? 1.0).clamp(minScale, maxScale);
+    final tm = prefs.getString(_keyThemeMode) ?? 'system';
+    _themeMode = tm == 'light' ? ThemeMode.light : tm == 'dark' ? ThemeMode.dark : ThemeMode.system;
     notifyListeners();
+  }
+
+  Future<void> setThemeMode(ThemeMode mode) async {
+    _themeMode = mode;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    final val = mode == ThemeMode.light ? 'light' : mode == ThemeMode.dark ? 'dark' : 'system';
+    await prefs.setString(_keyThemeMode, val);
   }
 
   Future<void> increase() async {

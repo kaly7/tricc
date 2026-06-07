@@ -162,6 +162,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
             const SizedBox(height: 24),
             const Divider(),
             const SizedBox(height: 8),
+            const _ThemeModeSection(),
+            const SizedBox(height: 8),
+            const Divider(),
+            const SizedBox(height: 8),
             const _FontSizeSection(),
             const SizedBox(height: 8),
             const Divider(),
@@ -214,6 +218,51 @@ class _PushStatusTile extends StatelessWidget {
   }
 }
 
+class _ThemeModeSection extends StatefulWidget {
+  const _ThemeModeSection();
+
+  @override
+  State<_ThemeModeSection> createState() => _ThemeModeSectionState();
+}
+
+class _ThemeModeSectionState extends State<_ThemeModeSection> {
+  @override
+  void initState() {
+    super.initState();
+    SettingsService().addListener(_rebuild);
+  }
+
+  @override
+  void dispose() {
+    SettingsService().removeListener(_rebuild);
+    super.dispose();
+  }
+
+  void _rebuild() => setState(() {});
+
+  @override
+  Widget build(BuildContext context) {
+    final current = SettingsService().themeMode;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Téma', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Theme.of(context).colorScheme.onSurfaceVariant)),
+        const SizedBox(height: 10),
+        SegmentedButton<ThemeMode>(
+          segments: const [
+            ButtonSegment(value: ThemeMode.system, icon: Icon(Icons.brightness_auto), label: Text('Rendszer')),
+            ButtonSegment(value: ThemeMode.light, icon: Icon(Icons.light_mode), label: Text('Világos')),
+            ButtonSegment(value: ThemeMode.dark, icon: Icon(Icons.dark_mode), label: Text('Sötét')),
+          ],
+          selected: {current},
+          onSelectionChanged: (s) => SettingsService().setThemeMode(s.first),
+          showSelectedIcon: false,
+        ),
+      ],
+    );
+  }
+}
+
 class _FontSizeSection extends StatefulWidget {
   const _FontSizeSection();
 
@@ -244,7 +293,7 @@ class _FontSizeSectionState extends State<_FontSizeSection> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('Betűméret', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.black54)),
+        Text('Betűméret', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Theme.of(context).colorScheme.onSurfaceVariant)),
         const SizedBox(height: 10),
         Row(
           children: [
@@ -257,9 +306,9 @@ class _FontSizeSectionState extends State<_FontSizeSection> {
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                 decoration: BoxDecoration(
-                  color: Colors.grey.shade100,
+                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.grey.shade300),
+                  border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
                 ),
                 child: MediaQuery(
                   // Az előnézet a kiválasztott mérettel jelenik meg, nem a rendszer scalerével

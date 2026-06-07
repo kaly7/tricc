@@ -549,7 +549,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                     child: Container(
                       padding: const EdgeInsets.all(10),
                       decoration: BoxDecoration(
-                        color: mine ? kBlue.withOpacity(0.15) : Colors.grey.shade100,
+                        color: mine ? kBlue.withOpacity(0.15) : Theme.of(context).colorScheme.surfaceContainerHighest,
                         borderRadius: BorderRadius.circular(12),
                         border: mine ? Border.all(color: kBlue, width: 1.5) : null,
                       ),
@@ -568,7 +568,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                   onTap: () { Navigator.pop(context); _showEmojiPicker(message); },
                   child: Container(
                     padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(12)),
+                    decoration: BoxDecoration(color: Theme.of(context).colorScheme.surfaceContainerHighest, borderRadius: BorderRadius.circular(12)),
                     child: const Icon(Icons.add_reaction_outlined, size: 24, color: Colors.grey),
                   ),
                 )],
@@ -1198,7 +1198,7 @@ class _PendingDeleteBar extends StatelessWidget {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      color: Colors.grey.shade100,
+      color: Theme.of(context).colorScheme.surfaceContainerHighest,
       child: const Row(children: [
         Icon(Icons.hourglass_empty, size: 14, color: Colors.grey),
         SizedBox(width: 6),
@@ -1298,14 +1298,14 @@ class _MessageBubble extends StatelessWidget {
               Container(
                 padding: _needsPadding ? const EdgeInsets.symmetric(horizontal: 12, vertical: 8) : EdgeInsets.zero,
                 decoration: BoxDecoration(
-                  color: isMine ? kBlue : const Color(0xFFEEEEEE),
+                  color: isMine ? kBlue : Theme.of(context).colorScheme.surfaceContainerHighest,
                   borderRadius: BorderRadius.only(
                     topLeft: const Radius.circular(16),
                     topRight: const Radius.circular(16),
                     bottomLeft: Radius.circular(isMine ? 16 : 4),
                     bottomRight: Radius.circular(isMine ? 4 : 16),
                   ),
-                  border: isMine ? null : Border.all(color: Colors.grey.shade300, width: 1),
+                  border: isMine ? null : Border.all(color: Theme.of(context).colorScheme.outlineVariant, width: 1),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -1330,7 +1330,7 @@ class _MessageBubble extends StatelessWidget {
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                         decoration: BoxDecoration(
-                          color: r.mine ? kBlue.withOpacity(0.15) : Colors.grey.shade200,
+                          color: r.mine ? kBlue.withOpacity(0.15) : Theme.of(context).colorScheme.surfaceContainerHighest,
                           border: r.mine ? Border.all(color: kBlue, width: 1) : null,
                           borderRadius: BorderRadius.circular(10),
                         ),
@@ -1383,13 +1383,13 @@ class _MessageBubble extends StatelessWidget {
           data: message.content ?? '',
           selectable: false,
           styleSheet: MarkdownStyleSheet(
-            p: TextStyle(color: isMine ? Colors.white : Colors.black87),
-            strong: TextStyle(color: isMine ? Colors.white : Colors.black87, fontWeight: FontWeight.bold),
-            em: TextStyle(color: isMine ? Colors.white : Colors.black87, fontStyle: FontStyle.italic),
-            del: TextStyle(color: isMine ? Colors.white70 : Colors.black54),
+            p: TextStyle(color: isMine ? Colors.white : Theme.of(context).colorScheme.onSurface),
+            strong: TextStyle(color: isMine ? Colors.white : Theme.of(context).colorScheme.onSurface, fontWeight: FontWeight.bold),
+            em: TextStyle(color: isMine ? Colors.white : Theme.of(context).colorScheme.onSurface, fontStyle: FontStyle.italic),
+            del: TextStyle(color: isMine ? Colors.white70 : Theme.of(context).colorScheme.onSurface.withOpacity(0.6)),
             code: TextStyle(
-              color: isMine ? Colors.white : Colors.black87,
-              backgroundColor: isMine ? Colors.white24 : Colors.grey.shade200,
+              color: isMine ? Colors.white : Theme.of(context).colorScheme.onSurface,
+              backgroundColor: isMine ? Colors.white24 : Theme.of(context).colorScheme.surfaceContainerHighest,
               fontFamily: 'monospace',
             ),
           ),
@@ -1576,7 +1576,7 @@ class _FileBubble extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(fileName, style: TextStyle(color: isMine ? Colors.white : Colors.black87)),
+                Text(fileName, style: TextStyle(color: isMine ? Colors.white : Theme.of(context).colorScheme.onSurface)),
                 if (_sizeLabel.isNotEmpty)
                   Text(_sizeLabel, style: TextStyle(fontSize: 11, color: isMine ? Colors.white60 : Colors.grey)),
               ],
@@ -1653,7 +1653,7 @@ class _ReplyQuoteBox extends StatelessWidget {
             replyTo.content,
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
-            style: TextStyle(fontSize: 12, color: isMine ? Colors.white70 : Colors.black54),
+            style: TextStyle(fontSize: 12, color: isMine ? Colors.white70 : Theme.of(context).colorScheme.onSurfaceVariant),
           ),
         ],
       ),
@@ -1750,7 +1750,7 @@ class _TypingIndicator extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       child: Text(text,
-          style: TextStyle(fontSize: 12, color: Colors.grey.shade600, fontStyle: FontStyle.italic)),
+          style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant, fontStyle: FontStyle.italic)),
     );
   }
 }
@@ -1815,8 +1815,8 @@ class _MentionSuggestionBar extends StatelessWidget {
     return Container(
       constraints: const BoxConstraints(maxHeight: 180),
       decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border(top: BorderSide(color: Colors.grey.shade200)),
+        color: Theme.of(context).colorScheme.surface,
+        border: Border(top: BorderSide(color: Theme.of(context).colorScheme.outlineVariant)),
         boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 4, offset: Offset(0, -2))],
       ),
       child: ListView(shrinkWrap: true, children: items),
@@ -1855,7 +1855,7 @@ class _InputBar extends StatelessWidget {
                   contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(24), borderSide: BorderSide.none),
                   filled: true,
-                  fillColor: Colors.grey.shade100,
+                  fillColor: Theme.of(context).colorScheme.surfaceContainerHighest,
                 ),
                 textInputAction: TextInputAction.send,
                 onSubmitted: (_) => onSend(),

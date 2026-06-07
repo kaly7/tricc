@@ -65,6 +65,8 @@ class _TriccAppState extends State<TriccApp> with WidgetsBindingObserver {
       title: 'BabL42',
       debugShowCheckedModeBanner: false,
       theme: buildAppTheme(),
+      darkTheme: buildDarkTheme(),
+      themeMode: SettingsService().themeMode,
       builder: (context, child) => MediaQuery(
         data: MediaQuery.of(context).copyWith(
           textScaler: TextScaler.linear(SettingsService().fontScale),
