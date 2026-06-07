@@ -43,6 +43,11 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   bool _mentionAll = false;
   bool _showMentionPicker = false;
   String _mentionQuery = '';
+  final Set<int> _typingUsers = {};
+  final Map<int, Timer?> _typingTimers = {};
+  Timer? _typingThrottle;
+  bool _showScrollDown = false;
+  int _unreadWhileScrolled = 0;
 
   bool get _isAdmin => _room.members
       .any((m) => m.id == AuthService().userId && m.role == 'admin');
@@ -60,6 +65,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     WsService().join(widget.room.id);
     _wsSub = WsService().events.listen((msg) => _onWsEvent(msg));
     _msgCtrl.addListener(_onTextChanged);
+    _scroll.addListener(_onScroll);
     WidgetsBinding.instance.addObserver(this);
   }
 
@@ -70,6 +76,10 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     ApiService().markRead(widget.room.id).catchError((_) {});
     WidgetsBinding.instance.removeObserver(this);
     _msgCtrl.removeListener(_onTextChanged);
+    _scroll.removeListener(_onScroll);
+    _typingThrottle?.cancel();
+    for (final t in _typingTimers.values) t?.cancel();
+    WsService().sendTyping(widget.room.id, false);
     _msgCtrl.dispose();
     _scroll.dispose();
     super.dispose();
@@ -82,6 +92,22 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     } catch (e) {
       debugPrint('[_loadRoom] hiba: $e');
     }
+  }
+
+  void _onScroll() {
+    if (!_scroll.hasClients) return;
+    final show = _scroll.offset > 300;
+    if (_showScrollDown == show) return;
+    setState(() {
+      _showScrollDown = show;
+      if (!show) _unreadWhileScrolled = 0;
+    });
+  }
+
+  void _sendTypingThrottled() {
+    if (_typingThrottle?.isActive == true) return;
+    WsService().sendTyping(widget.room.id, true);
+    _typingThrottle = Timer(const Duration(seconds: 2), () {});
   }
 
   @override
@@ -112,6 +138,14 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
         _showMentionPicker = show;
         _mentionQuery = query ?? '';
       });
+    }
+    if (_editingMessage == null) {
+      if (_msgCtrl.text.isNotEmpty) {
+        _sendTypingThrottled();
+      } else {
+        _typingThrottle?.cancel();
+        WsService().sendTyping(widget.room.id, false);
+      }
     }
   }
 
@@ -156,7 +190,10 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     if (msg['type'] == 'message') {
       final m = Message.fromJson(msg['message']);
       if (!_messages.any((e) => e.id == m.id)) {
-        setState(() => _messages.insert(0, m));
+        setState(() {
+          _messages.insert(0, m);
+          if (_showScrollDown && m.userId != AuthService().userId) _unreadWhileScrolled++;
+        });
         if (m.type == 'system') {
           setState(() => _someoneRequestedDelete = true);
           _loadRoom().then((_) {
@@ -177,6 +214,20 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     } else if (msg['type'] == 'message_deleted') {
       final msgId = msg['message_id'] as int?;
       if (msgId != null) setState(() => _messages.removeWhere((e) => e.id == msgId));
+    } else if (msg['type'] == 'typing') {
+      final userId = msg['user_id'] as int?;
+      final isTyping = msg['typing'] as bool? ?? false;
+      if (userId == null || userId == AuthService().userId) return;
+      _typingTimers[userId]?.cancel();
+      setState(() {
+        if (isTyping) _typingUsers.add(userId);
+        else _typingUsers.remove(userId);
+      });
+      if (isTyping) {
+        _typingTimers[userId] = Timer(const Duration(seconds: 3), () {
+          if (mounted) setState(() => _typingUsers.remove(userId));
+        });
+      }
     } else if (msg['type'] == 'member_left') {
       _loadRoom();
     } else if (msg['type'] == 'delete_request') {
@@ -246,6 +297,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     final text = _msgCtrl.text.trim();
     if (text.isEmpty) return;
     _msgCtrl.clear();
+    WsService().sendTyping(widget.room.id, false);
 
     // Szerkesztés mód
     if (_editingMessage != null) {
@@ -379,6 +431,34 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     }
   }
 
+  void _showEmojiPicker(Message message) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (_) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Padding(
+              padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
+              child: Text('Emoji', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+            ),
+            GridView.builder(
+              shrinkWrap: true,
+              padding: const EdgeInsets.fromLTRB(8, 0, 8, 16),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 8, childAspectRatio: 1),
+              itemCount: _kEmojis.length,
+              itemBuilder: (_, i) => GestureDetector(
+                onTap: () { Navigator.pop(context); _toggleReaction(message, _kEmojis[i]); },
+                child: Center(child: Text(_kEmojis[i], style: const TextStyle(fontSize: 24))),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   void _showReactionDetails(Message message) {
     const serverBase = 'https://192.168.16.22:9456';
     final items = <(User, String)>[];
@@ -456,7 +536,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: ['👍', '❤️', '😂', '😮', '😢', '🔥'].map((emoji) {
+                children: [...['👍', '❤️', '😂', '😮', '😢', '🔥'].map((emoji) {
                   final reaction = message.reactions.where((r) => r.emoji == emoji).firstOrNull;
                   final mine = reaction?.mine ?? false;
                   return GestureDetector(
@@ -481,7 +561,15 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                       ),
                     ),
                   );
-                }).toList(),
+                }),
+                GestureDetector(
+                  onTap: () { Navigator.pop(context); _showEmojiPicker(message); },
+                  child: Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(12)),
+                    child: const Icon(Icons.add_reaction_outlined, size: 24, color: Colors.grey),
+                  ),
+                )],
               ),
             ),
             const Divider(),
@@ -763,6 +851,42 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                               width: double.infinity, fit: BoxFit.fitWidth),
                         ),
                       ),
+                      if (_showScrollDown)
+                        Positioned(
+                          bottom: 12,
+                          right: 12,
+                          child: GestureDetector(
+                            onTap: () {
+                              _scroll.animateTo(0, duration: const Duration(milliseconds: 300), curve: Curves.easeOut);
+                              setState(() => _unreadWhileScrolled = 0);
+                            },
+                            child: Stack(
+                              clipBehavior: Clip.none,
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(10),
+                                  decoration: BoxDecoration(
+                                    color: kBlue,
+                                    shape: BoxShape.circle,
+                                    boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 6, offset: Offset(0, 2))],
+                                  ),
+                                  child: const Icon(Icons.keyboard_arrow_down, color: Colors.white, size: 22),
+                                ),
+                                if (_unreadWhileScrolled > 0)
+                                  Positioned(
+                                    top: -4,
+                                    right: -4,
+                                    child: Container(
+                                      padding: const EdgeInsets.all(4),
+                                      decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle),
+                                      child: Text('$_unreadWhileScrolled',
+                                          style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                        ),
                       NotificationListener<ScrollNotification>(
                     onNotification: (n) {
                       if (n.metrics.pixels >= n.metrics.maxScrollExtent - 200 && _hasMore) {
@@ -806,6 +930,12 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
             _ReplyBar(
               message: _replyTo!,
               onCancel: () => setState(() => _replyTo = null),
+            ),
+          if (_typingUsers.isNotEmpty)
+            _TypingIndicator(
+              names: _typingUsers.map((id) => _room.members
+                  .firstWhere((m) => m.id == id, orElse: () => User(id: id, name: '...', email: ''))
+                  .name).toList(),
             ),
           if (_showMentionPicker)
             _MentionSuggestionBar(
@@ -1585,6 +1715,34 @@ class _EditBar extends StatelessWidget {
           IconButton(icon: const Icon(Icons.close, size: 18), onPressed: onCancel, padding: EdgeInsets.zero),
         ],
       ),
+    );
+  }
+}
+
+const _kEmojis = [
+  '👍','👎','❤️','🔥','😂','😮','😢','😍',
+  '🥰','🤩','😎','🥳','🤔','😅','🤣','😁',
+  '😊','😭','😤','🤯','🫠','😬','🙄','😴',
+  '👏','🙌','🤝','🫶','👋','✌️','💪','🤌',
+  '🧡','💛','💚','💙','💜','🖤','🤍','💔',
+  '🎉','🏆','🎯','💯','⭐','✨','💫','⚡',
+  '🚀','💡','💎','🌟','✅','❌','❗','❓',
+];
+
+// Gépelés jelző
+class _TypingIndicator extends StatelessWidget {
+  final List<String> names;
+  const _TypingIndicator({required this.names});
+
+  @override
+  Widget build(BuildContext context) {
+    final text = names.length == 1
+        ? '${names[0]} gépel...'
+        : '${names.join(' és ')} gépelnek...';
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      child: Text(text,
+          style: TextStyle(fontSize: 12, color: Colors.grey.shade600, fontStyle: FontStyle.italic)),
     );
   }
 }
