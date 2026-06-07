@@ -2,33 +2,43 @@
 namespace Tricc;
 
 class APNs {
-    public static function send(string $device_token, string $title, string $body, array $data = []): bool {
+    public static function send(string $device_token, string $title, string $body, array $data = [], int $badge = 1, string $subtitle = ''): bool {
         $cfg = require __DIR__ . '/../../config.php';
+
+        $alert = [
+            'title' => mb_substr($title, 0, 25, 'UTF-8'),
+            'body'  => mb_substr($body,  0, 25, 'UTF-8'),
+        ];
+        if ($subtitle !== '') {
+            $alert['subtitle'] = mb_substr($subtitle, 0, 25, 'UTF-8');
+        }
 
         $payload = json_encode([
             'aps' => [
-                'alert' => ['title' => $title, 'body' => mb_substr($body, 0, 100)],
+                'alert' => $alert,
                 'sound' => 'default',
-                'badge' => 1,
+                'badge' => $badge,
             ],
             'data' => $data,
-        ], JSON_UNESCAPED_UNICODE);
+        ]);
 
         $cmd = [
             'curl', '--http2', '--silent', '--show-error',
-            '--key',  $cfg['apns_key_file'],
             '-H', "apns-topic: {$cfg['apns_bundle_id']}",
             '-H', 'apns-push-type: alert',
             '-H', 'apns-priority: 10',
             '-H', "authorization: bearer " . self::jwtToken($cfg),
-            '-H', 'content-type: application/json',
+            '-H', 'content-type: application/json; charset=utf-8',
             '-d', $payload,
             '-w', "\nHTTP_STATUS:%{http_code}",
             "https://api.push.apple.com/3/device/{$device_token}",
         ];
 
+        file_put_contents('/var/www/html/tricc/uploads/apns_debug.log', date('Y-m-d H:i:s') . ' payload=' . $payload . PHP_EOL, FILE_APPEND);
         $result = shell_exec(implode(' ', array_map('escapeshellarg', $cmd)));
         $ok = str_contains((string)$result, 'HTTP_STATUS:200');
+        file_put_contents('/var/www/html/tricc/uploads/apns_debug.log',
+            date('Y-m-d H:i:s') . ' result=' . trim((string)$result) . PHP_EOL, FILE_APPEND);
         error_log("[APNs] " . ($ok ? 'OK' : 'HIBA') . " → $title | $body");
         return $ok;
     }
