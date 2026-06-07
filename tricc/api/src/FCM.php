@@ -53,22 +53,24 @@ class FCM {
         }
 
         $now     = time();
-        $header  = self::b64url(json_encode(['alg' => 'RS256', 'typ' => 'JWT']));
+        $header  = self::b64url(json_encode(['typ' => 'JWT', 'alg' => 'RS256', 'kid' => $sa['private_key_id']], JSON_UNESCAPED_SLASHES));
         $claims  = self::b64url(json_encode([
             'iss'   => $sa['client_email'],
+            'sub'   => $sa['client_email'],
             'scope' => 'https://www.googleapis.com/auth/firebase.messaging',
-            'aud'   => 'https://oauth2.googleapis.com/token',
+            'aud'   => $sa['token_uri'],
             'iat'   => $now,
             'exp'   => $now + 3600,
-        ]));
+        ], JSON_UNESCAPED_SLASHES));
         $msg = "$header.$claims";
         $key = openssl_pkey_get_private($sa['private_key']);
         openssl_sign($msg, $sig, $key, OPENSSL_ALGO_SHA256);
         $jwt = "$msg." . self::b64url($sig);
 
         $result = shell_exec(implode(' ', array_map('escapeshellarg', [
-            'curl', '--silent', '-d',
-            "grant_type=urn:ietf:params:oauth2:grant-type:jwt-bearer&assertion=$jwt",
+            'curl', '--silent',
+            '--data-urlencode', 'grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer',
+            '--data-urlencode', "assertion=$jwt",
             'https://oauth2.googleapis.com/token',
         ])));
 
