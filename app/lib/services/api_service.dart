@@ -168,6 +168,19 @@ class ApiService {
     return Message.fromJson(r);
   }
 
+  Future<List<Message>> searchMessages(int roomId, String q) async {
+    final path = '/rooms/$roomId/messages/search?q=${Uri.encodeQueryComponent(q)}';
+    final r = await _get(path);
+    final list = (r['data'] as List?) ?? [];
+    return list.map((e) => Message.fromJson(e as Map<String, dynamic>)).toList();
+  }
+
+  Future<List<Message>> getRoomMedia(int roomId) async {
+    final r = await _get('/rooms/$roomId/media');
+    final list = (r['data'] as List?) ?? [];
+    return list.map((e) => Message.fromJson(e as Map<String, dynamic>)).toList();
+  }
+
   Future<void> deleteMessage(int roomId, int messageId) =>
       _delete('/rooms/$roomId/messages/$messageId');
 
