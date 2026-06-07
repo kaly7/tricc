@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'services/api_service.dart';
@@ -33,6 +34,8 @@ class TriccApp extends StatefulWidget {
 }
 
 class _TriccAppState extends State<TriccApp> with WidgetsBindingObserver {
+  StreamSubscription? _wsSub;
+
   @override
   void initState() {
     super.initState();
@@ -40,9 +43,23 @@ class _TriccAppState extends State<TriccApp> with WidgetsBindingObserver {
     PushService().init();
     if (AuthService().isLoggedIn) WsService().connect();
     SettingsService().addListener(_onSettingsChanged);
+    _wsSub = WsService().events.listen(_onWsEvent);
   }
 
   void _onSettingsChanged() => setState(() {});
+
+  void _onWsEvent(Map<String, dynamic> msg) {
+    if (msg['type'] == 'user_updated') {
+      final userId = msg['user_id'] as int?;
+      if (userId == AuthService().userId) {
+        AuthService().updateProfile(
+          name: msg['name'] as String?,
+          avatarUrl: msg['avatar_url'] as String?,
+        );
+        if (mounted) setState(() {});
+      }
+    }
+  }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
@@ -66,6 +83,7 @@ class _TriccAppState extends State<TriccApp> with WidgetsBindingObserver {
 
   @override
   void dispose() {
+    _wsSub?.cancel();
     SettingsService().removeListener(_onSettingsChanged);
     WidgetsBinding.instance.removeObserver(this);
     WsService().disconnect();
