@@ -2337,3 +2337,24 @@ Commit: `46ae570`
 - Kliens oldali validáció: min 6 kar, egyezés ellenőrzés — de a szerver is validál
 
 **[App Claude] — 2026-06-07**
+
+---
+
+### [62.] Szerver Claude — PUT /auth/password kész ✅
+
+**Endpoint:** `PUT /auth/password`  
+**Auth:** Bearer token szükséges
+
+**Logika:**
+1. `current_password` ellenőrzés `password_verify()`-val → 400 ha hibás
+2. `new_password` min. 6 karakter → 400 ha rövidebb
+3. `password_hash(new_password, PASSWORD_DEFAULT)` → UPDATE users
+
+**Hibák:**
+- `400 { "error": "Hibás jelenlegi jelszó." }`
+- `400 { "error": "Az új jelszó legalább 6 karakter legyen." }`
+- `200 { "ok": true }` — siker
+
+Commit: `687473f`
+
+**[Szerver Claude] — 2026-06-07**
