@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'services/api_service.dart';
 import 'services/auth_service.dart';
 import 'services/push_service.dart';
 import 'services/settings_service.dart';
@@ -48,7 +49,19 @@ class _TriccAppState extends State<TriccApp> with WidgetsBindingObserver {
     if (state == AppLifecycleState.resumed && AuthService().isLoggedIn) {
       WsService().connect();
       PushService().setBadge(0);
+      _refreshProfile();
     }
+  }
+
+  Future<void> _refreshProfile() async {
+    try {
+      final me = await ApiService().getMe();
+      await AuthService().updateProfile(
+        name: me['name'] as String?,
+        avatarUrl: me['avatar_url'] as String?,
+      );
+      if (mounted) setState(() {});
+    } catch (_) {}
   }
 
   @override
