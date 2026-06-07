@@ -162,6 +162,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
             const SizedBox(height: 24),
             const Divider(),
             const SizedBox(height: 8),
+            const Divider(),
+            const SizedBox(height: 8),
+            const _ChangePasswordSection(),
+            const SizedBox(height: 8),
             const _ThemeModeSection(),
             const SizedBox(height: 8),
             const Divider(),
@@ -214,6 +218,138 @@ class _PushStatusTile extends StatelessWidget {
           child: const Text('Újra', style: TextStyle(fontSize: 12)),
         ),
       ],
+    );
+  }
+}
+
+class _ChangePasswordSection extends StatelessWidget {
+  const _ChangePasswordSection();
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        const Icon(Icons.lock_outline, size: 18, color: Colors.grey),
+        const SizedBox(width: 8),
+        const Expanded(child: Text('Jelszó', style: TextStyle(fontSize: 14))),
+        TextButton(
+          onPressed: () => _showDialog(context),
+          child: const Text('Változtatás'),
+        ),
+      ],
+    );
+  }
+
+  void _showDialog(BuildContext context) {
+    showDialog(context: context, builder: (_) => const _ChangePasswordDialog());
+  }
+}
+
+class _ChangePasswordDialog extends StatefulWidget {
+  const _ChangePasswordDialog();
+
+  @override
+  State<_ChangePasswordDialog> createState() => _ChangePasswordDialogState();
+}
+
+class _ChangePasswordDialogState extends State<_ChangePasswordDialog> {
+  final _currentCtrl = TextEditingController();
+  final _newCtrl = TextEditingController();
+  final _confirmCtrl = TextEditingController();
+  bool _saving = false;
+  String? _error;
+
+  @override
+  void dispose() {
+    _currentCtrl.dispose();
+    _newCtrl.dispose();
+    _confirmCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    final current = _currentCtrl.text;
+    final next = _newCtrl.text;
+    final confirm = _confirmCtrl.text;
+    if (current.isEmpty || next.isEmpty || confirm.isEmpty) {
+      setState(() => _error = 'Minden mező kitöltése kötelező.');
+      return;
+    }
+    if (next.length < 6) {
+      setState(() => _error = 'Az új jelszó legalább 6 karakter legyen.');
+      return;
+    }
+    if (next != confirm) {
+      setState(() => _error = 'A két jelszó nem egyezik.');
+      return;
+    }
+    setState(() { _saving = true; _error = null; });
+    try {
+      await ApiService().changePassword(current, next);
+      if (mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Jelszó sikeresen módosítva.')));
+      }
+    } catch (e) {
+      if (mounted) setState(() { _error = e.toString(); _saving = false; });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Jelszó változtatás'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _PassField(controller: _currentCtrl, label: 'Jelenlegi jelszó'),
+          const SizedBox(height: 12),
+          _PassField(controller: _newCtrl, label: 'Új jelszó'),
+          const SizedBox(height: 12),
+          _PassField(controller: _confirmCtrl, label: 'Új jelszó megerősítése'),
+          if (_error != null) ...[
+            const SizedBox(height: 12),
+            Text(_error!, style: const TextStyle(color: Colors.red, fontSize: 13)),
+          ],
+        ],
+      ),
+      actions: [
+        TextButton(onPressed: _saving ? null : () => Navigator.pop(context), child: const Text('Mégsem')),
+        TextButton(
+          onPressed: _saving ? null : _save,
+          child: _saving
+              ? const SizedBox(height: 16, width: 16, child: CircularProgressIndicator(strokeWidth: 2))
+              : const Text('Mentés'),
+        ),
+      ],
+    );
+  }
+}
+
+class _PassField extends StatefulWidget {
+  final TextEditingController controller;
+  final String label;
+  const _PassField({required this.controller, required this.label});
+
+  @override
+  State<_PassField> createState() => _PassFieldState();
+}
+
+class _PassFieldState extends State<_PassField> {
+  bool _obscure = true;
+
+  @override
+  Widget build(BuildContext context) {
+    return TextField(
+      controller: widget.controller,
+      obscureText: _obscure,
+      decoration: InputDecoration(
+        labelText: widget.label,
+        suffixIcon: IconButton(
+          icon: Icon(_obscure ? Icons.visibility_outlined : Icons.visibility_off_outlined, size: 18),
+          onPressed: () => setState(() => _obscure = !_obscure),
+        ),
+      ),
     );
   }
 }

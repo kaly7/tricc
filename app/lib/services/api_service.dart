@@ -81,6 +81,9 @@ class ApiService {
 
   Future<void> updateProfile(String name) => _put('/auth/profile', {'name': name});
 
+  Future<void> changePassword(String currentPassword, String newPassword) =>
+      _put('/auth/password', {'current_password': currentPassword, 'new_password': newPassword});
+
   // Rooms
   Future<List<Room>> getRooms() async {
     final r = await _get('/rooms');
