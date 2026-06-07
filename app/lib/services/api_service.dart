@@ -230,8 +230,8 @@ class ApiService {
   }
 
   // Push
-  Future<void> registerPushToken(String token) =>
-      _post('/push/register', {'device_token': token});
+  Future<void> registerPushToken(String token, {String platform = 'ios'}) =>
+      _post('/push/register', {'device_token': token, 'platform': platform});
 
   Future<void> unregisterPushToken(String token) =>
       _delete('/push/register', {'device_token': token});

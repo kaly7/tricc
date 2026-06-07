@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'services/api_service.dart';
 import 'services/auth_service.dart';
 import 'services/push_service.dart';
@@ -21,6 +22,7 @@ class _DevHttpOverrides extends HttpOverrides {
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   HttpOverrides.global = _DevHttpOverrides();
+  if (Platform.isAndroid) await Firebase.initializeApp();
   await AuthService().init();
   await SettingsService().init();
   runApp(const TriccApp());

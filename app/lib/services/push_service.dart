@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'api_service.dart';
 
 class PushService {
@@ -13,41 +14,63 @@ class PushService {
 
   void Function(Map<String, dynamic>)? onNotificationTap;
 
-  // Hívd meg az app indulása után — beállítja a handlert,
-  // majd kér iOS-tól egy friss tokent (azonnal visszaküld)
   Future<void> init() async {
-    if (!Platform.isIOS) return;
+    if (Platform.isIOS) {
+      await _initIos();
+    } else if (Platform.isAndroid) {
+      await _initAndroid();
+    }
+  }
 
+  // ── iOS (APNs, meglévő logika) ──────────────────────────────────────────
+  Future<void> _initIos() async {
     _channel.setMethodCallHandler((call) async {
       switch (call.method) {
         case 'onToken':
-          final token = call.arguments as String;
-          await _saveAndRegister(token);
-        case 'onMessage':
-          break;
+          await _saveAndRegister(call.arguments as String, platform: 'ios');
         case 'onNotificationTap':
           final data = Map<String, dynamic>.from(call.arguments as Map);
           onNotificationTap?.call(data);
       }
     });
-
-    // Handler felállt — most kérünk tokent iOS-tól.
-    // registerForRemoteNotifications() mindig visszahívja a delegate-et a tokennel,
-    // és ekkor már a handler aktív, tehát onToken biztosan lefut.
-    try {
-      await _channel.invokeMethod('refreshToken');
-    } catch (_) {}
+    try { await _channel.invokeMethod('refreshToken'); } catch (_) {}
   }
 
-  // Bejelentkezéskor: a mentett tokenből újraregisztráció a szerveren
+  // ── Android (FCM) ────────────────────────────────────────────────────────
+  Future<void> _initAndroid() async {
+    final messaging = FirebaseMessaging.instance;
+
+    await messaging.requestPermission(alert: true, badge: true, sound: true);
+
+    final token = await messaging.getToken();
+    if (token != null) await _saveAndRegister(token, platform: 'android');
+
+    messaging.onTokenRefresh.listen((t) => _saveAndRegister(t, platform: 'android'));
+
+    FirebaseMessaging.onMessageOpenedApp.listen((msg) {
+      final data = msg.data;
+      if (data.isNotEmpty) onNotificationTap?.call(data);
+    });
+
+    // Előtérben érkező értesítések megjelenítése
+    await messaging.setForegroundNotificationPresentationOptions(
+      alert: true, badge: true, sound: true,
+    );
+  }
+
   Future<void> reregisterIfNeeded() async {
-    if (!Platform.isIOS) return;
-    final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString(_prefKey);
-    if (token != null) {
-      try { await ApiService().registerPushToken(token); } catch (_) {}
+    if (Platform.isIOS) {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString(_prefKey);
+      if (token != null) {
+        try { await ApiService().registerPushToken(token, platform: 'ios'); } catch (_) {}
+      }
+    } else if (Platform.isAndroid) {
+      final token = await FirebaseMessaging.instance.getToken();
+      if (token != null) {
+        try { await ApiService().registerPushToken(token, platform: 'android'); } catch (_) {}
+      }
     }
-    // Ha nincs mentett token, az init() refreshToken-je kezeli
   }
 
   Future<void> setBadge(int count) async {
@@ -55,9 +78,9 @@ class PushService {
     try { await _channel.invokeMethod('setBadge', count); } catch (_) {}
   }
 
-  Future<void> _saveAndRegister(String token) async {
+  Future<void> _saveAndRegister(String token, {required String platform}) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_prefKey, token);
-    try { await ApiService().registerPushToken(token); } catch (_) {}
+    try { await ApiService().registerPushToken(token, platform: platform); } catch (_) {}
   }
 }
