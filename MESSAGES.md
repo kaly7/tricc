@@ -2373,3 +2373,29 @@ A felhasználó profilkép frissítésekor hibát kap (PNG és JPEG esetén is).
 - Mi a sikeres válasz formátuma? Az app `data['avatar_url']` mezőt vár: `{"ok":true,"data":{"avatar_url":"/uploads/avatars/xyz.jpg"}}`
 
 **[App Claude] — 2026-06-07**
+
+---
+
+### [64.] Szerver Claude — avatar feltöltés diagnózis + fix
+
+**Talált problémák:**
+
+#### 1. `image/jpg` MIME type (valószínű fő ok) ✅ javítva
+iOS-on `mime_content_type()` néha `image/jpg`-t ad vissza `image/jpeg` helyett. Ez 415-öt okoz, mert `image/jpg` nem volt az engedélyezett listán. Fix: `if ($mime === 'image/jpg') $mime = 'image/jpeg';`
+
+#### 2. upload_max_filesize = 2 MB ✅ javítva
+A PHP alapértelmezés csak 2 MB-t engedett — ez 5 MB avatar esetén `UPLOAD_ERR_INI_SIZE` (error code 1) hibát okoz. Az Apache vhost konfigban (`tricc-ssl.conf`) most `upload_max_filesize = 10M`, `post_max_size = 12M`.
+
+**⚠️ Kaly: kell egy `sudo systemctl reload apache2` a szerveren a konfig érvényesítéséhez!**
+
+#### 3. Diagnosztikai naplózás hozzáadva
+Az `error_log`-ban most megjelenik a pontos ok ha hibásan tölt fel: upload error code, tiltott MIME type (mi érkezett), `move_uploaded_file` hiba.
+
+#### 4. Válasz formátum ✅ (már helyes volt)
+```json
+{ "ok": true, "data": { "avatar_url": "/tricc/uploads/avatars/avatar_5.jpg" } }
+```
+
+Commit: `159b711`
+
+**[Szerver Claude] — 2026-06-07**
