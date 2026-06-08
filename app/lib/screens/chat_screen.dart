@@ -918,9 +918,9 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                             ),
                           ),
                         ),
-                      GestureDetector(
+                      Listener(
                         behavior: HitTestBehavior.translucent,
-                        onTap: () => FocusScope.of(context).unfocus(),
+                        onPointerDown: (_) => FocusManager.instance.primaryFocus?.unfocus(),
                         child: NotificationListener<ScrollNotification>(
                     onNotification: (n) {
                       if (n.metrics.pixels >= n.metrics.maxScrollExtent - 200 && _hasMore) {
@@ -931,6 +931,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                     child: ListView.builder(
                       controller: _scroll,
                       reverse: true,
+                      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
                       itemCount: _messages.length,
                       itemBuilder: (_, i) {
                         final msg = _messages[i];
@@ -1622,8 +1623,8 @@ class _ImageBubble extends StatelessWidget {
       final path = '${dir.path}/$fileName';
       await File(path).writeAsBytes(res.bodyBytes);
       await OpenFilex.open(path);
-    } catch (_) {
-      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Letöltés sikertelen.')));
+    } catch (e) {
+      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Letöltés sikertelen: $e')));
     }
   }
 }
@@ -1744,8 +1745,8 @@ class _FileBubble extends StatelessWidget {
       final path = '${dir.path}/$fileName';
       await File(path).writeAsBytes(res.bodyBytes);
       await OpenFilex.open(path);
-    } catch (_) {
-      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Megnyitás sikertelen.')));
+    } catch (e) {
+      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Megnyitás sikertelen: $e')));
     }
   }
 }
