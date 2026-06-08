@@ -1666,7 +1666,7 @@ class _MiniAvatar extends StatelessWidget {
 }
 
 // Fájl buborék — név + méret + típus ikon + letöltés
-class _FileBubble extends StatelessWidget {
+class _FileBubble extends StatefulWidget {
   final String fileName;
   final String fileUrl;
   final bool isMine;
@@ -1674,10 +1674,17 @@ class _FileBubble extends StatelessWidget {
   static const String _serverBase = 'https://192.168.16.22:9456';
   const _FileBubble({required this.fileName, required this.fileUrl, required this.isMine, this.fileSize});
 
-  String get _sizeLabel => fileSize != null ? _formatBytes(fileSize!) : '';
+  @override
+  State<_FileBubble> createState() => _FileBubbleState();
+}
+
+class _FileBubbleState extends State<_FileBubble> {
+  bool _downloading = false;
+
+  String get _sizeLabel => widget.fileSize != null ? _formatBytes(widget.fileSize!) : '';
 
   IconData _typeIcon() {
-    final ext = fileName.contains('.') ? fileName.split('.').last.toLowerCase() : '';
+    final ext = widget.fileName.contains('.') ? widget.fileName.split('.').last.toLowerCase() : '';
     switch (ext) {
       case 'pdf':                          return Icons.picture_as_pdf;
       case 'doc': case 'docx':            return Icons.description;
@@ -1691,11 +1698,55 @@ class _FileBubble extends StatelessWidget {
     }
   }
 
+  static http.Client _buildHttpClient() {
+    final inner = HttpClient()..badCertificateCallback = (_, __, ___) => true;
+    return IOClient(inner);
+  }
+
+  Future<void> _open() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Fájl letöltése'),
+        content: Text('Le szeretnéd tölteni: ${widget.fileName}?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Mégsem')),
+          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Letöltés')),
+        ],
+      ),
+    );
+    if (!mounted || confirmed != true) return;
+    setState(() => _downloading = true);
+    try {
+      final url = '${_FileBubble._serverBase}${widget.fileUrl}';
+      final client = _buildHttpClient();
+      final res = await client.get(Uri.parse(url));
+      client.close();
+      if (!mounted) return;
+      if (res.statusCode != 200) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Letöltés sikertelen: HTTP ${res.statusCode}')));
+        return;
+      }
+      final dir = await getTemporaryDirectory();
+      final path = '${dir.path}/${widget.fileName}';
+      await File(path).writeAsBytes(res.bodyBytes);
+      if (!mounted) return;
+      final result = await OpenFilex.open(path);
+      if (mounted && result.type != ResultType.done) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Megnyitás sikertelen: ${result.message}')));
+      }
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Megnyitás sikertelen: $e')));
+    } finally {
+      if (mounted) setState(() => _downloading = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final color = isMine ? Colors.white : kBlue;
+    final color = widget.isMine ? Colors.white : kBlue;
     return GestureDetector(
-      onTap: () => _open(context),
+      onTap: _downloading ? null : _open,
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -1705,49 +1756,19 @@ class _FileBubble extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(fileName, style: TextStyle(color: isMine ? Colors.white : Theme.of(context).colorScheme.onSurface)),
+                Text(widget.fileName, style: TextStyle(color: widget.isMine ? Colors.white : Theme.of(context).colorScheme.onSurface)),
                 if (_sizeLabel.isNotEmpty)
-                  Text(_sizeLabel, style: TextStyle(fontSize: 11, color: isMine ? Colors.white60 : Colors.grey)),
+                  Text(_sizeLabel, style: TextStyle(fontSize: 11, color: widget.isMine ? Colors.white60 : Colors.grey)),
               ],
             ),
           ),
           const SizedBox(width: 8),
-          Icon(Icons.download_outlined, color: isMine ? Colors.white70 : Colors.grey, size: 18),
+          _downloading
+              ? SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: widget.isMine ? Colors.white70 : Colors.grey))
+              : Icon(Icons.download_outlined, color: widget.isMine ? Colors.white70 : Colors.grey, size: 18),
         ],
       ),
     );
-  }
-
-  static http.Client _buildHttpClient() {
-    final inner = HttpClient()..badCertificateCallback = (_, __, ___) => true;
-    return IOClient(inner);
-  }
-
-  Future<void> _open(BuildContext context) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Fájl letöltése'),
-        content: Text('Le szeretnéd tölteni: $fileName?'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Mégsem')),
-          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Letöltés')),
-        ],
-      ),
-    );
-    if (confirmed != true) return;
-    try {
-      final url = '$_serverBase$fileUrl';
-      final client = _buildHttpClient();
-      final res = await client.get(Uri.parse(url));
-      client.close();
-      final dir = await getTemporaryDirectory();
-      final path = '${dir.path}/$fileName';
-      await File(path).writeAsBytes(res.bodyBytes);
-      await OpenFilex.open(path);
-    } catch (e) {
-      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Megnyitás sikertelen: $e')));
-    }
   }
 }
 

@@ -83,12 +83,50 @@ ThemeData buildDarkTheme() {
   );
 }
 
+const kAppVersion = '1.1.0';
+const kAppReleaseDate = '2026. június 8.';
+
+void showAboutDialog(BuildContext context) {
+  showDialog<void>(
+    context: context,
+    builder: (_) => Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 36, vertical: 36),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Image.asset('assets/logo.png', width: 96),
+            const SizedBox(height: 20),
+            RichText(
+              text: const TextSpan(children: [
+                TextSpan(text: 'BabL', style: TextStyle(fontSize: 30, fontWeight: FontWeight.bold, color: kBlue)),
+                TextSpan(text: '42',   style: TextStyle(fontSize: 30, fontWeight: FontWeight.bold, color: kLime)),
+              ]),
+            ),
+            const SizedBox(height: 10),
+            Text('v$kAppVersion', style: const TextStyle(fontSize: 15, color: Colors.grey)),
+            const SizedBox(height: 2),
+            Text(kAppReleaseDate, style: const TextStyle(fontSize: 13, color: Colors.grey)),
+            const SizedBox(height: 20),
+            const Divider(),
+            const SizedBox(height: 12),
+            const Text('© RV42 / kaly', style: TextStyle(fontSize: 13, color: Colors.grey)),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
 class AppBarLogo extends StatelessWidget {
   const AppBarLogo({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return Row(
+    return GestureDetector(
+      onTap: () => showAboutDialog(context),
+      child: Row(
       mainAxisSize: MainAxisSize.min,
       children: [
         Image.asset('assets/logo.png', height: 46),
@@ -118,6 +156,7 @@ class AppBarLogo extends StatelessWidget {
           ),
         ),
       ],
+      ),
     );
   }
 }
