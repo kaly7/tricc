@@ -78,6 +78,17 @@ class PushService {
     try { await _channel.invokeMethod('setBadge', count); } catch (_) {}
   }
 
+  Future<void> unregister() async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString(_prefKey);
+    if (token == null) return;
+    try { await ApiService().unregisterPushToken(token); } catch (_) {}
+    await prefs.remove(_prefKey);
+    if (Platform.isAndroid) {
+      try { await FirebaseMessaging.instance.deleteToken(); } catch (_) {}
+    }
+  }
+
   Future<void> _saveAndRegister(String token, {required String platform}) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_prefKey, token);

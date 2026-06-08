@@ -100,6 +100,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
     if (ok != true) return;
     WsService().disconnect();
+    await PushService().unregister();
     await AuthService().logout();
     if (mounted) {
       Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => const LoginScreen()), (_) => false);
