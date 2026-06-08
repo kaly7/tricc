@@ -595,6 +595,12 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
               ),
             ),
             const Divider(),
+            if (message.type == 'file' || message.type == 'image')
+              ListTile(
+                leading: const Icon(Icons.download_outlined, color: kBlue),
+                title: const Text('Letöltés'),
+                onTap: () { Navigator.pop(context); _downloadMessage(message); },
+              ),
             ListTile(
               leading: const Icon(Icons.reply),
               title: const Text('Válasz'),
@@ -649,6 +655,46 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
         ),
       ),
     );
+  }
+
+  static http.Client _buildHttpClient() {
+    final inner = HttpClient()..badCertificateCallback = (_, __, ___) => true;
+    return IOClient(inner);
+  }
+
+  Future<void> _downloadMessage(Message message) async {
+    final fileUrl = message.fileUrl;
+    if (fileUrl == null) return;
+    final fileName = message.fileName ?? fileUrl.split('/').last;
+    final url = 'https://192.168.16.22:9456$fileUrl';
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Letöltés: $fileName…'), duration: const Duration(seconds: 60), key: const ValueKey('dl')),
+    );
+    try {
+      final client = _buildHttpClient();
+      final res = await client.get(Uri.parse(url));
+      client.close();
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      if (!mounted) return;
+      if (res.statusCode != 200) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Letöltés sikertelen: HTTP ${res.statusCode}')));
+        return;
+      }
+      final dir = await getTemporaryDirectory();
+      final path = '${dir.path}/$fileName';
+      await File(path).writeAsBytes(res.bodyBytes);
+      if (!mounted) return;
+      final result = await OpenFilex.open(path);
+      if (mounted && result.type != ResultType.done) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Megnyitás sikertelen: ${result.message}')));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Letöltés sikertelen: $e')));
+      }
+    }
   }
 
   Future<void> _toggleReaction(Message message, String emoji) async {
@@ -1745,29 +1791,24 @@ class _FileBubbleState extends State<_FileBubble> {
   @override
   Widget build(BuildContext context) {
     final color = widget.isMine ? Colors.white : kBlue;
-    return GestureDetector(
-      onTap: _downloading ? null : _open,
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(_typeIcon(), color: color, size: 22),
-          const SizedBox(width: 8),
-          Flexible(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(widget.fileName, style: TextStyle(color: widget.isMine ? Colors.white : Theme.of(context).colorScheme.onSurface)),
-                if (_sizeLabel.isNotEmpty)
-                  Text(_sizeLabel, style: TextStyle(fontSize: 11, color: widget.isMine ? Colors.white60 : Colors.grey)),
-              ],
-            ),
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(_typeIcon(), color: color, size: 22),
+        const SizedBox(width: 8),
+        Flexible(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(widget.fileName, style: TextStyle(color: widget.isMine ? Colors.white : Theme.of(context).colorScheme.onSurface)),
+              if (_sizeLabel.isNotEmpty)
+                Text(_sizeLabel, style: TextStyle(fontSize: 11, color: widget.isMine ? Colors.white60 : Colors.grey)),
+            ],
           ),
-          const SizedBox(width: 8),
-          _downloading
-              ? SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: widget.isMine ? Colors.white70 : Colors.grey))
-              : Icon(Icons.download_outlined, color: widget.isMine ? Colors.white70 : Colors.grey, size: 18),
-        ],
-      ),
+        ),
+        const SizedBox(width: 8),
+        Icon(Icons.download_outlined, color: widget.isMine ? Colors.white70 : Colors.grey, size: 18),
+      ],
     );
   }
 }

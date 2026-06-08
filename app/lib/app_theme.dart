@@ -84,6 +84,7 @@ ThemeData buildDarkTheme() {
 }
 
 const kAppVersion = '1.1.0';
+const kAppBuild = '39';
 const kAppReleaseDate = '2026. június 8.';
 
 void showAboutDialog(BuildContext context) {
@@ -105,7 +106,7 @@ void showAboutDialog(BuildContext context) {
               ]),
             ),
             const SizedBox(height: 10),
-            Text('v$kAppVersion', style: const TextStyle(fontSize: 15, color: Colors.grey)),
+            Text('v$kAppVersion ($kAppBuild)', style: const TextStyle(fontSize: 15, color: Colors.grey)),
             const SizedBox(height: 2),
             Text(kAppReleaseDate, style: const TextStyle(fontSize: 13, color: Colors.grey)),
             const SizedBox(height: 20),
