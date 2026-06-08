@@ -7,6 +7,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:http/http.dart' as http;
+import 'package:http/io_client.dart';
 import 'package:open_filex/open_filex.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter/services.dart';
@@ -1594,9 +1595,28 @@ class _ImageBubble extends StatelessWidget {
     );
   }
 
+  static http.Client _buildHttpClient() {
+    final inner = HttpClient()..badCertificateCallback = (_, __, ___) => true;
+    return IOClient(inner);
+  }
+
   Future<void> _download(BuildContext context) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Kép letöltése'),
+        content: const Text('Le szeretnéd tölteni a képet?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Mégsem')),
+          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Letöltés')),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
     try {
-      final res = await http.get(Uri.parse(fullUrl));
+      final client = _buildHttpClient();
+      final res = await client.get(Uri.parse(fullUrl));
+      client.close();
       final dir = await getTemporaryDirectory();
       final fileName = fileUrl.split('/').last;
       final path = '${dir.path}/$fileName';
@@ -1697,10 +1717,29 @@ class _FileBubble extends StatelessWidget {
     );
   }
 
+  static http.Client _buildHttpClient() {
+    final inner = HttpClient()..badCertificateCallback = (_, __, ___) => true;
+    return IOClient(inner);
+  }
+
   Future<void> _open(BuildContext context) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Fájl letöltése'),
+        content: Text('Le szeretnéd tölteni: $fileName?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Mégsem')),
+          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Letöltés')),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
     try {
       final url = '$_serverBase$fileUrl';
-      final res = await http.get(Uri.parse(url));
+      final client = _buildHttpClient();
+      final res = await client.get(Uri.parse(url));
+      client.close();
       final dir = await getTemporaryDirectory();
       final path = '${dir.path}/$fileName';
       await File(path).writeAsBytes(res.bodyBytes);
