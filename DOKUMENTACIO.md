@@ -12,13 +12,13 @@ stylesheet: doc_style.css
   <h1 style="font-size: 2.6em; margin: 0 0 12px 0; color: #0d1b3e;">BabL42</h1>
   <p style="font-size: 1.2em; color: #4a5568; margin: 0 0 40px 0;">Meghívásos belső csevegő alkalmazás</p>
   <hr style="width: 60px; border: 2px solid #7ec81b; margin: 0 0 40px 0;" />
-  <p style="color: #718096; font-size: 0.95em; margin: 0;">iOS · Flutter · PHP 8 · WebSocket</p>
-  <p style="color: #a0aec0; font-size: 0.85em; margin: 8px 0 0 0;">v1.0.11 · 2026. június</p>
+  <p style="color: #718096; font-size: 0.95em; margin: 0;">iOS · Android · Flutter · PHP 8 · WebSocket</p>
+  <p style="color: #a0aec0; font-size: 0.85em; margin: 8px 0 0 0;">v1.1.0 · 2026. június</p>
 </div>
 
 # BabL42
 
-> **Meghívásos belső csevegő alkalmazás** — zárt körű, valós idejű üzenetküldő iOS alkalmazás PHP/WebSocket backenddel.
+> **Meghívásos belső csevegő alkalmazás** — zárt körű, valós idejű üzenetküldő iOS és Android alkalmazás PHP/WebSocket backenddel.
 
 ---
 
@@ -29,9 +29,9 @@ A BabL42 egy privát, meghívásos alapú csevegő alkalmazás, amelyet zárt sz
 | Tulajdonság | Érték |
 |---|---|
 | Bundle ID | `com.rv42.babl42` |
-| Platform | iOS (Flutter) |
+| Platform | iOS · Android (Flutter) |
 | Backend | PHP 8 + Ratchet WebSocket + MySQL |
-| Aktuális verzió | 1.0.11 (32) |
+| Aktuális verzió | 1.1.0 (39) |
 | Fejlesztői csapat | K7Z734X92Z |
 
 ---
@@ -121,9 +121,19 @@ Az online állapot valós időben frissül. A pontosság érdekében a kliens 30
 ## 1.6 Profil és beállítások
 
 - Profilkép feltöltése (kamera vagy fotótár)
-- Felhasználónév és email szerkesztése
+- Felhasználónév szerkesztése
+- **Jelszócsere:** aktuális jelszó megadása után új jelszó beállítható
 - **Betűméret beállítás:** + / − gombokkal, élő előnézettel
+- **Megjelenési mód:** Rendszer / Világos / Sötét (dark mode)
 - Kijelentkezés
+
+## 1.7 Keresés
+
+Az AppBar-ban lévő 🔍 ikonra koppintva kereshetünk a szoba üzenetei között. A találatra koppintva az alkalmazás automatikusan az adott üzenetre ugrik, és sárga kiemeléssel jelöli meg 2 másodpercre.
+
+## 1.8 Android támogatás
+
+A BabL42 az iOS mellett Android rendszeren is elérhető. Az Android változat azonos funkcionalitást nyújt; push értesítéseket Firebase Cloud Messaging (FCM) segítségével kap. Minimum Android verzió: **7.0 (API 24)**.
 
 ---
 
@@ -147,6 +157,7 @@ Az alkalmazás meghívásos — fiókot csak az adminisztrátor tud létrehozni.
 - Fájl: 📎 ikon → Fájl
 - Válasz: hosszú nyomás → Válasz
 - Reakció / szerkesztés / törlés: hosszú nyomás az üzeneten
+- Hosszú lenyomáskor az üzenetbuborék vizuálisan visszaugrik és a telefon rezeg (haptikus visszajelzés)
 
 ## 2.4 Tagok kezelése csoportban
 
@@ -379,7 +390,8 @@ xcodebuild \
 | 1.0.9 | 30 | Avatar + presence karika a kézbesítési részleteknél és tagok modalnál; fájltípus ikon üzenetbuborékban; időzóna egységesítés (szerver); szobalistán fájlnév megjelenítés (szerver) |
 | 1.0.10 | 31 | Chat info panel (ⓘ) taglistájánál avatar + jelenlét-karika |
 | 1.0.11 | 32 | Fájlnév helyes megjelenítése küldőnél és fogadónál egyaránt (buborék + szoba lista előnézet) |
+| 1.1.0 | 33–39 | Dark mode (rendszer/világos/sötét), üzenetkeresés + ugrás találatra, jelszócsere, profilkép multi-device szinkron, Android port (FCM push), haptikus visszajelzés + scale animáció hosszú lenyomásra |
 
 ---
 
-*Dokumentáció generálva: 2026. június · BabL42 v1.0.11*
+*Dokumentáció generálva: 2026. június · BabL42 v1.1.0*

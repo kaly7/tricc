@@ -961,7 +961,48 @@ req.files.add(await http.MultipartFile.fromPath(
 
 ---
 
-# 13. iOS specifikus részletek
+# 13. Haptikus visszajelzés és animáció
+
+## 13.1 Hosszú lenyomás az üzenetbuborékon
+
+Az `_MessageBubble` widget `StatefulWidget`-ként kezeli a lenyomott állapotot. A `GestureDetector` `onLongPressStart` / `onLongPressEnd` / `onLongPressCancel` callbackeket használ a `onLongPress` helyett, hogy pontos időzítés legyen a visszajelzés és a menü megjelenítése között.
+
+```dart
+void _handleLongPressStart(LongPressStartDetails _) {
+  HapticFeedback.mediumImpact();   // ← rezgés azonnal
+  setState(() => _pressed = true);  // ← animáció indul
+}
+
+void _handleLongPressEnd(LongPressEndDetails _) {
+  setState(() => _pressed = false); // ← animáció visszaáll
+  widget.onLongPress?.call();       // ← menü megnyílik
+}
+```
+
+## 13.2 Vizuális effekt
+
+Az `AnimatedScale` widget a `ConstrainedBox` (a buborék) köré van helyezve — az avatar **nem** skálázódik:
+
+```dart
+AnimatedScale(
+  scale: _pressed ? 0.95 : 1.0,
+  duration: const Duration(milliseconds: 120),
+  curve: Curves.easeOut,
+  child: ConstrainedBox(...),
+)
+```
+
+| Paraméter | Érték | Leírás |
+|---|---|---|
+| `scale` lenyomva | 0.95 | 5%-os zsugorodás |
+| `duration` | 120ms | Gyors, de észrevehető |
+| `curve` | `easeOut` | Természetes visszapattanás |
+| Haptic típus | `mediumImpact` | Közepesen erős rezgés (iOS + Android) |
+
+---
+
+# 14. iOS specifikus részletek
+
 
 ## 13.1 APNs integráció (natív Swift)
 
@@ -1001,7 +1042,7 @@ iOS rendszer                AppDelegate (Swift)         Flutter (Dart)
 
 ---
 
-# 14. Android specifikus részletek
+# 15. Android specifikus részletek
 
 ## 14.1 FCM integráció
 
@@ -1074,7 +1115,7 @@ gradle.afterProject {
 
 ---
 
-# 15. Biztonsági megfontolások
+# 16. Biztonsági megfontolások
 
 | Terület | Megvalósítás |
 |---|---|
@@ -1090,7 +1131,7 @@ gradle.afterProject {
 
 ---
 
-# 16. Admin panel
+# 17. Admin panel
 
 Webes felület (`admin/`) az alábbi funkciókkal:
 
@@ -1100,7 +1141,7 @@ Webes felület (`admin/`) az alábbi funkciókkal:
 
 ---
 
-# 17. Dependency-k (Flutter)
+# 18. Dependency-k (Flutter)
 
 | Package | Verzió | Szerepe |
 |---|---|---|
@@ -1122,7 +1163,7 @@ Webes felület (`admin/`) az alábbi funkciókkal:
 
 ---
 
-# 18. Verzióhistória
+# 19. Verzióhistória
 
 | Verzió | Jellemzők |
 |---|---|
@@ -1132,4 +1173,4 @@ Webes felület (`admin/`) az alábbi funkciókkal:
 | 1.0.9 | Média galéria, üzenet keresés |
 | 1.0.10 | @mention, pin üzenet, szoba elrejtés |
 | 1.0.11 | Fájlnév fix, push badge, admin fejlesztések |
-| 1.1.0 | Dark mode, keresés→ugrás, jelszócsere, Android port, FCM push |
+| 1.1.0 | Dark mode (3-fokozatú), keresés→ugrás találatra, jelszócsere, profilkép multi-device szinkron, Android port (FCM push), haptikus visszajelzés + AnimatedScale hosszú lenyomásra |
