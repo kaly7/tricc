@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 const kBlue = Color(0xFF1E5BB5);
 const kBlueDark = Color(0xFF153D80);
@@ -83,11 +84,11 @@ ThemeData buildDarkTheme() {
   );
 }
 
-const kAppVersion = '1.1.0';
-const kAppBuild = '50';
-const kAppReleaseDate = '2026. június 8.';
+const kAppReleaseDate = '2026. június';
 
-void showAboutDialog(BuildContext context) {
+Future<void> showAboutDialog(BuildContext context) async {
+  final info = await PackageInfo.fromPlatform();
+  if (!context.mounted) return;
   showDialog<void>(
     context: context,
     builder: (_) => Dialog(
@@ -106,9 +107,9 @@ void showAboutDialog(BuildContext context) {
               ]),
             ),
             const SizedBox(height: 10),
-            Text('v$kAppVersion ($kAppBuild)', style: const TextStyle(fontSize: 15, color: Colors.grey)),
+            Text('v${info.version} (${info.buildNumber})', style: const TextStyle(fontSize: 15, color: Colors.grey)),
             const SizedBox(height: 2),
-            Text(kAppReleaseDate, style: const TextStyle(fontSize: 13, color: Colors.grey)),
+            const Text(kAppReleaseDate, style: TextStyle(fontSize: 13, color: Colors.grey)),
             const SizedBox(height: 20),
             const Divider(),
             const SizedBox(height: 12),
