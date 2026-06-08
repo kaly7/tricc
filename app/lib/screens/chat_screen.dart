@@ -917,7 +917,10 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                             ),
                           ),
                         ),
-                      NotificationListener<ScrollNotification>(
+                      GestureDetector(
+                        behavior: HitTestBehavior.translucent,
+                        onTap: () => FocusScope.of(context).unfocus(),
+                        child: NotificationListener<ScrollNotification>(
                     onNotification: (n) {
                       if (n.metrics.pixels >= n.metrics.maxScrollExtent - 200 && _hasMore) {
                         _loadMessages(older: true);
@@ -949,6 +952,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                       },
                     ),
                   ),
+                      ),
                     ],
                   ),
           ),
