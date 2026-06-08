@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:math' show sqrt;
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:image_picker/image_picker.dart';
@@ -1287,11 +1288,29 @@ class _MessageBubble extends StatefulWidget {
   State<_MessageBubble> createState() => _MessageBubbleState();
 }
 
-class _MessageBubbleState extends State<_MessageBubble> {
+class _MessageBubbleState extends State<_MessageBubble>
+    with SingleTickerProviderStateMixin {
   bool _pressed = false;
+  late final AnimationController _ripple;
+
+  @override
+  void initState() {
+    super.initState();
+    _ripple = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 450),
+    );
+  }
+
+  @override
+  void dispose() {
+    _ripple.dispose();
+    super.dispose();
+  }
 
   void _handleLongPressStart(LongPressStartDetails _) {
     HapticFeedback.mediumImpact();
+    _ripple.forward(from: 0);
     setState(() => _pressed = true);
   }
 
@@ -1358,26 +1377,46 @@ class _MessageBubbleState extends State<_MessageBubble> {
                           padding: const EdgeInsets.only(left: 4, bottom: 2),
                           child: Text(message.userName, style: const TextStyle(fontSize: 12, color: Colors.grey, fontWeight: FontWeight.w600)),
                         ),
-              Container(
-                padding: _needsPadding ? const EdgeInsets.symmetric(horizontal: 12, vertical: 8) : EdgeInsets.zero,
-                decoration: BoxDecoration(
-                  color: isMine ? kBlue : Theme.of(context).colorScheme.surfaceContainerHighest,
-                  borderRadius: BorderRadius.only(
-                    topLeft: const Radius.circular(16),
-                    topRight: const Radius.circular(16),
-                    bottomLeft: Radius.circular(isMine ? 16 : 4),
-                    bottomRight: Radius.circular(isMine ? 4 : 16),
-                  ),
-                  border: isMine ? null : Border.all(color: Theme.of(context).colorScheme.outlineVariant, width: 1),
+              ClipRRect(
+                borderRadius: BorderRadius.only(
+                  topLeft: const Radius.circular(16),
+                  topRight: const Radius.circular(16),
+                  bottomLeft: Radius.circular(isMine ? 16 : 4),
+                  bottomRight: Radius.circular(isMine ? 4 : 16),
                 ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                child: Stack(
                   children: [
-                    if (message.replyTo != null)
-                      _ReplyQuoteBox(replyTo: message.replyTo!, isMine: isMine),
-                    if (isMentioned)
-                      _MentionBadge(isAll: message.mentionAll),
-                    _buildContent(context),
+                    Container(
+                      padding: _needsPadding ? const EdgeInsets.symmetric(horizontal: 12, vertical: 8) : EdgeInsets.zero,
+                      decoration: BoxDecoration(
+                        color: isMine ? kBlue : Theme.of(context).colorScheme.surfaceContainerHighest,
+                        borderRadius: BorderRadius.only(
+                          topLeft: const Radius.circular(16),
+                          topRight: const Radius.circular(16),
+                          bottomLeft: Radius.circular(isMine ? 16 : 4),
+                          bottomRight: Radius.circular(isMine ? 4 : 16),
+                        ),
+                        border: isMine ? null : Border.all(color: Theme.of(context).colorScheme.outlineVariant, width: 1),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if (message.replyTo != null)
+                            _ReplyQuoteBox(replyTo: message.replyTo!, isMine: isMine),
+                          if (isMentioned)
+                            _MentionBadge(isAll: message.mentionAll),
+                          _buildContent(context),
+                        ],
+                      ),
+                    ),
+                    Positioned.fill(
+                      child: AnimatedBuilder(
+                        animation: _ripple,
+                        builder: (_, __) => CustomPaint(
+                          painter: _BubbleRipplePainter(_ripple.value),
+                        ),
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -1939,4 +1978,23 @@ class _InputBar extends StatelessWidget {
       ),
     );
   }
+}
+
+class _BubbleRipplePainter extends CustomPainter {
+  final double progress;
+  _BubbleRipplePainter(this.progress);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (progress == 0) return;
+    final center = Offset(size.width / 2, size.height / 2);
+    final maxRadius = sqrt(size.width * size.width + size.height * size.height) / 2;
+    final radius = maxRadius * progress;
+    final opacity = (1.0 - progress) * 0.38;
+    canvas.drawCircle(center, radius, Paint()
+      ..color = Colors.white.withOpacity(opacity));
+  }
+
+  @override
+  bool shouldRepaint(_BubbleRipplePainter old) => old.progress != progress;
 }
