@@ -84,7 +84,7 @@ ThemeData buildDarkTheme() {
 }
 
 const kAppVersion = '1.1.0';
-const kAppBuild = '39';
+const kAppBuild = '50';
 const kAppReleaseDate = '2026. június 8.';
 
 void showAboutDialog(BuildContext context) {

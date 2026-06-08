@@ -928,42 +928,6 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                               width: double.infinity, fit: BoxFit.fitWidth),
                         ),
                       ),
-                      if (_showScrollDown)
-                        Positioned(
-                          bottom: 12,
-                          right: 12,
-                          child: GestureDetector(
-                            onTap: () {
-                              _scroll.animateTo(0, duration: const Duration(milliseconds: 300), curve: Curves.easeOut);
-                              setState(() => _unreadWhileScrolled = 0);
-                            },
-                            child: Stack(
-                              clipBehavior: Clip.none,
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.all(10),
-                                  decoration: BoxDecoration(
-                                    color: kBlue,
-                                    shape: BoxShape.circle,
-                                    boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 6, offset: Offset(0, 2))],
-                                  ),
-                                  child: const Icon(Icons.keyboard_arrow_down, color: Colors.white, size: 22),
-                                ),
-                                if (_unreadWhileScrolled > 0)
-                                  Positioned(
-                                    top: -4,
-                                    right: -4,
-                                    child: Container(
-                                      padding: const EdgeInsets.all(4),
-                                      decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle),
-                                      child: Text('$_unreadWhileScrolled',
-                                          style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
-                                    ),
-                                  ),
-                              ],
-                            ),
-                          ),
-                        ),
                       Listener(
                         behavior: HitTestBehavior.translucent,
                         onPointerDown: (_) => FocusManager.instance.primaryFocus?.unfocus(),
@@ -1001,6 +965,42 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                     ),
                   ),
                       ),
+                      if (_showScrollDown)
+                        Positioned(
+                          bottom: 12,
+                          right: 12,
+                          child: GestureDetector(
+                            onTap: () {
+                              _scroll.animateTo(0, duration: const Duration(milliseconds: 300), curve: Curves.easeOut);
+                              setState(() => _unreadWhileScrolled = 0);
+                            },
+                            child: Stack(
+                              clipBehavior: Clip.none,
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(10),
+                                  decoration: BoxDecoration(
+                                    color: kBlue,
+                                    shape: BoxShape.circle,
+                                    boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 6, offset: Offset(0, 2))],
+                                  ),
+                                  child: const Icon(Icons.keyboard_arrow_down, color: Colors.white, size: 22),
+                                ),
+                                if (_unreadWhileScrolled > 0)
+                                  Positioned(
+                                    top: -4,
+                                    right: -4,
+                                    child: Container(
+                                      padding: const EdgeInsets.all(4),
+                                      decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle),
+                                      child: Text('$_unreadWhileScrolled',
+                                          style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                        ),
                     ],
                   ),
           ),
