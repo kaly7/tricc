@@ -1261,7 +1261,7 @@ class _DeleteRequestBanner extends StatelessWidget {
 }
 
 // Üzenet buborék
-class _MessageBubble extends StatelessWidget {
+class _MessageBubble extends StatefulWidget {
   final Message message;
   final bool isMine;
   final bool isGroup;
@@ -1284,6 +1284,36 @@ class _MessageBubble extends StatelessWidget {
   });
 
   @override
+  State<_MessageBubble> createState() => _MessageBubbleState();
+}
+
+class _MessageBubbleState extends State<_MessageBubble> {
+  bool _pressed = false;
+
+  void _handleLongPressStart(LongPressStartDetails _) {
+    HapticFeedback.mediumImpact();
+    setState(() => _pressed = true);
+  }
+
+  void _handleLongPressEnd(LongPressEndDetails _) {
+    setState(() => _pressed = false);
+    widget.onLongPress?.call();
+  }
+
+  void _handleLongPressCancel() {
+    setState(() => _pressed = false);
+  }
+
+  Message get message => widget.message;
+  bool get isMine => widget.isMine;
+  bool get isGroup => widget.isGroup;
+  bool get isPinned => widget.isPinned;
+  bool get isMentioned => widget.isMentioned;
+  bool get highlighted => widget.highlighted;
+  void Function(String)? get onReactionTap => widget.onReactionTap;
+  VoidCallback? get onReactionLongPress => widget.onReactionLongPress;
+
+  @override
   Widget build(BuildContext context) {
     if (message.type == 'system') {
       return Padding(
@@ -1295,7 +1325,9 @@ class _MessageBubble extends StatelessWidget {
       duration: const Duration(milliseconds: 600),
       color: highlighted ? Colors.amber.withOpacity(0.25) : Colors.transparent,
       child: GestureDetector(
-      onLongPress: onLongPress,
+      onLongPressStart: widget.onLongPress != null ? _handleLongPressStart : null,
+      onLongPressEnd: widget.onLongPress != null ? _handleLongPressEnd : null,
+      onLongPressCancel: widget.onLongPress != null ? _handleLongPressCancel : null,
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 3),
         child: Row(
@@ -1312,7 +1344,11 @@ class _MessageBubble extends StatelessWidget {
             Expanded(
               child: Align(
                 alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
-                child: ConstrainedBox(
+                child: AnimatedScale(
+                  scale: _pressed ? 0.95 : 1.0,
+                  duration: const Duration(milliseconds: 120),
+                  curve: Curves.easeOut,
+                  child: ConstrainedBox(
                   constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
                   child: Column(
                     crossAxisAlignment: isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
@@ -1389,6 +1425,7 @@ class _MessageBubble extends StatelessWidget {
               ),
                     ],
                   ),
+                ),
                 ),
               ),
             ),
