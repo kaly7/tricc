@@ -33,8 +33,10 @@ class SettingsService extends ChangeNotifier {
   }
 
   Future<void> setServerHost(String host) async {
-    final h = host.trim();
-    if (h.isEmpty || h == _serverHost) return;
+    var h = host.trim();
+    if (h.isEmpty) return;
+    if (!h.contains(':')) h = '$h:9456';
+    if (h == _serverHost) return;
     _serverHost = h;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_keyServerHost, h);
