@@ -161,6 +161,8 @@ class WsService {
   void sendTyping(int roomId, bool typing) =>
       _send({'type': 'typing', 'room_id': roomId, 'typing': typing});
 
+  void sendJson(Map<String, dynamic> msg) => _send(msg);
+
   void _send(Map<String, dynamic> msg) {
     try {
       _channel?.sink.add(jsonEncode(msg));

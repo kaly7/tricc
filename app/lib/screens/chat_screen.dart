@@ -20,6 +20,7 @@ import '../services/auth_service.dart';
 import '../services/ws_service.dart';
 import '../app_theme.dart';
 import '../widgets/ws_status_bar.dart' show WsDot, PresenceDot, showAvatarDialog;
+import '../services/call_service.dart';
 import 'room_search_screen.dart';
 import 'room_media_screen.dart';
 
@@ -889,6 +890,23 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
             : Text(_title),
         actions: [
           const WsDot(),
+          if (_room.isDirect)
+            StreamBuilder<CallState>(
+              stream: CallService().stateStream,
+              initialData: CallService().state,
+              builder: (ctx, snap) {
+                final busy = snap.data != CallState.idle;
+                return IconButton(
+                  icon: Icon(busy ? Icons.call_end : Icons.call),
+                  color: busy ? Colors.red : null,
+                  onPressed: busy ? null : () {
+                    final otherId = _room.otherUserId(AuthService().userId ?? 0) ?? 0;
+                    final otherName = _room.displayName(AuthService().userId ?? 0);
+                    if (otherId != 0) CallService().startCall(otherId, otherName);
+                  },
+                );
+              },
+            ),
           IconButton(
             icon: const Icon(Icons.search),
             onPressed: () async {

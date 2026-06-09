@@ -4,12 +4,17 @@ import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'services/api_service.dart';
 import 'services/auth_service.dart';
+import 'services/call_service.dart';
 import 'services/push_service.dart';
 import 'services/settings_service.dart';
 import 'services/ws_service.dart';
+import 'screens/incoming_call_screen.dart';
+import 'screens/active_call_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/room_list_screen.dart';
 import 'app_theme.dart';
+
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 class _DevHttpOverrides extends HttpOverrides {
   @override
@@ -43,9 +48,28 @@ class _TriccAppState extends State<TriccApp> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     PushService().init();
-    if (AuthService().isLoggedIn) WsService().connect();
+    if (AuthService().isLoggedIn) {
+      WsService().connect();
+      _initCallService();
+    }
     SettingsService().addListener(_onSettingsChanged);
     _wsSub = WsService().events.listen(_onWsEvent);
+  }
+
+  void _initCallService() {
+    final svc = CallService();
+    svc.onIncomingCall = () {
+      navigatorKey.currentState?.push(
+        MaterialPageRoute(builder: (_) => const IncomingCallScreen()),
+      );
+    };
+    svc.onCallStarted = () {
+      navigatorKey.currentState?.push(
+        MaterialPageRoute(builder: (_) => const ActiveCallScreen()),
+      );
+    };
+    svc.onCallEnded = () {};
+    svc.init();
   }
 
   void _onSettingsChanged() => setState(() {});
@@ -96,6 +120,7 @@ class _TriccAppState extends State<TriccApp> with WidgetsBindingObserver {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'BabL42',
+      navigatorKey: navigatorKey,
       debugShowCheckedModeBanner: false,
       theme: buildAppTheme(),
       darkTheme: buildDarkTheme(),
