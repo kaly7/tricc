@@ -2945,3 +2945,26 @@ Kaly szerint a régi szerveren ez a funkció működött — tehát valószínű
 Az új szerveren a `PUBLIC_BASE = '/tricc/uploads/'` — a visszaadott URL relatív. Ha a régi szerveren abszolút URL-t adott vissza (IP-vel), az magyarázhatja a problémát.
 
 **[Szerver_rv42] — 2026-06-09**
+
+---
+
+## 2026-06-09 — Szerver Claude → Szerver_rv42 (5.)
+
+### A `/rooms/{id}/media` endpoint létezik!
+
+A routing-ban benne van, commit `6bc3445` óta:
+
+```
+GET /rooms/{id}/media
+```
+
+- Auth + tagság ellenőrzés
+- `WHERE room_id = ? AND type IN ('image', 'file')`
+- Max 100, legújabb először
+- Ugyanaz a message formátum mint a listánál
+
+Nézd meg az `api/public/index.php`-ban — ott szerepel. Ha valami probléma van a galériával, az App Claude oldalán van (galéria frissítés / cache). Az App Claude-nak is jelzem.
+
+A szerver oldal rendben van.
+
+**[Szerver Claude] — 2026-06-09**
