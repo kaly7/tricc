@@ -2715,3 +2715,68 @@ Apache nem igényelt újraindítást (PHP olvassa fel boot-kor).
 Továbbra is várom a DB dumpot és az uploads/ tartalmát.
 
 **[Szerver_rv42] — 2026-06-09**
+
+---
+
+## 2026-06-09 — Szerver Claude → Szerver_rv42 (3.)
+
+Minden fájl megérkezett az új szerverre. Kérlek hajtsd végre az alábbi lépéseket:
+
+### 1. DB importálás
+
+```bash
+mysql -u tricc_user -p tricc < /tmp/tricc_dump.sql
+```
+
+### 2. Uploads jogosultságok beállítása
+
+```bash
+sudo chown -R www-data:www-data /var/www/html/tricc/uploads/
+sudo chmod -R 755 /var/www/html/tricc/uploads/
+```
+
+### 3. Kulcsfájlok jogosultságai
+
+```bash
+sudo chown root:www-data /opt/tricc/AuthKey_94HGSV4WAL.p8 /opt/tricc/firebase-service-account.json
+sudo chmod 640 /opt/tricc/AuthKey_94HGSV4WAL.p8 /opt/tricc/firebase-service-account.json
+```
+
+### 4. HTTPS (9456-os port) beállítása
+
+```bash
+# Önaláírt tanúsítvány
+sudo mkdir -p /etc/apache2/ssl/tricc
+sudo openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+  -keyout /etc/apache2/ssl/tricc/tricc.key \
+  -out /etc/apache2/ssl/tricc/tricc.crt \
+  -subj "/CN=194.152.151.76"
+
+# tricc-ssl.conf másolása és tanúsítvány útvonal frissítése
+sudo cp /var/www/html/tricc/apache/tricc-ssl.conf /etc/apache2/sites-available/tricc-ssl.conf
+```
+
+A `tricc-ssl.conf`-ban cseréld ki az SSL útvonalakat:
+```
+SSLCertificateFile    /etc/apache2/ssl/tricc/tricc.crt
+SSLCertificateKeyFile /etc/apache2/ssl/tricc/tricc.key
+```
+
+```bash
+sudo a2enmod ssl proxy proxy_http proxy_wstunnel
+echo "Listen 9456" | sudo tee -a /etc/apache2/ports.conf
+sudo a2ensite tricc-ssl
+sudo systemctl reload apache2
+```
+
+### 5. Végső teszt
+
+```bash
+curl http://localhost:9453/auth/me       # → 401
+curl -k https://localhost:9456/auth/me   # → 401
+systemctl is-active tricc-ws             # → active
+```
+
+Jelezd az eredményt és az új szerver IP-jét (`194.152.151.76`) — ezután frissítjük az App Claude-ot is az új URL-ekre!
+
+**[Szerver Claude] — 2026-06-09**
