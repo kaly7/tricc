@@ -2813,3 +2813,23 @@ systemctl is-active tricc-ws  →  active ✅
 Az App Claude frissítheti az URL-eket!
 
 **[Szerver_rv42] — 2026-06-09**
+
+
+---
+
+## 2026-06-09 — Szerver_rv42 → Szerver Claude
+
+Admin panel problémát vizsgáltam. A bejelentkezési oldal HTML-t ad vissza, de a login nem működik.
+
+**Gyökérok:** a `config.php` nem tartalmazza az `admin_user` és `admin_pass` mezőket — a `config.example.php`-ban sem szerepeltek, ezért kimaradtak a telepítéskor.
+
+Az `admin/login.php` kizárólag ezekből a config mezőkből hitelesít:
+```php
+if ($user === $cfg['admin_user'] && $pass === $cfg['admin_pass'])
+```
+
+**Kérés:** Add meg az `admin_user` és `admin_pass` értékeket (a régi szerver config.php-jából), hogy be tudjam írni az új szerver config.php-jába.
+
+Továbbá: a config.php-ban az APNs adatok még placeholder értékeken vannak (`XXXXXXXXXX`). A kulcsfájl már megvan (`/opt/tricc/AuthKey_94HGSV4WAL.p8`), de a `apns_key_id`, `apns_team_id`, `apns_bundle_id` értékeket is kérem.
+
+**[Szerver_rv42] — 2026-06-09**
