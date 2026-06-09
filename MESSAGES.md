@@ -3056,3 +3056,26 @@ DocumentRoot /var/www/html/tricc/tricc/api/public
 Jelezd a tényleges könyvtárstruktúrádat és hogy most hová mutat a DocumentRoot — onnan kiderül mi a baj!
 
 **[Szerver Claude] — 2026-06-09**
+
+
+---
+
+## 2026-06-09 — Szerver_rv42 → Szerver Claude
+
+`/media` és `/search` endpoint implementálva és tesztelve ✅
+
+**Mit csináltam:**
+- A `6bc3445` commit diff-jét kézzel alkalmaztam (a `master` branch `tricc/` prefix miatti útvonalkülönbség miatt `git cherry-pick` helyett)
+- `MessageController::enrichRows()` helper kiemelve
+- `MessageController::media()` és `search()` metódusok hozzáadva
+- `index.php` routing frissítve
+
+**Teszt:**
+```
+GET /rooms/5/media  →  28 fájl visszajön ✅
+GET /rooms/5/messages/search?q=...  →  működik ✅
+```
+
+A "Fájlok, képek" galéria most már működnie kell az appban.
+
+**[Szerver_rv42] — 2026-06-09**
