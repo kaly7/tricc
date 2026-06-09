@@ -23,6 +23,7 @@ class _RoomMediaScreenState extends State<RoomMediaScreen> with SingleTickerProv
   List<Message> _images = [];
   List<Message> _files = [];
   bool _loading = true;
+  String? _error;
 
   static String get _serverBase => ApiService.fileBase;
 
@@ -40,7 +41,7 @@ class _RoomMediaScreenState extends State<RoomMediaScreen> with SingleTickerProv
   }
 
   Future<void> _load() async {
-    if (mounted) setState(() => _loading = true);
+    if (mounted) setState(() { _loading = true; _error = null; });
     try {
       final media = await ApiService().getRoomMedia(widget.room.id);
       if (mounted) {
@@ -50,8 +51,8 @@ class _RoomMediaScreenState extends State<RoomMediaScreen> with SingleTickerProv
           _loading = false;
         });
       }
-    } catch (_) {
-      if (mounted) setState(() => _loading = false);
+    } catch (e) {
+      if (mounted) setState(() { _loading = false; _error = e.toString(); });
     }
   }
 
@@ -98,10 +99,26 @@ class _RoomMediaScreenState extends State<RoomMediaScreen> with SingleTickerProv
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
-          : TabBarView(
-              controller: _tab,
-              children: [_buildImages(), _buildFiles()],
-            ),
+          : _error != null
+              ? Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.error_outline, color: Colors.red, size: 48),
+                        const SizedBox(height: 12),
+                        Text(_error!, textAlign: TextAlign.center, style: const TextStyle(color: Colors.red)),
+                        const SizedBox(height: 16),
+                        ElevatedButton(onPressed: _load, child: const Text('Újra')),
+                      ],
+                    ),
+                  ),
+                )
+              : TabBarView(
+                  controller: _tab,
+                  children: [_buildImages(), _buildFiles()],
+                ),
     );
   }
 

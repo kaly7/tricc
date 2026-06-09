@@ -595,12 +595,36 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
               ),
             ),
             const Divider(),
+            if (message.type == 'image')
+              ListTile(
+                leading: const Icon(Icons.fullscreen, color: kBlue),
+                title: const Text('Megnyitás'),
+                onTap: () { Navigator.pop(context); _openImageFullscreen(message.fileUrl ?? ''); },
+              ),
             if (message.type == 'file' || message.type == 'image')
               ListTile(
                 leading: const Icon(Icons.download_outlined, color: kBlue),
                 title: const Text('Letöltés'),
                 onTap: () { Navigator.pop(context); _downloadMessage(message); },
               ),
+            if (message.type == 'link')
+              ListTile(
+                leading: const Icon(Icons.open_in_browser, color: kBlue),
+                title: const Text('Link megnyitása'),
+                onTap: () { Navigator.pop(context); _confirmOpenLink(context, message.content ?? ''); },
+              ),
+            if (message.type == 'text') ...[
+              () {
+                final match = RegExp(r'https?://\S+').firstMatch(message.content ?? '');
+                if (match == null) return const SizedBox.shrink();
+                final url = match.group(0)!;
+                return ListTile(
+                  leading: const Icon(Icons.open_in_browser, color: kBlue),
+                  title: const Text('Link megnyitása'),
+                  onTap: () { Navigator.pop(context); _confirmOpenLink(context, url); },
+                );
+              }(),
+            ],
             ListTile(
               leading: const Icon(Icons.reply),
               title: const Text('Válasz'),
@@ -655,6 +679,12 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
         ),
       ),
     );
+  }
+
+  void _openImageFullscreen(String fileUrl) {
+    Navigator.push(context, MaterialPageRoute(
+      builder: (_) => _FullScreenImage(url: '${ApiService.fileBase}$fileUrl'),
+    ));
   }
 
   static http.Client _buildHttpClient() {
