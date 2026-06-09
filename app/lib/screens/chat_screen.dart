@@ -1538,6 +1538,10 @@ class _MessageBubbleState extends State<_MessageBubble>
         return MarkdownBody(
           data: message.content ?? '',
           selectable: false,
+          onTapLink: (text, href, title) {
+            final url = href ?? text;
+            if (url.isNotEmpty) _confirmOpenLink(context, url);
+          },
           styleSheet: MarkdownStyleSheet(
             p: TextStyle(color: isMine ? Colors.white : Theme.of(context).colorScheme.onSurface),
             strong: TextStyle(color: isMine ? Colors.white : Theme.of(context).colorScheme.onSurface, fontWeight: FontWeight.bold),
@@ -1548,6 +1552,7 @@ class _MessageBubbleState extends State<_MessageBubble>
               backgroundColor: isMine ? Colors.white24 : Theme.of(context).colorScheme.surfaceContainerHighest,
               fontFamily: 'monospace',
             ),
+            a: TextStyle(color: isMine ? Colors.white : Colors.blue, decoration: TextDecoration.underline),
           ),
         );
       case 'image':
@@ -1616,14 +1621,19 @@ class _ImageBubble extends StatelessWidget {
     return Stack(
       alignment: Alignment.bottomRight,
       children: [
-        ClipRRect(
-          borderRadius: BorderRadius.circular(12),
-          child: CachedNetworkImage(
-            imageUrl: fullUrl,
-            width: MediaQuery.of(context).size.width * 0.65,
-            fit: BoxFit.cover,
-            placeholder: (context, url) => const SizedBox(height: 120, child: Center(child: CircularProgressIndicator())),
-            errorWidget: (context, url, err) => const SizedBox(height: 60, child: Center(child: Icon(Icons.broken_image))),
+        GestureDetector(
+          onTap: () => Navigator.push(context, MaterialPageRoute(
+            builder: (_) => _FullScreenImage(url: fullUrl),
+          )),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: CachedNetworkImage(
+              imageUrl: fullUrl,
+              width: MediaQuery.of(context).size.width * 0.65,
+              fit: BoxFit.cover,
+              placeholder: (context, url) => const SizedBox(height: 120, child: Center(child: CircularProgressIndicator())),
+              errorWidget: (context, url, err) => const SizedBox(height: 60, child: Center(child: Icon(Icons.broken_image))),
+            ),
           ),
         ),
         Padding(
@@ -2103,4 +2113,29 @@ class _BubbleRipplePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_BubbleRipplePainter old) => old.progress != progress;
+}
+
+class _FullScreenImage extends StatelessWidget {
+  final String url;
+  const _FullScreenImage({required this.url});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        backgroundColor: Colors.black,
+        foregroundColor: Colors.white,
+      ),
+      body: Center(
+        child: InteractiveViewer(
+          child: CachedNetworkImage(
+            imageUrl: url,
+            placeholder: (_, __) => const CircularProgressIndicator(color: Colors.white),
+            errorWidget: (_, __, ___) => const Icon(Icons.broken_image, color: Colors.white, size: 48),
+          ),
+        ),
+      ),
+    );
+  }
 }
