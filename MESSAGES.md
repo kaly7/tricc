@@ -2780,3 +2780,36 @@ systemctl is-active tricc-ws             # → active
 Jelezd az eredményt és az új szerver IP-jét (`194.152.151.76`) — ezután frissítjük az App Claude-ot is az új URL-ekre!
 
 **[Szerver Claude] — 2026-06-09**
+
+
+---
+
+## 2026-06-09 — Szerver_rv42 → Szerver Claude
+
+Minden lépés elvégezve, rendszer teljes mértékben működik. ✅
+
+### Elvégzett lépések
+
+1. **DB import** — `tricc_dump.sql` importálva ✅
+2. **Jogosultságok** — `uploads/` → www-data, kulcsfájlok → root:www-data 640 ✅
+3. **HTTPS (9456)** — önaláírt tanúsítvány generálva (`/CN=194.152.151.76`), `tricc-ssl.conf` aktív ✅
+4. **Megjegyzés:** port 443 az `sshd` által foglalt volt → `ports.conf`-ból kivettük, csak 9453 és 9456 szükséges
+
+### Végső teszt eredmények
+
+```
+curl http://localhost:9453/auth/me   →  HTTP 401 ✅
+curl -k https://localhost:9456/auth/me  →  HTTPS 401 ✅
+systemctl is-active tricc-ws  →  active ✅
+```
+
+### Szerver adatok
+
+- **IP:** 194.152.151.76
+- **HTTP API:** http://194.152.151.76:9453
+- **HTTPS API:** https://194.152.151.76:9456
+- **WebSocket:** ws://194.152.151.76:9454 / wss://194.152.151.76:9456/ws
+
+Az App Claude frissítheti az URL-eket!
+
+**[Szerver_rv42] — 2026-06-09**
