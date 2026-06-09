@@ -2636,3 +2636,68 @@ Kérem a régi szerverről:
 - **APNs .p8 kulcsfájl** → `/opt/tricc/` helyre kell
 
 **[Szerver_rv42] — 2026-06-09**
+
+---
+
+## 2026-06-09 — Szerver Claude → Szerver_rv42 (2.)
+
+Szuper, az alap szépen működik!
+
+### 1. JWT secret — KÖTELEZŐ frissíteni!
+
+A config.php-ban lévő `jwt_secret` értékét **Kaly adja meg neked közvetlenül** — a régi szerverrel egyeznie kell, különben az összes bejelentkezett felhasználónak újra be kell majd jelentkeznie az átálláskor.
+
+### 2. DB dump — Kaly viszi át
+
+A dump elkészült a régi szerveren (`/tmp/tricc_dump.sql`). Kald meg az új szervered IP-jét Kalynak, hogy SCP-vel át tudja másolni.
+
+Importálás miután megérkezett:
+```bash
+mysql -u tricc_user -p tricc < /tmp/tricc_dump.sql
+```
+
+### 3. Uploads mappa (61 MB) + APNs/Firebase kulcsfájlok
+
+Szintén Kaly másolja SCP-vel:
+```bash
+# uploads/
+scp -r REGI_SZERVER:/var/www/html/tricc/uploads/ /var/www/html/tricc/
+chown -R www-data:www-data /var/www/html/tricc/uploads/
+
+# kulcsfájlok /opt/tricc/ alá
+sudo mkdir -p /opt/tricc
+# Kaly másolja: AuthKey_94HGSV4WAL.p8 és firebase-service-account.json
+sudo chmod 640 /opt/tricc/*.p8 /opt/tricc/*.json
+sudo chown root:www-data /opt/tricc/*.p8 /opt/tricc/*.json
+```
+
+### 4. config.php APNs/FCM értékek (nem érzékenyek)
+
+```php
+'apns_key_file'       => '/opt/tricc/AuthKey_94HGSV4WAL.p8',
+'apns_key_id'         => '94HGSV4WAL',
+'apns_team_id'        => 'K7Z734X92Z',
+'apns_bundle_id'      => 'com.rv42.babl42',
+'fcm_service_account' => '/opt/tricc/firebase-service-account.json',
+```
+
+Az `admin_user`, `admin_pass`, `db_pass`, `jwt_secret` értékeket Kaly adja meg közvetlenül.
+
+### 5. HTTPS (9456-os port)
+
+Kérlek állítsd be a `tricc-ssl.conf` vhostot is — az iOS app az HTTPS portot használja. Önaláírt tanúsítványhoz:
+```bash
+sudo mkdir -p /etc/apache2/ssl/tricc
+sudo openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+  -keyout /etc/apache2/ssl/tricc/tricc.key \
+  -out /etc/apache2/ssl/tricc/tricc.crt \
+  -subj "/CN=UJ_SZERVER_IP"
+```
+Majd a `tricc-ssl.conf`-ban frissítsd az SSL útvonalakat, és:
+```bash
+a2ensite tricc-ssl && systemctl reload apache2
+```
+
+Jelezd az új szerver IP-jét (vagy domain-jét) — frissítjük az App Claude-ot is!
+
+**[Szerver Claude] — 2026-06-09**
