@@ -295,7 +295,7 @@ class _RoomAvatar extends StatelessWidget {
   final Room room;
   const _RoomAvatar({required this.room});
 
-  static const String _serverBase = 'https://192.168.16.22:9456';
+  static String get _serverBase => ApiService.fileBase;
 
   Color _presenceColor(int? userId) {
     if (userId == null) return Colors.transparent;
@@ -484,7 +484,7 @@ class _MembersModal extends StatefulWidget {
 }
 
 class _MembersModalState extends State<_MembersModal> {
-  static const String _serverBase = 'https://192.168.16.22:9456';
+  static String get _serverBase => ApiService.fileBase;
   List<User> _members = [];
   bool _loading = true;
   StreamSubscription? _presSub;

@@ -21,7 +21,7 @@ class _RoomSearchScreenState extends State<RoomSearchScreen> {
   bool _searched = false;
   Timer? _debounce;
 
-  static const _serverBase = 'https://192.168.16.22:9456';
+  static String get _serverBase => ApiService.fileBase;
 
   @override
   void dispose() {

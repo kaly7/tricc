@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:web_socket_channel/web_socket_channel.dart';
 import 'auth_service.dart';
+import 'settings_service.dart';
 
 enum WsState { connected, connecting, disconnected }
 
@@ -10,7 +11,7 @@ class WsService {
   factory WsService() => _i;
   WsService._();
 
-  static const String _url = 'wss://192.168.16.22:9456/ws';
+  static String get _url => 'wss://${SettingsService().serverHost}/ws';
   static const Duration _pingInterval = Duration(seconds: 30);
   static const Duration _pongTimeout  = Duration(seconds: 10);
 

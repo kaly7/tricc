@@ -8,10 +8,11 @@ import '../models/room.dart';
 import '../models/message.dart';
 import '../models/user.dart';
 import 'auth_service.dart';
+import 'settings_service.dart';
 
 class ApiService {
-  static const String base = 'https://192.168.16.22:9456/tricc/api';
-  static const String fileBase = 'https://192.168.16.22:9456'; // fájl URL-ekhez
+  static String get base => 'https://${SettingsService().serverHost}/tricc/api';
+  static String get fileBase => 'https://${SettingsService().serverHost}';
 
   // Önaláírt tanúsítványt elfogad (belső szerver, Fejlesztes Local CA)
   static http.Client _buildClient() {

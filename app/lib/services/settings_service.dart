@@ -8,6 +8,8 @@ class SettingsService extends ChangeNotifier {
 
   static const _keyFontScale = 'font_scale';
   static const _keyThemeMode = 'theme_mode';
+  static const _keyServerHost = 'server_host';
+  static const String defaultServerHost = '194.152.151.76:9456';
   static const double minScale = 0.8;
   static const double maxScale = 1.5;
   static const double step = 0.1;
@@ -18,12 +20,24 @@ class SettingsService extends ChangeNotifier {
   ThemeMode _themeMode = ThemeMode.system;
   ThemeMode get themeMode => _themeMode;
 
+  String _serverHost = defaultServerHost;
+  String get serverHost => _serverHost;
+
   Future<void> init() async {
     final prefs = await SharedPreferences.getInstance();
     _fontScale = (prefs.getDouble(_keyFontScale) ?? 1.0).clamp(minScale, maxScale);
     final tm = prefs.getString(_keyThemeMode) ?? 'system';
     _themeMode = tm == 'light' ? ThemeMode.light : tm == 'dark' ? ThemeMode.dark : ThemeMode.system;
+    _serverHost = prefs.getString(_keyServerHost) ?? defaultServerHost;
     notifyListeners();
+  }
+
+  Future<void> setServerHost(String host) async {
+    final h = host.trim();
+    if (h.isEmpty || h == _serverHost) return;
+    _serverHost = h;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_keyServerHost, h);
   }
 
   Future<void> setThemeMode(ThemeMode mode) async {

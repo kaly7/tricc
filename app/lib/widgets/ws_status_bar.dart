@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import '../services/api_service.dart';
 import '../services/ws_service.dart';
 
 // Kis pötty a nevek mellé: zöld = online, szürke = offline
@@ -76,7 +77,7 @@ class _WsDotState extends State<WsDot> {
 
 // Megosztott avatar teljes képernyős megjelenítő dialog
 void showAvatarDialog(BuildContext context, String name, String? avatarUrl) {
-  const serverBase = 'https://192.168.16.22:9456';
+  final serverBase = ApiService.fileBase;
   showDialog(
     context: context,
     barrierColor: Colors.black87,

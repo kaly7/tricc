@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import '../services/auth_service.dart';
 import '../services/push_service.dart';
+import '../services/settings_service.dart';
 import '../services/ws_service.dart';
 import 'room_list_screen.dart';
 
@@ -13,6 +14,7 @@ class RegisterScreen extends StatefulWidget {
 }
 
 class _RegisterScreenState extends State<RegisterScreen> {
+  final _hostCtrl = TextEditingController();
   final _nameCtrl = TextEditingController();
   final _emailCtrl = TextEditingController();
   final _passCtrl = TextEditingController();
@@ -22,7 +24,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
   bool _obscure = true;
 
   @override
+  void initState() {
+    super.initState();
+    _hostCtrl.text = SettingsService().serverHost;
+  }
+
+  @override
   void dispose() {
+    _hostCtrl.dispose();
     _nameCtrl.dispose();
     _emailCtrl.dispose();
     _passCtrl.dispose();
@@ -31,11 +40,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }
 
   Future<void> _register() async {
-    if (_nameCtrl.text.trim().isEmpty || _emailCtrl.text.trim().isEmpty ||
+    if (_hostCtrl.text.trim().isEmpty || _nameCtrl.text.trim().isEmpty ||
+        _emailCtrl.text.trim().isEmpty ||
         _passCtrl.text.isEmpty || _inviteCtrl.text.trim().isEmpty) {
       setState(() => _error = 'Minden mező kitöltése kötelező.');
       return;
     }
+    await SettingsService().setServerHost(_hostCtrl.text);
     setState(() { _loading = true; _error = null; });
     try {
       final data = await ApiService().register(
@@ -85,6 +96,18 @@ class _RegisterScreenState extends State<RegisterScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              TextField(
+                controller: _hostCtrl,
+                decoration: const InputDecoration(
+                  labelText: 'Szerver cím',
+                  hintText: '192.168.1.1:9456',
+                ),
+                keyboardType: TextInputType.url,
+                textInputAction: TextInputAction.next,
+                autocorrect: false,
+                textCapitalization: TextCapitalization.none,
+              ),
+              const SizedBox(height: 16),
               TextField(
                 controller: _inviteCtrl,
                 decoration: const InputDecoration(labelText: 'Meghívókód'),

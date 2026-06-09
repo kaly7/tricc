@@ -24,7 +24,7 @@ class _RoomMediaScreenState extends State<RoomMediaScreen> with SingleTickerProv
   List<Message> _files = [];
   bool _loading = true;
 
-  static const _serverBase = 'https://192.168.16.22:9456';
+  static String get _serverBase => ApiService.fileBase;
 
   @override
   void initState() {
@@ -40,6 +40,7 @@ class _RoomMediaScreenState extends State<RoomMediaScreen> with SingleTickerProv
   }
 
   Future<void> _load() async {
+    if (mounted) setState(() => _loading = true);
     try {
       final media = await ApiService().getRoomMedia(widget.room.id);
       if (mounted) {
@@ -106,37 +107,54 @@ class _RoomMediaScreenState extends State<RoomMediaScreen> with SingleTickerProv
 
   Widget _buildImages() {
     if (_images.isEmpty) {
-      return const Center(child: Text('Nincs kép ebben a szobában.', style: TextStyle(color: Colors.grey)));
+      return RefreshIndicator(
+        onRefresh: _load,
+        child: ListView(children: const [
+          SizedBox(height: 120),
+          Center(child: Text('Nincs kép ebben a szobában.', style: TextStyle(color: Colors.grey))),
+        ]),
+      );
     }
-    return GridView.builder(
-      padding: const EdgeInsets.all(4),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 3, crossAxisSpacing: 3, mainAxisSpacing: 3,
-      ),
-      itemCount: _images.length,
-      itemBuilder: (_, i) {
-        final msg = _images[i];
-        return GestureDetector(
-          onTap: () => _openImageFull(msg),
-          child: CachedNetworkImage(
-            imageUrl: '$_serverBase${msg.fileUrl}',
-            fit: BoxFit.cover,
-            placeholder: (_, __) => Container(color: Colors.grey.shade200),
-            errorWidget: (_, __, ___) => Container(
-              color: Colors.grey.shade200,
-              child: const Icon(Icons.broken_image, color: Colors.grey),
+    return RefreshIndicator(
+      onRefresh: _load,
+      child: GridView.builder(
+        padding: const EdgeInsets.all(4),
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 3, crossAxisSpacing: 3, mainAxisSpacing: 3,
+        ),
+        itemCount: _images.length,
+        itemBuilder: (_, i) {
+          final msg = _images[i];
+          return GestureDetector(
+            onTap: () => _openImageFull(msg),
+            child: CachedNetworkImage(
+              imageUrl: '$_serverBase${msg.fileUrl}',
+              fit: BoxFit.cover,
+              placeholder: (_, __) => Container(color: Colors.grey.shade200),
+              errorWidget: (_, __, ___) => Container(
+                color: Colors.grey.shade200,
+                child: const Icon(Icons.broken_image, color: Colors.grey),
+              ),
             ),
-          ),
-        );
-      },
+          );
+        },
+      ),
     );
   }
 
   Widget _buildFiles() {
     if (_files.isEmpty) {
-      return const Center(child: Text('Nincs fájl ebben a szobában.', style: TextStyle(color: Colors.grey)));
+      return RefreshIndicator(
+        onRefresh: _load,
+        child: ListView(children: const [
+          SizedBox(height: 120),
+          Center(child: Text('Nincs fájl ebben a szobában.', style: TextStyle(color: Colors.grey))),
+        ]),
+      );
     }
-    return ListView.separated(
+    return RefreshIndicator(
+      onRefresh: _load,
+      child: ListView.separated(
       itemCount: _files.length,
       separatorBuilder: (_, __) => const Divider(height: 1),
       itemBuilder: (_, i) {
@@ -156,6 +174,7 @@ class _RoomMediaScreenState extends State<RoomMediaScreen> with SingleTickerProv
           onTap: () => _openFile(msg),
         );
       },
+      ),
     );
   }
 

@@ -3,6 +3,7 @@ import '../app_theme.dart';
 import '../services/api_service.dart';
 import '../services/auth_service.dart';
 import '../services/push_service.dart';
+import '../services/settings_service.dart';
 import '../services/ws_service.dart';
 import 'register_screen.dart';
 import 'room_list_screen.dart';
@@ -15,6 +16,7 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
+  final _hostCtrl = TextEditingController();
   final _emailCtrl = TextEditingController();
   final _passCtrl = TextEditingController();
   bool _loading = false;
@@ -22,13 +24,21 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _obscure = true;
 
   @override
+  void initState() {
+    super.initState();
+    _hostCtrl.text = SettingsService().serverHost;
+  }
+
+  @override
   void dispose() {
+    _hostCtrl.dispose();
     _emailCtrl.dispose();
     _passCtrl.dispose();
     super.dispose();
   }
 
   Future<void> _login() async {
+    await SettingsService().setServerHost(_hostCtrl.text);
     setState(() { _loading = true; _error = null; });
     try {
       final data = await ApiService().login(_emailCtrl.text.trim(), _passCtrl.text);
@@ -103,6 +113,18 @@ class _LoginScreenState extends State<LoginScreen> {
                 style: TextStyle(fontSize: 13, color: Colors.grey),
               ),
               const SizedBox(height: 48),
+              TextField(
+                controller: _hostCtrl,
+                decoration: const InputDecoration(
+                  labelText: 'Szerver cím',
+                  hintText: '192.168.1.1:9456',
+                ),
+                keyboardType: TextInputType.url,
+                textInputAction: TextInputAction.next,
+                autocorrect: false,
+                textCapitalization: TextCapitalization.none,
+              ),
+              const SizedBox(height: 16),
               TextField(
                 controller: _emailCtrl,
                 decoration: const InputDecoration(labelText: 'Email'),

@@ -482,7 +482,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   }
 
   void _showReactionDetails(Message message) {
-    const serverBase = 'https://192.168.16.22:9456';
+    final serverBase = ApiService.fileBase;
     final items = <(User, String)>[];
     for (final reaction in message.reactions) {
       for (final userId in reaction.userIds) {
@@ -666,7 +666,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     final fileUrl = message.fileUrl;
     if (fileUrl == null) return;
     final fileName = message.fileName ?? fileUrl.split('/').last;
-    final url = 'https://192.168.16.22:9456$fileUrl';
+    final url = '${ApiService.fileBase}$fileUrl';
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text('Letöltés: $fileName…'), duration: const Duration(seconds: 60), key: const ValueKey('dl')),
@@ -713,7 +713,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   }
 
   void _showDeliveryDetails(Message message) {
-    const serverBase = 'https://192.168.16.22:9456';
+    final serverBase = ApiService.fileBase;
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
@@ -1200,7 +1200,7 @@ class _RoomInfoSheetState extends State<_RoomInfoSheet> {
           Text('${widget.room.members.length} tag', style: const TextStyle(color: Colors.grey, fontSize: 13)),
           const Divider(height: 20),
           ...widget.room.members.map((u) {
-            const serverBase = 'https://192.168.16.22:9456';
+            final serverBase = ApiService.fileBase;
             final online = WsService().onlineUsers.contains(u.id);
             final borderColor = online ? const Color(0xFF4CAF50) : Colors.grey.shade400;
             return ListTile(
@@ -1606,7 +1606,7 @@ void _confirmOpenLink(BuildContext context, String url) {
 class _ImageBubble extends StatelessWidget {
   final String fileUrl;
   final bool isMine;
-  static const String _serverBase = 'https://192.168.16.22:9456';
+  static String get _serverBase => ApiService.fileBase;
   const _ImageBubble({required this.fileUrl, required this.isMine});
 
   String get fullUrl => '$_serverBase$fileUrl';
@@ -1679,7 +1679,7 @@ class _MiniAvatar extends StatelessWidget {
   final String? avatarUrl;
   final String name;
   final int? userId;
-  static const String _serverBase = 'https://192.168.16.22:9456';
+  static String get _serverBase => ApiService.fileBase;
   const _MiniAvatar({required this.avatarUrl, required this.name, this.userId});
 
   @override
@@ -1717,7 +1717,7 @@ class _FileBubble extends StatefulWidget {
   final String fileUrl;
   final bool isMine;
   final int? fileSize;
-  static const String _serverBase = 'https://192.168.16.22:9456';
+  static String get _serverBase => ApiService.fileBase;
   const _FileBubble({required this.fileName, required this.fileUrl, required this.isMine, this.fileSize});
 
   @override
