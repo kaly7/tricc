@@ -40,7 +40,7 @@ class _IncomingCallScreenState extends State<IncomingCallScreen> {
   }
 
   Future<void> _accept() async {
-    FlutterRingtonePlayer().stop();
+    await FlutterRingtonePlayer().stop();
     setState(() => _accepting = true);
     await CallService().acceptCall();
     if (mounted && CallService().state == CallState.active) {
@@ -53,7 +53,7 @@ class _IncomingCallScreenState extends State<IncomingCallScreen> {
   void _reject() {
     FlutterRingtonePlayer().stop();
     CallService().rejectCall();
-    if (mounted) Navigator.of(context).pop();
+    // A stateStream listener intézi a pop()-ot amikor state == idle lesz
   }
 
   @override
