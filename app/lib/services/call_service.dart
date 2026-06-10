@@ -346,7 +346,7 @@ class CallService {
     _remoteUserName = null;
     _isCaller = false;
     _muted = false;
-    _speakerOn = true;
+    _speakerOn = false;
     _remoteDescSet = false;
     _pendingSdpOffer = null;
     _pendingIce.clear();
