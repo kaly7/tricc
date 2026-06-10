@@ -86,9 +86,25 @@ class CallService {
         }
         break;
       case 'call_rejected':
+        if (_state == CallState.calling) {
+          final name = _remoteUserName ?? 'A hívott fél';
+          _endCallLocal();
+          onCallError?.call('$name elutasította a hívást');
+        } else if (_state != CallState.idle) {
+          _endCallLocal();
+        }
+        break;
+      case 'call_timeout':
+        if (_state == CallState.calling) {
+          final name = _remoteUserName ?? 'A hívott fél';
+          _endCallLocal();
+          onCallError?.call('$name nem vette fel a hívást');
+        } else if (_state != CallState.idle) {
+          _endCallLocal();
+        }
+        break;
       case 'call_cancelled':
       case 'call_ended':
-      case 'call_timeout':
         if (_state != CallState.idle) _endCallLocal();
         break;
       case 'call_error':

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter_ringtone_player/flutter_ringtone_player.dart';
 import '../services/call_service.dart';
 import 'active_call_screen.dart';
 
@@ -17,10 +18,13 @@ class _IncomingCallScreenState extends State<IncomingCallScreen> {
   @override
   void initState() {
     super.initState();
+    FlutterRingtonePlayer().playRingtone(looping: true, volume: 0.7);
     _sub = CallService().stateStream.listen((state) {
       if (state == CallState.idle && mounted) {
+        FlutterRingtonePlayer().stop();
         Navigator.of(context).pop();
       } else if (state == CallState.active && mounted && !_accepting) {
+        FlutterRingtonePlayer().stop();
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(builder: (_) => const ActiveCallScreen()),
         );
@@ -30,11 +34,13 @@ class _IncomingCallScreenState extends State<IncomingCallScreen> {
 
   @override
   void dispose() {
+    FlutterRingtonePlayer().stop();
     _sub?.cancel();
     super.dispose();
   }
 
   Future<void> _accept() async {
+    FlutterRingtonePlayer().stop();
     setState(() => _accepting = true);
     await CallService().acceptCall();
     if (mounted && CallService().state == CallState.active) {
@@ -45,6 +51,7 @@ class _IncomingCallScreenState extends State<IncomingCallScreen> {
   }
 
   void _reject() {
+    FlutterRingtonePlayer().stop();
     CallService().rejectCall();
     if (mounted) Navigator.of(context).pop();
   }
