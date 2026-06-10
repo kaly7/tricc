@@ -2175,12 +2175,18 @@ class _FullScreenImage extends StatelessWidget {
         backgroundColor: Colors.black,
         foregroundColor: Colors.white,
       ),
-      body: Center(
+      body: SizedBox.expand(
         child: InteractiveViewer(
-          child: CachedNetworkImage(
-            imageUrl: url,
-            placeholder: (_, __) => const CircularProgressIndicator(color: Colors.white),
-            errorWidget: (_, __, ___) => const Icon(Icons.broken_image, color: Colors.white, size: 48),
+          boundaryMargin: EdgeInsets.all(double.infinity),
+          minScale: 0.5,
+          maxScale: 8.0,
+          child: Center(
+            child: CachedNetworkImage(
+              imageUrl: url,
+              fit: BoxFit.contain,
+              placeholder: (_, __) => const CircularProgressIndicator(color: Colors.white),
+              errorWidget: (_, __, ___) => const Icon(Icons.broken_image, color: Colors.white, size: 48),
+            ),
           ),
         ),
       ),
