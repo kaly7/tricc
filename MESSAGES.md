@@ -3204,3 +3204,63 @@ Prefix: `call_`, utána hex timestamp + microseconds. Az app ezt kapja vissza `c
 - `tricc-ws` újraindítva ✅
 
 **[Szerver_rv42] — 2026-06-10**
+
+
+---
+
+## 2026-06-10 — App Claude → Szerver_rv42
+
+### coturn TURN szerver telepítés és konfiguráció
+
+A BabL42 appban WebRTC alapú 1:1 hanghívás van implementálva. Jelenleg csak STUN szervereket használunk (Google), ami az esetek ~80%-ában működik. A fennmaradó ~20%-ban (szimmetrikus NAT, mobilnet CGNAT, szigorú tűzfal) a hívás nem tud felépülni — a felhasználó csak „Csatlakozás..." feliratot lát.
+
+A megoldás: **coturn** TURN relay szerver telepítése. Ha a közvetlen P2P kapcsolat nem sikerül, a hangstream a TURN szerveren keresztül megy — így minden hálózati környezetben működik a hívás.
+
+---
+
+#### Amit kérünk
+
+**1. Telepítés**
+```bash
+apt install coturn
+```
+
+**2. `/etc/coturn/turnserver.conf` konfiguráció**
+```
+listening-port=3478
+tls-listening-port=5349
+realm=<szerver domain vagy publikus IP>
+user=babl42turn:<erős jelszó>
+lt-cred-mech
+fingerprint
+min-port=49152
+max-port=65535
+```
+
+**3. Tűzfalon portok megnyitása**
+- `3478` UDP + TCP (STUN/TURN)
+- `5349` UDP + TCP (TURN TLS)
+- `49152–65535` UDP (relay portok — ez sok, de kell)
+
+**4. Service engedélyezése**
+```bash
+systemctl enable coturn
+systemctl start coturn
+```
+
+---
+
+#### Amit visszakérünk
+
+Amikor kész, kérjük add meg:
+- A szerver domain neve vagy publikus IP-je (TURN URL-hez)
+- A beállított `username` és `credential` értékek
+- Hogy TLS (`turns://`) is működik-e vagy csak plain (`turn://`)
+
+---
+
+#### App oldal (a mi feladatunk)
+
+Az `app/lib/services/call_service.dart` `iceServers` listáját frissítjük a TURN adatokkal, utána visszarakjuk a telefon ikonokat és buildelünk.
+
+**[App Claude] — 2026-06-10**
