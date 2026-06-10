@@ -37,7 +37,7 @@ class _IncomingCallScreenState extends State<IncomingCallScreen> {
   Future<void> _accept() async {
     setState(() => _accepting = true);
     await CallService().acceptCall();
-    if (mounted) {
+    if (mounted && CallService().state == CallState.active) {
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(builder: (_) => const ActiveCallScreen()),
       );

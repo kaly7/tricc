@@ -40,7 +40,12 @@ class CallService {
 
   void init() {
     _wsSub?.cancel();
-    _wsSub = WsService().events.listen(_onWsEvent);
+    _wsSub = WsService().events.listen((msg) {
+      _onWsEvent(msg).catchError((e) {
+        _endCallLocal();
+        onCallEnded?.call();
+      });
+    });
   }
 
   void _setState(CallState s) {
@@ -67,8 +72,13 @@ class CallService {
         break;
       case 'call_accepted':
         if (_state == CallState.calling) {
-          await _initWebRTC(isCaller: true);
-          _setState(CallState.active);
+          try {
+            await _initWebRTC(isCaller: true);
+            _setState(CallState.active);
+          } catch (e) {
+            _endCallLocal();
+            onCallEnded?.call();
+          }
         }
         break;
       case 'call_rejected':
@@ -143,8 +153,13 @@ class CallService {
   Future<void> acceptCall() async {
     if (_state != CallState.ringing) return;
     WsService().sendJson({'type': 'call_accept', 'call_id': _callId});
-    await _initWebRTC(isCaller: false);
-    _setState(CallState.active);
+    try {
+      await _initWebRTC(isCaller: false);
+      _setState(CallState.active);
+    } catch (_) {
+      _endCallLocal();
+      onCallEnded?.call();
+    }
   }
 
   void rejectCall() {
@@ -209,8 +224,11 @@ class CallService {
     _pc!.onConnectionState = (state) {
       if (state == RTCPeerConnectionState.RTCPeerConnectionStateConnected) {
         Helper.setSpeakerphoneOn(_speakerOn);
-      } else if (state == RTCPeerConnectionState.RTCPeerConnectionStateFailed ||
-          state == RTCPeerConnectionState.RTCPeerConnectionStateDisconnected) {
+        if (_state != CallState.active) {
+          _setState(CallState.active);
+        }
+      } else if (state == RTCPeerConnectionState.RTCPeerConnectionStateFailed) {
+        // disconnected = átmeneti (ICE tárgyalás közben normális), csak failed = vége
         _endCallLocal();
         onCallEnded?.call();
       }
