@@ -4,7 +4,7 @@ namespace Tricc\Controllers;
 use Tricc\{DB, Response};
 
 class WebhookController {
-    private const BOT_USER_ID = 1;
+    private const BOT_USER_ID = 13;
 
     public static function send(): never {
         $key = $_SERVER['HTTP_X_WEBHOOK_KEY'] ?? '';

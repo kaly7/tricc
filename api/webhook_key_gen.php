@@ -8,7 +8,7 @@
 
 require_once __DIR__ . '/../vendor/autoload.php';
 
-$cfg = require __DIR__ . '/../../config.php';
+$cfg = require __DIR__ . '/../config.php';
 $pdo = new PDO(
     "mysql:host={$cfg['db_host']};dbname={$cfg['db_name']};charset=utf8mb4",
     $cfg['db_user'], $cfg['db_pass'],
