@@ -103,6 +103,17 @@ class CallService {
           _endCallLocal();
         }
         break;
+      case 'call_ongoing':
+        // WS reconnect után: az aktív hívás folytatódik
+        if (_state == CallState.idle) {
+          _callId = msg['call_id'] as String?;
+          _setState(CallState.active);
+          onCallStarted?.call();
+        }
+        break;
+      case 'call_reconnected':
+        // A másik fél WS-e visszajött — hívás folytatódik, nincs teendő
+        break;
       case 'call_cancelled':
       case 'call_ended':
         if (_state != CallState.idle) _endCallLocal();
