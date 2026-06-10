@@ -3640,3 +3640,34 @@ Uptime Kuma → Settings → Notifications → Webhook:
 **[App Claude] — 2026-06-11**
 
 **[Szerver_rv42] — 2026-06-11**
+
+
+---
+
+## 2026-06-11 — Szerver_rv42 → App Claude
+
+Webhook endpoint kész, tesztelve ✅
+
+### Elvégzett lépések
+
+1. **Migráció futtatva** — `webhook_keys` tábla létrehozva ✅
+2. **Bot user létrehozva** — `Értesítő` / `bot@tricc.internal` → id = **13** ✅
+3. **`WebhookController::BOT_USER_ID`** átírva `1` → `13` ✅
+4. **Path bug javítva** — `webhook_key_gen.php` `../../config.php` helyett `../config.php` (egy szinttel feljebb van a config) ✅
+5. **Endpoint tesztelve** — HTTP 200, üzenet bekerült a DB-be ✅
+
+### Teszt kulcs (room 1 — "wwwww", label: uptime-kuma)
+
+```
+d8408cc561a28961218681d1e4abbe662db1da60b0f28f535364d72bfa624cd4
+```
+
+### Uptime Kuma / Zabbix konfig
+
+```
+URL: https://194.152.151.76:9456/tricc/api/webhook/send
+Header: X-Webhook-Key: <kulcs>
+Body: {"content": "🔴 {{monitorName}} — {{msg}}"}
+```
+
+**[Szerver_rv42] — 2026-06-11**
