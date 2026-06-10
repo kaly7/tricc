@@ -9,7 +9,6 @@ class CallService {
   factory CallService() => _i;
   CallService._();
 
-  // Set from main.dart for navigation
   void Function()? onIncomingCall;
   void Function()? onCallStarted;
   void Function()? onCallEnded;
@@ -25,6 +24,8 @@ class CallService {
   bool _muted = false;
   bool _speakerOn = true;
 
+  // ICE buffering: candidates csak setRemoteDescription UTÁN adhatók hozzá
+  bool _remoteDescSet = false;
   Map<String, dynamic>? _pendingSdpOffer;
   final _pendingIce = <Map<String, dynamic>>[];
 
@@ -41,7 +42,7 @@ class CallService {
   void init() {
     _wsSub?.cancel();
     _wsSub = WsService().events.listen((msg) {
-      _onWsEvent(msg).catchError((e) {
+      _onWsEvent(msg).catchError((_) {
         _endCallLocal();
         onCallEnded?.call();
       });
@@ -75,24 +76,16 @@ class CallService {
           try {
             await _initWebRTC(isCaller: true);
             _setState(CallState.active);
-          } catch (e) {
+          } catch (_) {
             _endCallLocal();
             onCallEnded?.call();
           }
         }
         break;
       case 'call_rejected':
-        _endCallLocal();
-        break;
       case 'call_cancelled':
-        _endCallLocal();
-        break;
       case 'call_ended':
-        _endCallLocal();
-        break;
       case 'call_timeout':
-        _endCallLocal();
-        break;
       case 'call_error':
         _endCallLocal();
         break;
@@ -104,15 +97,18 @@ class CallService {
         }
         break;
       case 'sdp_answer':
-        if (_pc != null) {
+        if (_pc != null && !_remoteDescSet) {
           final sdp = msg['sdp'] as Map;
           await _pc!.setRemoteDescription(
             RTCSessionDescription(sdp['sdp'] as String, sdp['type'] as String),
           );
+          _remoteDescSet = true;
+          await _flushPendingIce();
         }
         break;
       case 'ice_candidate':
-        if (_pc == null) {
+        // Puffer: setRemoteDescription előtt nem lehet addCandidate-et hívni
+        if (_pc == null || !_remoteDescSet) {
           _pendingIce.add(msg);
         } else {
           await _handleIceCandidate(msg);
@@ -126,15 +122,28 @@ class CallService {
     await _pc!.setRemoteDescription(
       RTCSessionDescription(sdp['sdp'] as String, sdp['type'] as String),
     );
+    _remoteDescSet = true;
+    // ICE kandidátok kiadása most hogy remote desc be van állítva
+    await _flushPendingIce();
     final answer = await _pc!.createAnswer();
     await _pc!.setLocalDescription(answer);
     WsService().sendJson({'type': 'sdp_answer', 'call_id': _callId, 'sdp': answer.toMap()});
   }
 
+  Future<void> _flushPendingIce() async {
+    final candidates = List<Map<String, dynamic>>.from(_pendingIce);
+    _pendingIce.clear();
+    for (final c in candidates) {
+      await _handleIceCandidate(c);
+    }
+  }
+
   Future<void> _handleIceCandidate(Map<String, dynamic> msg) async {
     final c = msg['candidate'] as Map;
+    final candidateStr = c['candidate'] as String?;
+    if (candidateStr == null || candidateStr.isEmpty) return;
     await _pc!.addCandidate(RTCIceCandidate(
-      c['candidate'] as String?,
+      candidateStr,
       c['sdpMid'] as String?,
       (c['sdpMLineIndex'] as num?)?.toInt(),
     ));
@@ -199,6 +208,8 @@ class CallService {
     _pc = await createPeerConnection({
       'iceServers': [
         {'urls': 'stun:stun.l.google.com:19302'},
+        {'urls': 'stun:stun1.l.google.com:19302'},
+        {'urls': 'stun:stun2.l.google.com:19302'},
       ],
       'sdpSemantics': 'unified-plan',
     });
@@ -208,7 +219,7 @@ class CallService {
     });
 
     _pc!.onIceCandidate = (candidate) {
-      if (candidate.candidate != null && _callId != null) {
+      if (candidate.candidate != null && candidate.candidate!.isNotEmpty && _callId != null) {
         WsService().sendJson({
           'type': 'ice_candidate',
           'call_id': _callId,
@@ -224,14 +235,12 @@ class CallService {
     _pc!.onConnectionState = (state) {
       if (state == RTCPeerConnectionState.RTCPeerConnectionStateConnected) {
         Helper.setSpeakerphoneOn(_speakerOn);
-        if (_state != CallState.active) {
-          _setState(CallState.active);
-        }
+        if (_state != CallState.active) _setState(CallState.active);
       } else if (state == RTCPeerConnectionState.RTCPeerConnectionStateFailed) {
-        // disconnected = átmeneti (ICE tárgyalás közben normális), csak failed = vége
         _endCallLocal();
         onCallEnded?.call();
       }
+      // disconnected = átmeneti állapot ICE tárgyalás közben, nem zárjuk le
     };
 
     if (isCaller) {
@@ -243,14 +252,13 @@ class CallService {
         'sdp': offer.toMap(),
       });
     } else {
+      // Ha sdp_offer már megérkezett mielőtt _pc létrejött
       if (_pendingSdpOffer != null) {
         await _handleSdpOffer(_pendingSdpOffer!);
         _pendingSdpOffer = null;
       }
-      for (final c in List<Map<String, dynamic>>.from(_pendingIce)) {
-        await _handleIceCandidate(c);
-      }
-      _pendingIce.clear();
+      // Ha sdp_offer megérkezett és _handleSdpOffer már lefutott (concurrent),
+      // a _pendingIce ott lett kiadva — itt már üres lesz
     }
   }
 
@@ -270,6 +278,7 @@ class CallService {
     _isCaller = false;
     _muted = false;
     _speakerOn = true;
+    _remoteDescSet = false;
     _pendingSdpOffer = null;
     _pendingIce.clear();
   }
