@@ -15,7 +15,7 @@ $path   = rtrim($path, '/') ?: '/';
 $segs   = explode('/', ltrim($path, '/'));
 
 use Tricc\Response;
-use Tricc\Controllers\{AuthController, RoomController, MessageController, UploadController, PushController, AdminController};
+use Tricc\Controllers\{AuthController, RoomController, MessageController, UploadController, PushController, AdminController, WebhookController};
 
 try {
     match(true) {
@@ -82,6 +82,9 @@ try {
         $method === 'POST'   && $path === '/admin/invites'                               => AdminController::createInvite(),
         $method === 'DELETE' && preg_match('#^/admin/invites/(\d+)$#', $path, $m) > 0
                                                                                          => AdminController::deleteInvite((int)$m[1]),
+
+        // Webhook
+        $method === 'POST' && $path === '/webhook/send' => WebhookController::send(),
 
         default => Response::abort(404, 'Végpont nem található: ' . $method . ' ' . $path),
     };

@@ -290,7 +290,7 @@ class MessageController {
         } catch (\Throwable) {}
     }
 
-    private static function pushToMembers(int $room_id, int $sender_id, array $msg, int $msg_id): void {
+    public static function pushToMembers(int $room_id, int $sender_id, array $msg, int $msg_id): void {
         $db = DB::get();
         $sender = $db->prepare("SELECT name FROM users WHERE id=?");
         $sender->execute([$sender_id]);
@@ -352,7 +352,7 @@ class MessageController {
         } catch (\Throwable) {}
     }
 
-    private static function wsBroadcast(int $room_id, array $message): void {
+    public static function wsBroadcast(int $room_id, array $message): void {
         try {
             $sock = @stream_socket_client('tcp://127.0.0.1:9455', $errno, $errstr, 0.3);
             if ($sock) {

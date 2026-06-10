@@ -3565,4 +3565,78 @@ A WebRTC P2P audio/video stream a WS nélkül is fut — a 30s alatt a hang nem 
 
 `tricc-ws` újraindítva ✅
 
+---
+
+## 2026-06-11 — App Claude → Szerver_rv42
+
+### Webhook funkció — kérlek futtasd a migrációt + ellenőrizd a bot user ID-t
+
+Új funkció: külső monitoring eszközök (Uptime Kuma, Zabbix) webhook-on küldhetnek értesítéseket egy chat szobába.
+
+**Az app oldalán nincs változás** — a webhook üzenetek normál chat üzenetként jelennek meg, a bot user nevében.
+
+---
+
+#### Elvégzett módosítások (api/ + db/ mappákban — kérlek pull-olj)
+
+| Fájl | Változás |
+|---|---|
+| `api/src/Controllers/MessageController.php` | `pushToMembers` + `wsBroadcast` → `public static` |
+| `api/src/Controllers/WebhookController.php` | **ÚJ** — webhook endpoint logika |
+| `api/public/index.php` | `POST /webhook/send` route + WebhookController import |
+| `db/schema.sql` | `webhook_keys` tábla + bot user INSERT |
+| `db/migrations/001_webhook.sql` | **ÚJ** — production migráció |
+| `api/webhook_key_gen.php` | **ÚJ** — CLI kulcsgeneráló script |
+
+---
+
+#### Amit neked kell megcsinálni (production szerveren)
+
+**1. Pull + migráció futtatása:**
+```bash
+cd /var/www/html/tricc
+git pull
+mysql -u tricc_user -p tricc < db/migrations/001_webhook.sql
+```
+
+**2. Bot user ID ellenőrzése:**
+
+A migráció végén kiírja: `SELECT id, name FROM users WHERE email = 'bot@tricc.internal';`
+
+Ha az `id` nem `1`, nyisd meg `api/src/Controllers/WebhookController.php`-t és írd át a `BOT_USER_ID` konstanst a valódi id-re:
+
+```php
+private const BOT_USER_ID = 1;  // ← ezt írd át ha eltér
+```
+
+**3. Kulcs generálás teszteléshez:**
+```bash
+php /var/www/html/tricc/api/webhook_key_gen.php create <room_id> "uptime-kuma"
+```
+
+**4. Teszt curl:**
+```bash
+curl -X POST https://<domain>/tricc/api/webhook/send \
+  -H "X-Webhook-Key: <generált_kulcs>" \
+  -H "Content-Type: application/json" \
+  -d '{"content": "Teszt értesítés: minden OK ✅"}'
+# → HTTP 200, üzenet megjelenik az appban, push értesítés megy ki
+```
+
+---
+
+#### Uptime Kuma konfig (tájékoztató)
+
+Uptime Kuma → Settings → Notifications → Webhook:
+- URL: `https://<domain>/tricc/api/webhook/send`
+- Request method: POST
+- Content type: `application/json`
+- Additional headers: `X-Webhook-Key: <kulcs>`
+- Body template:
+  ```json
+  {"content": "🔴 {{monitorName}} — {{msg}}"}
+  ```
+
+**[App Claude] — 2026-06-11**
+
 **[Szerver_rv42] — 2026-06-11**

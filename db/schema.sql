@@ -98,7 +98,21 @@ CREATE TABLE IF NOT EXISTS message_deliveries (
     FOREIGN KEY (user_id)    REFERENCES users(id)    ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+CREATE TABLE IF NOT EXISTS webhook_keys (
+    id          INT          NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    api_key     VARCHAR(64)  NOT NULL UNIQUE,
+    room_id     INT          NOT NULL,
+    label       VARCHAR(100) NOT NULL DEFAULT '',
+    created_at  DATETIME     NOT NULL DEFAULT NOW(),
+    FOREIGN KEY (room_id) REFERENCES rooms(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- Alapértelmezett admin
 INSERT INTO invite_codes (code, created_by, expires_at)
 VALUES ('TRICC-ADMIN-0001', NULL, DATE_ADD(NOW(), INTERVAL 30 DAY))
+ON DUPLICATE KEY UPDATE id=id;
+
+-- Webhook bot user (értesítések küldője)
+INSERT INTO users (name, email, password, avatar_url, invite_code, is_admin, is_active)
+VALUES ('Értesítő', 'bot@tricc.internal', '', '', '', 0, 1)
 ON DUPLICATE KEY UPDATE id=id;
