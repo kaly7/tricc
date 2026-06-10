@@ -42,6 +42,7 @@ class WsService {
   }
 
   Future<void> connect() async {
+    if (_state == WsState.connected) return;
     _intentionalDisconnect = false;
     _setState(WsState.connecting);
     await _doConnect();

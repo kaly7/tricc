@@ -109,7 +109,7 @@ class _TriccAppState extends State<TriccApp> with WidgetsBindingObserver {
     final callerName = data['caller_name'] as String? ?? 'Ismeretlen';
     if (callId == null || callerId == null) return;
     if (!AuthService().isLoggedIn) return;
-    WsService().connect();
+    if (!WsService().isConnected) WsService().connect();
     CallService().handleIncomingCallPush(
       callId: callId,
       callerId: callerId,
