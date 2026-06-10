@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'services/api_service.dart';
 import 'services/auth_service.dart';
 import 'services/call_service.dart';
@@ -16,6 +17,14 @@ import 'app_theme.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
+// Android background/killed állapotban érkező FCM üzenet kezelő
+@pragma('vm:entry-point')
+Future<void> _firebaseBackgroundHandler(RemoteMessage message) async {
+  await Firebase.initializeApp();
+  // A UI-t nem tudjuk kezelni itt — a rendszer megmutatja az értesítést,
+  // a user tapra onMessageOpenedApp fut le az app indulásakor
+}
+
 class _DevHttpOverrides extends HttpOverrides {
   @override
   HttpClient createHttpClient(SecurityContext? context) {
@@ -27,7 +36,10 @@ class _DevHttpOverrides extends HttpOverrides {
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   HttpOverrides.global = _DevHttpOverrides();
-  if (Platform.isAndroid) await Firebase.initializeApp();
+  if (Platform.isAndroid) {
+    await Firebase.initializeApp();
+    FirebaseMessaging.onBackgroundMessage(_firebaseBackgroundHandler);
+  }
   await AuthService().init();
   await SettingsService().init();
   runApp(const TriccApp());
@@ -69,7 +81,40 @@ class _TriccAppState extends State<TriccApp> with WidgetsBindingObserver {
       );
     };
     svc.onCallEnded = () {};
+    svc.onCallError = (msg) {
+      final ctx = navigatorKey.currentContext;
+      if (ctx != null) {
+        ScaffoldMessenger.of(ctx).showSnackBar(
+          SnackBar(content: Text(msg), duration: const Duration(seconds: 3)),
+        );
+      }
+    };
     svc.init();
+
+    // Push értesítésből érkező hívás kezelése
+    PushService().onNotificationTap = _handleCallPush;
+
+    // Killed állapotból push tapra induló app
+    if (Platform.isAndroid) {
+      FirebaseMessaging.instance.getInitialMessage().then((msg) {
+        if (msg != null) _handleCallPush(msg.data);
+      });
+    }
+  }
+
+  void _handleCallPush(Map<String, dynamic> data) {
+    if (data['type'] != 'incoming_call') return;
+    final callId = data['call_id'] as String?;
+    final callerId = int.tryParse(data['caller_id']?.toString() ?? '');
+    final callerName = data['caller_name'] as String? ?? 'Ismeretlen';
+    if (callId == null || callerId == null) return;
+    if (!AuthService().isLoggedIn) return;
+    WsService().connect();
+    CallService().handleIncomingCallPush(
+      callId: callId,
+      callerId: callerId,
+      callerName: callerName,
+    );
   }
 
   void _onSettingsChanged() => setState(() {});

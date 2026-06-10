@@ -47,6 +47,10 @@ class PushService {
 
     messaging.onTokenRefresh.listen((t) => _saveAndRegister(t, platform: 'android'));
 
+    FirebaseMessaging.onMessage.listen((msg) {
+      if (msg.data.isNotEmpty) onNotificationTap?.call(msg.data);
+    });
+
     FirebaseMessaging.onMessageOpenedApp.listen((msg) {
       final data = msg.data;
       if (data.isNotEmpty) onNotificationTap?.call(data);

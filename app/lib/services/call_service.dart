@@ -12,6 +12,7 @@ class CallService {
   void Function()? onIncomingCall;
   void Function()? onCallStarted;
   void Function()? onCallEnded;
+  void Function(String)? onCallError;
 
   RTCPeerConnection? _pc;
   MediaStream? _localStream;
@@ -61,6 +62,8 @@ class CallService {
         break;
       case 'incoming_call':
         if (_state != CallState.idle) {
+          // Ha a push már beállította ugyanezt a hívást, nem duplikálunk
+          if ((msg['call_id'] as String?) == _callId) return;
           WsService().sendJson({'type': 'call_reject', 'call_id': msg['call_id']});
           return;
         }
@@ -86,8 +89,14 @@ class CallService {
       case 'call_cancelled':
       case 'call_ended':
       case 'call_timeout':
+        if (_state != CallState.idle) _endCallLocal();
+        break;
       case 'call_error':
-        _endCallLocal();
+        if (_state != CallState.idle) {
+          final message = msg['message'] as String? ?? 'A felhasználó nem elérhető';
+          _endCallLocal();
+          onCallError?.call(message);
+        }
         break;
       case 'sdp_offer':
         if (_pc == null) {
@@ -151,12 +160,35 @@ class CallService {
 
   Future<void> startCall(int targetUserId, String targetName) async {
     if (_state != CallState.idle) return;
+    // Mikrofon engedély előzetes lekérése — mielőtt bármilyen képernyő megjelenik.
+    // Ha itt blokkolódna a permission dialog, az még a chat képernyőn fog megjelenni,
+    // nem az ActiveCallScreen felett, ahol a getUserMedia csendben lefagyna.
+    try {
+      _localStream = await navigator.mediaDevices.getUserMedia({'audio': true, 'video': false});
+    } catch (_) {
+      return; // Engedély megtagadva — hívás nem indul
+    }
     _remoteUserId = targetUserId;
     _remoteUserName = targetName;
     _isCaller = true;
     _setState(CallState.calling);
     WsService().sendJson({'type': 'call_invite', 'target_user_id': targetUserId});
     onCallStarted?.call();
+  }
+
+  // Push értesítésből érkező hívás — WS megkerülésével
+  void handleIncomingCallPush({
+    required String callId,
+    required int callerId,
+    required String callerName,
+  }) {
+    if (_state != CallState.idle) return;
+    _callId = callId;
+    _remoteUserId = callerId;
+    _remoteUserName = callerName;
+    _isCaller = false;
+    _setState(CallState.ringing);
+    onIncomingCall?.call();
   }
 
   Future<void> acceptCall() async {
@@ -200,16 +232,22 @@ class CallService {
   }
 
   Future<void> _initWebRTC({required bool isCaller}) async {
-    _localStream = await navigator.mediaDevices.getUserMedia({
-      'audio': true,
-      'video': false,
-    });
+    // Ha startCall() már megszerezte a streamet (hívó eset), újrahasználjuk.
+    _localStream ??= await navigator.mediaDevices.getUserMedia({'audio': true, 'video': false});
 
     _pc = await createPeerConnection({
       'iceServers': [
-        {'urls': 'stun:stun.l.google.com:19302'},
-        {'urls': 'stun:stun1.l.google.com:19302'},
-        {'urls': 'stun:stun2.l.google.com:19302'},
+        {'urls': 'stun:194.152.151.76:3478'},
+        {
+          'urls': 'turn:194.152.151.76:3478',
+          'username': 'babl42turn',
+          'credential': 'n7N1GMCUeKdX-cTYbabx04_N994J2yPe',
+        },
+        {
+          'urls': 'turns:194.152.151.76:5349',
+          'username': 'babl42turn',
+          'credential': 'n7N1GMCUeKdX-cTYbabx04_N994J2yPe',
+        },
       ],
       'sdpSemantics': 'unified-plan',
     });
@@ -268,9 +306,13 @@ class CallService {
   }
 
   void _cleanup() {
-    _localStream?.dispose();
+    try {
+      _localStream?.getTracks().forEach((t) => t.stop());
+      _localStream?.dispose();
+    } catch (_) {}
     _localStream = null;
-    _pc?.dispose();
+    try { _pc?.close(); } catch (_) {}
+    try { _pc?.dispose(); } catch (_) {}
     _pc = null;
     _callId = null;
     _remoteUserId = null;
