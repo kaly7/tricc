@@ -57,6 +57,7 @@
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>remote-notification</string>
+		<string>audio</string>
 	</array>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Képek küldéséhez és avatar feltöltéséhez szükséges.</string>

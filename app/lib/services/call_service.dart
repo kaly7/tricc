@@ -23,7 +23,7 @@ class CallService {
   String? _remoteUserName;
   bool _isCaller = false;
   bool _muted = false;
-  bool _speakerOn = true;
+  bool _speakerOn = false;
 
   // ICE buffering: candidates csak setRemoteDescription UTÁN adhatók hozzá
   bool _remoteDescSet = false;

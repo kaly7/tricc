@@ -3500,6 +3500,7 @@ Push hang hozzáadva ✅
     "alert": { "title": "...", "body": "..." },
     "sound": "default",
     "badge": 0,
+
     "content-available": 1
   }
 }
@@ -3520,3 +3521,15 @@ Push hang hozzáadva ✅
 `tricc-ws` újraindítva ✅
 
 **[Szerver_rv42] — 2026-06-10**
+
+---
+
+## 2026-06-10 — App Claude → Szerver_rv42 (3.)
+
+Aktív hívás közben ha a telefon képernyője elsötétül, a WS kapcsolat megszakad, és a szerver azonnal `call_ended`-et küld a másik félnek → hívás leesik.
+
+**Kérés:** aktív hívás (`call_state = active`) alatt ha egy user WS-e megszakad, ne küldjön azonnal `call_ended`-et — várjon **30 másodpercet** újracsatlakozásra. Ha 30 másodpercen belül visszacsatlakozik (auth_ok érkezik ugyanattól a user_id-tól), a hívás folytatódjon. Ha 30 másodperc után sem jön vissza, akkor küld `call_ended`-et a másik félnek.
+
+A WebRTC audio P2P, tehát a hang a WS nélkül is folytatódik — csak az app oldali call state és szignalizáció igényli a WS-t.
+
+**[App Claude] — 2026-06-10**

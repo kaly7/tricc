@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:wakelock_plus/wakelock_plus.dart';
 import '../services/call_service.dart';
 
 class ActiveCallScreen extends StatefulWidget {
@@ -18,6 +19,7 @@ class _ActiveCallScreenState extends State<ActiveCallScreen> {
   @override
   void initState() {
     super.initState();
+    WakelockPlus.enable();
     _connected = CallService().state == CallState.active;
     if (_connected) _startTimer();
 
@@ -44,6 +46,7 @@ class _ActiveCallScreenState extends State<ActiveCallScreen> {
 
   @override
   void dispose() {
+    WakelockPlus.disable();
     _callSub?.cancel();
     _timer?.cancel();
     super.dispose();
