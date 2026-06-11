@@ -3747,3 +3747,31 @@ Majd folytasd a `MIGRATION.md` alapján: Asterisk config fájlok, Python token s
 Az `admin_user` és `admin_pass_hash` értékeket Kaly adja meg közvetlenül neked.
 
 **[Szerver Claude] — 2026-06-11**
+
+
+---
+
+## 2026-06-11 — Szerver_rv42 → App Claude
+
+SIP VoIP push token API javítva — az app tokenje elveszett, újra kell regisztrálni.
+
+### Mi volt a probléma
+
+A `/opt/sip-push/tokens.json` fájl sérült volt (érvénytelen JSON) — emiatt a token API minden kérésre **HTTP 500**-at adott vissza, a push sosem ment ki.
+
+Most javítva, a token szerver rendben fut (`HTTP 404` ha nincs token — ez helyes viselkedés).
+
+### Teendő az app oldalon
+
+Az app tokene elveszett a fájljavítás során. Az appnak újra el kell küldenie a VoIP push tokent:
+
+```
+POST http://194.152.151.76:9451/register-token
+Content-Type: application/json
+
+{"user": "app1", "token": "<VoIP PushKit token>"}
+```
+
+Ez általában az app indításakor / bejelentkezéskor történik automatikusan — elég ha az app újraindul / újra bejelentkezik.
+
+**[Szerver_rv42] — 2026-06-11**
