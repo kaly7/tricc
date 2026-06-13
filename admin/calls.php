@@ -8,8 +8,27 @@ use Firebase\JWT\JWT;
 // AJAX: JSON visszaadása
 if (isset($_GET['json'])) {
     header('Content-Type: application/json');
-    echo json_encode(['calls' => lkActiveCalls()]);
+    $calls = lkActiveCalls();
+    // ?debug=1 : nyers LiveKit adat is benne van (timestamp diagnosztikához)
+    if (isset($_GET['debug'])) {
+        echo json_encode(['calls' => $calls, '_raw' => lkRaw()]);
+    } else {
+        echo json_encode(['calls' => $calls]);
+    }
     exit;
+}
+
+function lkRaw(): array {
+    $cfg = require __DIR__ . '/../config.php';
+    $rooms = lkApi('ListRooms', [], $cfg);
+    $out = [];
+    foreach ($rooms['rooms'] ?? [] as $room) {
+        $raw_room = $room;
+        $parts = lkApi('ListParticipants', ['room' => $room['name']], $cfg, $room['name']);
+        $raw_room['_participants_raw'] = $parts['participants'] ?? [];
+        $out[] = $raw_room;
+    }
+    return $out;
 }
 
 function lkActiveCalls(): array {
@@ -34,18 +53,21 @@ function lkActiveCalls(): array {
             $st2 = $db->prepare("SELECT name FROM users WHERE id=?");
             $st2->execute([$userId]);
             $uName = $st2->fetchColumn() ?: ($p['name'] ?? 'user_' . $userId);
+            // joinedAt: protobuf int64 jöhet stringként vagy számként, snake_case variáns is lehetséges
+            $ts = (int)($p['joinedAt'] ?? $p['joined_at'] ?? 0);
             $participants[] = [
                 'user_id'   => $userId,
                 'user_name' => $uName,
-                'joined_at' => date('H:i:s', (int)($p['joinedAt'] ?? 0)),
+                'joined_at' => $ts > 0 ? date('H:i:s', $ts) : '–',
             ];
         }
 
+        $ts_room = (int)($room['creationTime'] ?? $room['creation_time'] ?? 0);
         $calls[] = [
             'room_id'      => $roomId,
             'room_name'    => $roomName,
             'participants' => $participants,
-            'started_at'   => date('H:i:s', (int)($room['creationTime'] ?? 0)),
+            'started_at'   => $ts_room > 0 ? date('H:i:s', $ts_room) : '–',
         ];
     }
 
