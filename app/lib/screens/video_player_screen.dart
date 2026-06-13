@@ -16,6 +16,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
   late VideoPlayerController _ctrl;
   bool _initialized = false;
   bool _showControls = true;
+  String? _error;
 
   @override
   void initState() {
@@ -28,14 +29,17 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
     _ctrl = VideoPlayerController.networkUrl(
       Uri.parse(widget.url),
       httpHeaders: {HttpHeaders.acceptHeader: '*/*'},
-    )..initialize().then((_) {
-        if (mounted) {
-          setState(() => _initialized = true);
-          _ctrl.play();
-        }
-      });
+    );
     _ctrl.addListener(() {
       if (mounted) setState(() {});
+    });
+    _ctrl.initialize().then((_) {
+      if (mounted) {
+        setState(() => _initialized = true);
+        _ctrl.play();
+      }
+    }).catchError((e) {
+      if (mounted) setState(() => _error = e.toString());
     });
   }
 
@@ -68,7 +72,21 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
           alignment: Alignment.center,
           children: [
             // Video
-            if (_initialized)
+            if (_error != null)
+              Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.error_outline, color: Colors.white54, size: 48),
+                      const SizedBox(height: 12),
+                      Text(_error!, style: const TextStyle(color: Colors.white54, fontSize: 13), textAlign: TextAlign.center),
+                    ],
+                  ),
+                ),
+              )
+            else if (_initialized)
               Center(
                 child: AspectRatio(
                   aspectRatio: _ctrl.value.aspectRatio,

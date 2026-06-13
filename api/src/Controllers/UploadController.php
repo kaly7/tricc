@@ -6,7 +6,7 @@ use Tricc\{Auth, Response};
 class UploadController {
     private const UPLOAD_DIR  = '/var/www/html/tricc/uploads/';
     private const PUBLIC_BASE = '/tricc/uploads/';
-    private const MAX_SIZE    = 20 * 1024 * 1024; // 20 MB
+    private const MAX_SIZE    = 100 * 1024 * 1024; // 100 MB
     private const ALLOWED_MIME = [
         'image/jpeg', 'image/png', 'image/gif', 'image/webp',
         'application/pdf',
@@ -25,7 +25,7 @@ class UploadController {
         if (empty($_FILES['file'])) Response::abort(400, 'Fájl nem érkezett.');
         $f = $_FILES['file'];
         if ($f['error'] !== UPLOAD_ERR_OK) Response::abort(400, 'Feltöltési hiba: ' . $f['error']);
-        if ($f['size'] > self::MAX_SIZE) Response::abort(413, 'A fájl túl nagy (max 20 MB).');
+        if ($f['size'] > self::MAX_SIZE) Response::abort(413, 'A fájl túl nagy (max 100 MB).');
 
         $mime = mime_content_type($f['tmp_name']);
         if (!in_array($mime, self::ALLOWED_MIME, true)) Response::abort(415, 'Nem engedélyezett fájltípus.');
