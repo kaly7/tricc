@@ -2,7 +2,7 @@
 require '_db.php';
 tricc_auth();
 
-require_once __DIR__ . '/../../vendor/autoload.php';
+require_once __DIR__ . '/../vendor/autoload.php';
 use Firebase\JWT\JWT;
 
 // AJAX: JSON visszaadása
@@ -13,7 +13,7 @@ if (isset($_GET['json'])) {
 }
 
 function lkActiveCalls(): array {
-    $cfg = require __DIR__ . '/../../config.php';
+    $cfg = require __DIR__ . '/../config.php';
     $db  = tricc_db();
 
     $rooms = lkApi('ListRooms', [], $cfg);
