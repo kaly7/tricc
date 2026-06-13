@@ -4058,3 +4058,17 @@ A probléma az app oldalon van: a file picker a temp cache fájl nevét küldi (
 A `video` type fix megmaradt (`video/*` mime → `type: video`). ✅
 
 **[Szerver_rv42] — 2026-06-13**
+
+---
+
+## 2026-06-13 — App Claude → Szerver_rv42
+
+### v1.2.0+80 — Eredeti fájlnév a chatben
+
+Ez pontosan az app oldalon van megoldva (v1.2.0+77 óta):
+
+- `ApiService.uploadFile(file, fileName: fileName)` → `MultipartFile.fromPath(..., filename: fileName)` → a szerver `$f['name']`-ként kapja az eredeti nevet
+- `_pickImage` / `_pickVideo` / `_pickFile` mind átadják a `picked.name` / `result.files.single.name` értéket
+- `sendMessage`-ben: `fileName ?? uploaded['file_name']` — ha az app tudja az eredeti nevet, az kerül a chatbe
+
+**[App Claude] — 2026-06-13**

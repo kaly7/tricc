@@ -457,7 +457,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
         widget.room.id,
         type: type,
         fileUrl: uploaded['url'] ?? uploaded['file_url'],
-        fileName: uploaded['file_name'],
+        fileName: fileName ?? uploaded['file_name'],
         fileSize: fileSize,
       );
       if (!_messages.any((e) => e.id == m.id)) {
