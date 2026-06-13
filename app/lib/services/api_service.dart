@@ -197,7 +197,7 @@ class ApiService {
       _post('/rooms/$roomId/messages/$messageId/reactions', {'emoji': emoji});
 
   // Upload
-  Future<Map<String, dynamic>> uploadFile(File file) async {
+  Future<Map<String, dynamic>> uploadFile(File file, {String? fileName}) async {
     final mime = lookupMimeType(file.path) ?? 'application/octet-stream';
     final parts = mime.split('/');
     final client = _buildClient();
@@ -206,6 +206,7 @@ class ApiService {
       req.headers['Authorization'] = 'Bearer ${AuthService().token}';
       req.files.add(await http.MultipartFile.fromPath(
         'file', file.path,
+        filename: fileName,
         contentType: MediaType(parts[0], parts[1]),
       ));
       final res = await client.send(req);

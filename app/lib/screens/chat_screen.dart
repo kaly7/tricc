@@ -401,7 +401,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     final size = await File(picked.path).length();
     final ok = await _confirmSend(picked.name, 'kép', size);
     if (ok != true) return;
-    await _uploadAndSend(File(picked.path), 'image');
+    await _uploadAndSend(File(picked.path), 'image', fileName: picked.name);
   }
 
   Future<void> _pickFile() async {
@@ -410,7 +410,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     final size = await File(result.files.single.path!).length();
     final ok = await _confirmSend(result.files.single.name, 'fájl', size);
     if (ok != true) return;
-    await _uploadAndSend(File(result.files.single.path!), 'file');
+    await _uploadAndSend(File(result.files.single.path!), 'file', fileName: result.files.single.name);
   }
 
   Future<void> _pickVideo() async {
@@ -425,7 +425,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     }
     final ok = await _confirmSend(picked.name, 'videó', size);
     if (ok != true) return;
-    await _uploadAndSend(file, 'video');
+    await _uploadAndSend(file, 'video', fileName: picked.name);
   }
 
   Future<bool?> _confirmSend(String name, String label, int size) => showDialog<bool>(
@@ -448,11 +448,11 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     ),
   );
 
-  Future<void> _uploadAndSend(File file, String type) async {
+  Future<void> _uploadAndSend(File file, String type, {String? fileName}) async {
     final fileSize = await file.length();
     setState(() => _sending = true);
     try {
-      final uploaded = await ApiService().uploadFile(file);
+      final uploaded = await ApiService().uploadFile(file, fileName: fileName);
       final m = await ApiService().sendMessage(
         widget.room.id,
         type: type,
@@ -618,7 +618,21 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                 title: const Text('Megnyitás'),
                 onTap: () { Navigator.pop(context); _openImageFullscreen(message.fileUrl ?? ''); },
               ),
-            if (message.type == 'file' || message.type == 'image')
+            if (message.type == 'video')
+              ListTile(
+                leading: const Icon(Icons.play_circle_outline, color: kBlue),
+                title: const Text('Lejátszás'),
+                onTap: () {
+                  Navigator.pop(context);
+                  Navigator.push(context, MaterialPageRoute(
+                    builder: (_) => VideoPlayerScreen(
+                      url: '${ApiService.fileBase}${message.fileUrl ?? ''}',
+                      title: message.fileName ?? 'Videó',
+                    ),
+                  ));
+                },
+              ),
+            if (message.type == 'file' || message.type == 'image' || message.type == 'video')
               ListTile(
                 leading: const Icon(Icons.download_outlined, color: kBlue),
                 title: const Text('Letöltés'),
