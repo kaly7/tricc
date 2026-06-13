@@ -394,23 +394,34 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     _msgCtrl.selection = TextSelection.fromPosition(TextPosition(offset: _msgCtrl.text.length));
   }
 
+  static String _stampedName(String path, String prefix) {
+    final ext = path.contains('.') ? path.split('.').last.toLowerCase() : 'dat';
+    final now = DateTime.now();
+    final ts = '${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}'
+        '_${now.hour.toString().padLeft(2, '0')}${now.minute.toString().padLeft(2, '0')}${now.second.toString().padLeft(2, '0')}';
+    return '$prefix$ts.$ext';
+  }
+
   Future<void> _pickImage() async {
     final picker = ImagePicker();
     final picked = await picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
     if (picked == null) return;
-    final size = await File(picked.path).length();
-    final ok = await _confirmSend(picked.name, 'kép', size);
+    final file = File(picked.path);
+    final size = await file.length();
+    final name = _stampedName(picked.path, 'kep_');
+    final ok = await _confirmSend(name, 'kép', size);
     if (ok != true) return;
-    await _uploadAndSend(File(picked.path), 'image', fileName: picked.name);
+    await _uploadAndSend(file, 'image', fileName: name);
   }
 
   Future<void> _pickFile() async {
     final result = await FilePicker.platform.pickFiles();
     if (result == null || result.files.single.path == null) return;
     final size = await File(result.files.single.path!).length();
-    final ok = await _confirmSend(result.files.single.name, 'fájl', size);
+    final name = result.files.single.name;
+    final ok = await _confirmSend(name, 'fájl', size);
     if (ok != true) return;
-    await _uploadAndSend(File(result.files.single.path!), 'file', fileName: result.files.single.name);
+    await _uploadAndSend(File(result.files.single.path!), 'file', fileName: name);
   }
 
   Future<void> _pickVideo() async {
@@ -423,9 +434,10 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('A videó túl nagy (max 100 MB)')));
       return;
     }
-    final ok = await _confirmSend(picked.name, 'videó', size);
+    final name = _stampedName(picked.path, 'video_');
+    final ok = await _confirmSend(name, 'videó', size);
     if (ok != true) return;
-    await _uploadAndSend(file, 'video', fileName: picked.name);
+    await _uploadAndSend(file, 'video', fileName: name);
   }
 
   Future<bool?> _confirmSend(String name, String label, int size) => showDialog<bool>(
