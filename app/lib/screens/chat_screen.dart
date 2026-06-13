@@ -23,6 +23,7 @@ import '../widgets/ws_status_bar.dart' show WsDot, PresenceDot, showAvatarDialog
 import '../services/call_service.dart';
 import 'room_search_screen.dart';
 import 'room_media_screen.dart';
+import 'video_player_screen.dart';
 
 class ChatScreen extends StatefulWidget {
   final Room room;
@@ -410,6 +411,21 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     final ok = await _confirmSend(result.files.single.name, 'fájl', size);
     if (ok != true) return;
     await _uploadAndSend(File(result.files.single.path!), 'file');
+  }
+
+  Future<void> _pickVideo() async {
+    final picker = ImagePicker();
+    final picked = await picker.pickVideo(source: ImageSource.gallery, maxDuration: const Duration(minutes: 2));
+    if (picked == null) return;
+    final file = File(picked.path);
+    final size = await file.length();
+    if (size > 100 * 1024 * 1024) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('A videó túl nagy (max 100 MB)')));
+      return;
+    }
+    final ok = await _confirmSend(picked.name, 'videó', size);
+    if (ok != true) return;
+    await _uploadAndSend(file, 'video');
   }
 
   Future<bool?> _confirmSend(String name, String label, int size) => showDialog<bool>(
@@ -882,7 +898,9 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
             ? Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(_title),
+                  Flexible(
+                    child: Text(_title, overflow: TextOverflow.ellipsis),
+                  ),
                   const SizedBox(width: 6),
                   PresenceDot(userId: _room.otherUserId(AuthService().userId ?? 0)),
                 ],
@@ -1080,6 +1098,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
             onSend: _sendText,
             onImage: _pickImage,
             onFile: _pickFile,
+            onVideo: _pickVideo,
           ),
         ],
       ),
@@ -1284,13 +1303,23 @@ class _RoomInfoSheetState extends State<_RoomInfoSheet> {
                 children: [
                   PresenceDot(userId: u.id),
                   const SizedBox(width: 4),
-                  if (u.id != me)
+                  if (u.id != me) ...[
+                    IconButton(
+                      icon: const Icon(Icons.call, color: Colors.green),
+                      tooltip: 'Hívás',
+                      onPressed: CallService().state == CallState.idle
+                          ? () async {
+                              Navigator.of(context).pop();
+                              await CallService().startCall(u.id, u.name);
+                            }
+                          : null,
+                    ),
                     IconButton(
                       icon: const Icon(Icons.message_outlined, color: kBlue),
                       tooltip: 'Üzenet küldése',
                       onPressed: () => widget.onDirectMessage(u.id),
-                    )
-                  else
+                    ),
+                  ] else
                     const Padding(
                       padding: EdgeInsets.symmetric(horizontal: 8),
                       child: Text('(én)', style: TextStyle(color: Colors.grey, fontSize: 12)),
@@ -1607,6 +1636,8 @@ class _MessageBubbleState extends State<_MessageBubble>
         return _ImageBubble(fileUrl: message.fileUrl ?? '', isMine: isMine);
       case 'file':
         return _FileBubble(fileName: message.fileName ?? 'Fájl', fileUrl: message.fileUrl ?? '', isMine: isMine, fileSize: message.fileSize);
+      case 'video':
+        return _VideoBubble(fileName: message.fileName ?? 'Videó', fileUrl: message.fileUrl ?? '', fileSize: message.fileSize);
       case 'link':
         return GestureDetector(
           onTap: () => _confirmOpenLink(context, message.content ?? ''),
@@ -1765,6 +1796,64 @@ class _MiniAvatar extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+// Videó buborék — lejátszás gomb + fájlnév + méret
+class _VideoBubble extends StatelessWidget {
+  final String fileName;
+  final String fileUrl;
+  final int? fileSize;
+  static String get _serverBase => ApiService.fileBase;
+  const _VideoBubble({required this.fileName, required this.fileUrl, this.fileSize});
+
+  String get fullUrl => '$_serverBase$fileUrl';
+
+  @override
+  Widget build(BuildContext context) {
+    final width = MediaQuery.of(context).size.width * 0.65;
+    return GestureDetector(
+      onTap: () => Navigator.push(context, MaterialPageRoute(
+        builder: (_) => VideoPlayerScreen(url: fullUrl, title: fileName),
+      )),
+      child: Container(
+        width: width,
+        height: width * 0.56,
+        decoration: BoxDecoration(
+          color: Colors.black87,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            const Icon(Icons.play_circle_fill, color: Colors.white, size: 56),
+            Positioned(
+              bottom: 0,
+              left: 0,
+              right: 0,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: const BoxDecoration(
+                  color: Colors.black54,
+                  borderRadius: BorderRadius.vertical(bottom: Radius.circular(12)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.videocam, color: Colors.white70, size: 14),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(fileName, style: const TextStyle(color: Colors.white, fontSize: 12), overflow: TextOverflow.ellipsis),
+                    ),
+                    if (fileSize != null)
+                      Text(_formatBytes(fileSize!), style: const TextStyle(color: Colors.white54, fontSize: 11)),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -2099,7 +2188,8 @@ class _InputBar extends StatelessWidget {
   final VoidCallback onSend;
   final VoidCallback onImage;
   final VoidCallback onFile;
-  const _InputBar({required this.controller, required this.sending, required this.onSend, required this.onImage, required this.onFile});
+  final VoidCallback onVideo;
+  const _InputBar({required this.controller, required this.sending, required this.onSend, required this.onImage, required this.onFile, required this.onVideo});
 
   @override
   Widget build(BuildContext context) {
@@ -2114,6 +2204,7 @@ class _InputBar extends StatelessWidget {
         child: Row(
           children: [
             IconButton(icon: const Icon(Icons.image_outlined), onPressed: sending ? null : onImage),
+            IconButton(icon: const Icon(Icons.videocam_outlined), onPressed: sending ? null : onVideo),
             IconButton(icon: const Icon(Icons.attach_file), onPressed: sending ? null : onFile),
             Expanded(
               child: TextField(

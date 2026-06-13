@@ -9,6 +9,7 @@ import '../models/room.dart';
 import '../models/message.dart';
 import '../services/api_service.dart';
 import '../app_theme.dart';
+import 'video_player_screen.dart';
 
 class RoomMediaScreen extends StatefulWidget {
   final Room room;
@@ -22,6 +23,7 @@ class _RoomMediaScreenState extends State<RoomMediaScreen> with SingleTickerProv
   late final TabController _tab;
   List<Message> _images = [];
   List<Message> _files = [];
+  List<Message> _videos = [];
   bool _loading = true;
   String? _error;
 
@@ -30,7 +32,7 @@ class _RoomMediaScreenState extends State<RoomMediaScreen> with SingleTickerProv
   @override
   void initState() {
     super.initState();
-    _tab = TabController(length: 2, vsync: this);
+    _tab = TabController(length: 3, vsync: this);
     _load();
   }
 
@@ -47,7 +49,8 @@ class _RoomMediaScreenState extends State<RoomMediaScreen> with SingleTickerProv
       if (mounted) {
         setState(() {
           _images = media.where((m) => m.type == 'image').toList();
-          _files = media.where((m) => m.type == 'file').toList();
+          _files  = media.where((m) => m.type == 'file').toList();
+          _videos = media.where((m) => m.type == 'video').toList();
           _loading = false;
         });
       }
@@ -57,8 +60,7 @@ class _RoomMediaScreenState extends State<RoomMediaScreen> with SingleTickerProv
   }
 
   static http.Client _buildClient() {
-    final ctx = SecurityContext.defaultContext;
-    final inner = HttpClient(context: ctx)..badCertificateCallback = (_, __, ___) => true;
+    final inner = HttpClient()..badCertificateCallback = (_, __, ___) => true;
     return IOClient(inner);
   }
 
@@ -84,6 +86,15 @@ class _RoomMediaScreenState extends State<RoomMediaScreen> with SingleTickerProv
     ));
   }
 
+  void _openVideo(Message msg) {
+    Navigator.push(context, MaterialPageRoute(
+      builder: (_) => VideoPlayerScreen(
+        url: '$_serverBase${msg.fileUrl}',
+        title: msg.fileName ?? 'Videó',
+      ),
+    ));
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -93,6 +104,7 @@ class _RoomMediaScreenState extends State<RoomMediaScreen> with SingleTickerProv
           controller: _tab,
           tabs: [
             Tab(text: 'Képek${_images.isNotEmpty ? ' (${_images.length})' : ''}'),
+            Tab(text: 'Videók${_videos.isNotEmpty ? ' (${_videos.length})' : ''}'),
             Tab(text: 'Fájlok${_files.isNotEmpty ? ' (${_files.length})' : ''}'),
           ],
         ),
@@ -117,7 +129,7 @@ class _RoomMediaScreenState extends State<RoomMediaScreen> with SingleTickerProv
                 )
               : TabBarView(
                   controller: _tab,
-                  children: [_buildImages(), _buildFiles()],
+                  children: [_buildImages(), _buildVideos(), _buildFiles()],
                 ),
     );
   }
@@ -159,6 +171,55 @@ class _RoomMediaScreenState extends State<RoomMediaScreen> with SingleTickerProv
     );
   }
 
+  Widget _buildVideos() {
+    if (_videos.isEmpty) {
+      return RefreshIndicator(
+        onRefresh: _load,
+        child: ListView(children: const [
+          SizedBox(height: 120),
+          Center(child: Text('Nincs videó ebben a szobában.', style: TextStyle(color: Colors.grey))),
+        ]),
+      );
+    }
+    return RefreshIndicator(
+      onRefresh: _load,
+      child: GridView.builder(
+        padding: const EdgeInsets.all(4),
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 2, crossAxisSpacing: 3, mainAxisSpacing: 3,
+        ),
+        itemCount: _videos.length,
+        itemBuilder: (_, i) {
+          final msg = _videos[i];
+          final name = msg.fileName ?? 'Videó';
+          return GestureDetector(
+            onTap: () => _openVideo(msg),
+            child: Container(
+              decoration: BoxDecoration(color: Colors.black87, borderRadius: BorderRadius.circular(8)),
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  const Icon(Icons.play_circle_fill, color: Colors.white, size: 40),
+                  Positioned(
+                    bottom: 0, left: 0, right: 0,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: const BoxDecoration(
+                        color: Colors.black54,
+                        borderRadius: BorderRadius.vertical(bottom: Radius.circular(8)),
+                      ),
+                      child: Text(name, style: const TextStyle(color: Colors.white, fontSize: 11), overflow: TextOverflow.ellipsis),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
   Widget _buildFiles() {
     if (_files.isEmpty) {
       return RefreshIndicator(
@@ -172,25 +233,25 @@ class _RoomMediaScreenState extends State<RoomMediaScreen> with SingleTickerProv
     return RefreshIndicator(
       onRefresh: _load,
       child: ListView.separated(
-      itemCount: _files.length,
-      separatorBuilder: (_, __) => const Divider(height: 1),
-      itemBuilder: (_, i) {
-        final msg = _files[i];
-        final name = msg.fileName ?? 'Fájl';
-        final size = msg.fileSize != null ? _fmtBytes(msg.fileSize!) : '';
-        return ListTile(
-          leading: Container(
-            width: 42, height: 42,
-            decoration: BoxDecoration(color: kBlue.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
-            child: Icon(_fileIcon(name), color: kBlue, size: 22),
-          ),
-          title: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis),
-          subtitle: Text('${msg.userName}${size.isNotEmpty ? ' · $size' : ''}  ${_fmtDate(msg.createdAt)}',
-              style: const TextStyle(fontSize: 11, color: Colors.grey)),
-          trailing: const Icon(Icons.download_outlined, color: Colors.grey),
-          onTap: () => _openFile(msg),
-        );
-      },
+        itemCount: _files.length,
+        separatorBuilder: (_, __) => const Divider(height: 1),
+        itemBuilder: (_, i) {
+          final msg = _files[i];
+          final name = msg.fileName ?? 'Fájl';
+          final size = msg.fileSize != null ? _fmtBytes(msg.fileSize!) : '';
+          return ListTile(
+            leading: Container(
+              width: 42, height: 42,
+              decoration: BoxDecoration(color: kBlue.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
+              child: Icon(_fileIcon(name), color: kBlue, size: 22),
+            ),
+            title: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis),
+            subtitle: Text('${msg.userName}${size.isNotEmpty ? ' · $size' : ''}  ${_fmtDate(msg.createdAt)}',
+                style: const TextStyle(fontSize: 11, color: Colors.grey)),
+            trailing: const Icon(Icons.download_outlined, color: Colors.grey),
+            onTap: () => _openFile(msg),
+          );
+        },
       ),
     );
   }
@@ -204,7 +265,6 @@ class _RoomMediaScreenState extends State<RoomMediaScreen> with SingleTickerProv
       case 'ppt': case 'pptx': return Icons.slideshow;
       case 'zip': case 'rar': case '7z': return Icons.folder_zip;
       case 'mp3': case 'wav': case 'aac': return Icons.audio_file;
-      case 'mp4': case 'mov': case 'avi': return Icons.video_file;
       case 'txt': return Icons.text_snippet;
       default: return Icons.insert_drive_file_outlined;
     }

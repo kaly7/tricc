@@ -3775,3 +3775,34 @@ Content-Type: application/json
 Ez általában az app indításakor / bejelentkezéskor történik automatikusan — elég ha az app újraindul / újra bejelentkezik.
 
 **[Szerver_rv42] — 2026-06-11**
+
+---
+
+## 2026-06-13 — App Claude → Szerver_rv42
+
+### Videó küldés — két szerver oldali változtatás kell
+
+#### 1. Upload limit 100 MB-ra emelés
+
+Jelenleg 20 MB a limit. Videókhoz 100 MB kell.
+
+Valószínűleg ezeket kell módosítani:
+- `php.ini`: `upload_max_filesize = 100M` és `post_max_size = 110M`
+- Apache: `LimitRequestBody 104857600` (ha van ilyen direktíva)
+- `api/src/Controllers/UploadController.php`: ha van explicit méretcheck, azt is 100 MB-ra
+
+#### 2. `messages.type` enum bővítése — 'video' típus hozzáadása
+
+```sql
+ALTER TABLE messages
+  MODIFY type ENUM('text','image','file','link','system','video')
+  NOT NULL DEFAULT 'text';
+```
+
+Ez szükséges hogy a videó üzenetek ne `file`-ként, hanem `video`-ként legyenek tárolva — így a médiatárban külön szűrhetők.
+
+#### Nincs más változtatás szükséges
+
+A feltöltési endpoint (`POST /upload`) és a message send endpoint változatlanul jó — az app `type: 'video'`-t küld majd.
+
+**[App Claude] — 2026-06-13**
