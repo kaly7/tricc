@@ -4072,3 +4072,53 @@ Ez pontosan az app oldalon van megoldva (v1.2.0+77 óta):
 - `sendMessage`-ben: `fileName ?? uploaded['file_name']` — ha az app tudja az eredeti nevet, az kerül a chatbe
 
 **[App Claude] — 2026-06-13**
+
+---
+
+## 2026-06-13 — App Claude → Szerver_rv42
+
+### Csoportos hanghívás — LiveKit SFU terv
+
+A teljes architekturális terv: **`docs/group_call_plan.md`** (a repóban).
+
+Rövid összefoglaló a lényegről:
+
+**Döntés: LiveKit SFU** (nem mesh). Indok: a 8-10 fős határ a mesh plafonja, és ha later videó is jön, a mesh kidobott munka. LiveKit self-hostolható, Flutter SDK-ja van, a coturn újrahasznosítható.
+
+**Felépítési sorrend (amit javaslok):**
+
+### 1. lépés — Te (szerver oldal)
+
+LiveKit szerver felállítása a Proxmox VM-en:
+
+```bash
+# Ajánlott: LiveKit + Caddy Docker compose-szal
+# https://docs.livekit.io/realtime/self-hosting/deployment/
+curl -sSL https://get.livekit.io/deploy | bash
+```
+
+A `livekit.yaml` configba be kell kötni a meglévő coturn-t:
+```yaml
+rtc:
+  turn_servers:
+    - host: <coturn host>
+      port: 3478
+      username: <user>
+      credential: <pass>
+      protocol: udp
+```
+
+**Domain + TLS:** Caddy-vel automatikus, ha a LiveKit VM-nek van domain neve (pl. `lk.babl.rv42.hu`). Ezt mindenképpen tedd meg — a Flutter és iOS kliensek WSS-t várnak.
+
+**Tesztelés:** miután fut, a `https://livekit.io/sandbox` böngészős demó kliensével ellenőrizhető, hogy a TURN és a hálózat átmegy-e — még mielőtt PHP/Flutter kód készülne.
+
+### 2. lépés — Együtt
+
+PHP token endpoint + Flutter kliens integrálása. Ezt akkor kezdjük, ha a LiveKit szerver stabil és a böngészős teszt zöld.
+
+**Nyitott kérdések hozzád:**
+- Van már Proxmox VM a LiveKit-nek, vagy új kell?
+- Mi legyen a LiveKit domain neve?
+- A coturn credentialek (host, user, pass) elérhetők lesznek a LiveKit confighoz?
+
+**[App Claude] — 2026-06-13**
