@@ -12,13 +12,13 @@ stylesheet: doc_style.css
   <h1 style="font-size: 2.6em; margin: 0 0 12px 0; color: #0d1b3e;">BabL42</h1>
   <p style="font-size: 1.2em; color: #4a5568; margin: 0 0 16px 0;">Technikai dokumentáció</p>
   <hr style="width: 60px; border: 2px solid #7ec81b; margin: 0 0 32px 0;" />
-  <p style="color: #718096; font-size: 0.95em; margin: 0;">iOS · Android · Flutter · PHP 8 · MySQL · WebSocket · APNs · FCM</p>
-  <p style="color: #a0aec0; font-size: 0.85em; margin: 8px 0 0 0;">v1.1.0 · 2026. június</p>
+  <p style="color: #718096; font-size: 0.95em; margin: 0;">iOS · Android · Flutter · PHP 8 · MySQL · WebSocket · APNs · FCM · LiveKit</p>
+  <p style="color: #a0aec0; font-size: 0.85em; margin: 8px 0 0 0;">v1.2.0 · 2026. június</p>
 </div>
 
 # BabL42 — Technikai dokumentáció
 
-> Meghívásos, zárt körű csevegő alkalmazás teljes technikai leírása: kliens (iOS + Android), szerver (REST API + WebSocket), adatbázis, push értesítés.
+> Meghívásos, zárt körű csevegő és hanghívó alkalmazás teljes technikai leírása: kliens (iOS + Android), szerver (REST API + WebSocket + LiveKit SFU), adatbázis, push értesítés, platform channel-ek.
 
 ---
 
@@ -36,16 +36,17 @@ A BabL42 egy kétszintű (client–server) rendszer. A kliens Flutter alkalmazá
 │   │   Flutter iOS    │       │  Flutter Android  │          │
 │   │  (APNs push)     │       │   (FCM push)      │          │
 │   └────────┬─────────┘       └────────┬──────────┘          │
-└────────────┼────────────────────────── ┼────────────────────┘
-             │  HTTPS / WSS              │
-             ▼                           ▼
+└────────────┼──────────────────────────┼────────────────────┘
+             │  HTTPS / WSS             │
+             ▼                          ▼
 ┌─────────────────────────────────────────────────────────────┐
-│                     SZERVER (192.168.16.22)                  │
+│             SZERVER (babl.rv42.hu)                          │
 │                                                             │
 │   ┌──────────────────────────────────────────────────────┐  │
-│   │              Apache (port 9456, HTTPS)               │  │
+│   │         Apache (port 9456, HTTPS, Let's Encrypt)     │  │
 │   │   /tricc/api/*  → PHP REST API                       │  │
 │   │   /ws           → Ratchet WebSocket (reverse proxy)  │  │
+│   │   :7880         → LiveKit SFU (SSL proxy)            │  │
 │   └────────────────┬──────────────────┬──────────────────┘  │
 │                    │                  │                      │
 │   ┌────────────────▼────┐    ┌────────▼───────────────────┐ │
@@ -57,6 +58,11 @@ A BabL42 egy kétszintű (client–server) rendszer. A kliens Flutter alkalmazá
 │   ┌────────────────▼────────────────────────────────────┐   │
 │   │              MySQL — tricc adatbázis                 │   │
 │   └─────────────────────────────────────────────────────┘   │
+│                                                             │
+│   ┌─────────────────────────────────────────────────────┐   │
+│   │  LiveKit SFU (port 7880, WSS)                       │   │
+│   │  coturn TURN relay (refelhasználva 1:1 hívástól)    │   │
+│   └─────────────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────────┘
              │ APNs (iOS)        │ FCM (Android)
              ▼                   ▼
@@ -67,12 +73,14 @@ A BabL42 egy kétszintű (client–server) rendszer. A kliens Flutter alkalmazá
 
 | Szolgáltatás | Port | Protokoll | URL |
 |---|---|---|---|
-| REST API | 9456 | HTTPS | `https://192.168.16.22:9456/tricc/api` |
-| WebSocket | 9456/ws | WSS | `wss://192.168.16.22:9456/ws` |
+| REST API | 9456 | HTTPS | `https://babl.rv42.hu:9456/tricc/api` |
+| WebSocket | 9456/ws | WSS | `wss://babl.rv42.hu:9456/ws` |
 | Ratchet (belső) | 9454 | WS | `ws://127.0.0.1:9454` |
 | REST→WS IPC | 9455 | TCP | `127.0.0.1:9455` |
+| LiveKit SFU | 7880 | WSS | `wss://babl.rv42.hu:7880` |
+| coturn TURN | 3478 | UDP/TCP | `babl.rv42.hu:3478` |
 
-> A szerver önaláírt TLS tanúsítványt használ. A kliens `badCertificateCallback = true`-val fogadja el (belső hálózat).
+> A szerver Let's Encrypt TLS tanúsítványt használ (`babl.rv42.hu` domain). Standard HTTPS/WSS kapcsolat, nincs szükség cert bypass-ra.
 
 ## 1.3 Mappa-struktúra
 
@@ -84,13 +92,21 @@ A BabL42 egy kétszintű (client–server) rendszer. A kliens Flutter alkalmazá
 │   │   ├── app_theme.dart
 │   │   ├── models/
 │   │   ├── screens/
+│   │   │   ├── group_call_screen.dart   ← Csoportos hívás képernyő
+│   │   │   └── video_player_screen.dart ← Teljes képernyős videólejátszó
 │   │   ├── services/
+│   │   │   ├── group_call_service.dart  ← LiveKit singleton ChangeNotifier
+│   │   │   └── call_service.dart        ← 1:1 WebRTC hívás
 │   │   └── widgets/
-│   ├── ios/          ← iOS natív rész, APNs konfig
-│   └── android/      ← Android natív rész, FCM konfig
+│   │       └── group_call_bar.dart      ← Pip bar (MaterialApp.builder-ben)
+│   ├── ios/
+│   │   └── Runner/AppDelegate.swift     ← APNs + proximity platform channel
+│   └── android/
+│       └── app/src/main/kotlin/.../MainActivity.kt ← FCM + proximity channel
 ├── api/              ← PHP REST API
 │   └── src/
 │       ├── Controllers/
+│       │   └── CallController.php       ← LiveKit token + call/notify
 │       ├── APNs.php
 │       ├── Auth.php
 │       └── DB.php
@@ -99,7 +115,8 @@ A BabL42 egy kétszintű (client–server) rendszer. A kliens Flutter alkalmazá
 ├── db/               ← Adatbázis séma és migrációk
 │   └── schema.sql
 ├── admin/            ← Web alapú admin felület
-└── docs/             ← Dokumentáció
+│   └── calls.php     ← Aktív LiveKit hívások oldal
+└── docs/             ← Dokumentáció és tervek
 ```
 
 ---
@@ -155,8 +172,6 @@ users ──────────────────── invite_codes
 | `platform` | VARCHAR(10) | `ios` vagy `android` |
 | `updated_at` | DATETIME | Utolsó frissítés |
 
-> **Megjegyzés:** Egy felhasználónak több eszköze is lehet; ezért a platform + több token tárolása is megvalósítható (a szerver a saját push táblájában kezeli).
-
 ### `rooms`
 | Mező | Típus | Leírás |
 |---|---|---|
@@ -184,10 +199,10 @@ users ──────────────────── invite_codes
 | `id` | BIGINT PK AUTO | Üzenet azonosítója |
 | `room_id` | INT FK→rooms | Szoba |
 | `sender_id` | INT FK→users | Küldő |
-| `type` | ENUM('text','image','file','link','system') | Típus |
+| `type` | ENUM('text','image','file','link','video','system') | Típus |
 | `content` | TEXT | Szöveg tartalom |
 | `is_edited` | TINYINT(1) | Szerkesztett-e |
-| `file_url` | VARCHAR(500) | Fájl/kép URL |
+| `file_url` | VARCHAR(500) | Fájl/kép/videó URL |
 | `file_name` | VARCHAR(255) | Eredeti fájlnév |
 | `file_size` | BIGINT | Fájlméret bájtban |
 | `reply_to_id` | BIGINT | Idézett üzenet ID |
@@ -221,7 +236,7 @@ users ──────────────────── invite_codes
 ## 3.1 Alap URL és hitelesítés
 
 ```
-Base URL: https://192.168.16.22:9456/tricc/api
+Base URL: https://babl.rv42.hu:9456/tricc/api
 Auth:     Authorization: Bearer <jwt_token>
 ```
 
@@ -245,31 +260,6 @@ Minden válasz formátuma:
 | `PUT` | `/auth/password` | Jelszócsere |
 | `POST` | `/upload/avatar` | Profilkép feltöltés |
 
-**Regisztráció (`POST /auth/register`):**
-```json
-// Kérés:
-{ "name": "Kovács János", "email": "janos@example.com",
-  "password": "titkosJelszo", "invite_code": "TRICC-ADMIN-0001" }
-
-// Válasz:
-{ "token": "eyJ...", "user_id": 1, "name": "Kovács János" }
-```
-
-**Bejelentkezés (`POST /auth/login`):**
-```json
-// Kérés:
-{ "email": "janos@example.com", "password": "titkosJelszo" }
-
-// Válasz:
-{ "token": "eyJ...", "user_id": 1, "name": "Kovács János",
-  "avatar_url": "https://.../avatars/1.jpg" }
-```
-
-**Jelszócsere (`PUT /auth/password`):**
-```json
-{ "current_password": "regiJelszo", "new_password": "ujJelszo123" }
-```
-
 ## 3.3 Szobavégpontok
 
 | Metódus | Végpont | Leírás |
@@ -288,29 +278,6 @@ Minden válasz formátuma:
 | `POST` | `/rooms/{id}/delete-request` | Törlési kérés |
 | `POST` | `/rooms/{id}/keep` | Törlési kérés visszavonása |
 
-**Szoba létrehozása:**
-```json
-// Csoport:
-{ "type": "group", "name": "Fejlesztők", "members": [2, 3, 4] }
-
-// Direkt (1:1):
-{ "type": "direct", "user_id": 2 }
-// Válasz: { "room_id": 5 }
-```
-
-**Szoba lista válasz elemei:**
-```json
-{
-  "id": 5, "name": "Fejlesztők", "type": "group",
-  "unread_count": 3,
-  "last_message": "Mikor lesz a deploy?",
-  "last_message_at": "2026-06-07T18:22:10.123",
-  "other_user": null,        // csak direct szobáknál
-  "is_muted": false,
-  "pinned_message": null
-}
-```
-
 ## 3.4 Üzenetvégpontok
 
 | Metódus | Végpont | Leírás |
@@ -323,61 +290,14 @@ Minden válasz formátuma:
 | `GET` | `/rooms/{id}/messages/search` | Keresés |
 | `GET` | `/rooms/{id}/media` | Média galéria |
 
-**Lapozás paraméterei:**
-```
-GET /rooms/5/messages?limit=50&before=12345
-```
-Az `before` paraméter az utolsó betöltött üzenet `id`-ja — az annál régebbieket adja vissza.
-
-**Üzenet küldése:**
-```json
-// Szöveges:
-{ "type": "text", "content": "Hello!" }
-
-// Fájl:
-{ "type": "file", "file_url": "https://.../files/doc.pdf",
-  "file_name": "doc.pdf", "file_size": 102400 }
-
-// Kép:
-{ "type": "image", "file_url": "https://.../uploads/kep.jpg",
-  "file_name": "kep.jpg", "file_size": 204800 }
-
-// Idézett válasz:
-{ "type": "text", "content": "Igen!", "reply_to_id": 100 }
-
-// @mention:
-{ "type": "text", "content": "Szia @Kiss Péter!",
-  "mention_all": false, "mention_user_ids": [3] }
-```
-
-**Keresés:**
-```
-GET /rooms/5/messages/search?q=deploy
-// Visszaad: üzenetek listája ahol a tartalom tartalmazza a keresőszót
-```
-
 ## 3.5 Fájlfeltöltés
 
 | Metódus | Végpont | Leírás |
 |---|---|---|
-| `POST` | `/upload` | Általános fájl feltöltése |
+| `POST` | `/upload` | Általános fájl / videó feltöltése |
 | `POST` | `/upload/avatar` | Profilkép feltöltése |
 
-Mindkét végpont `multipart/form-data` formátumot vár, `file` mezőnévvel.
-
-```
-POST /upload
-Authorization: Bearer <token>
-Content-Type: multipart/form-data
-
-[fájl adatok]
-
-→ { "url": "https://.../files/abc123.pdf",
-    "file_name": "dokument.pdf", "mime": "application/pdf",
-    "size": 102400, "type": "file" }
-```
-
-A feltöltött fájlok szerveren maradnak; az URL az üzenetben tárolódik.
+Mindkét végpont `multipart/form-data` formátumot vár, `file` mezőnévvel. Videók esetén a szerver a `video` MIME típust felismeri és `type: "video"` értéket ad vissza.
 
 ## 3.6 Push token végpontok
 
@@ -386,14 +306,38 @@ A feltöltött fájlok szerveren maradnak; az URL az üzenetben tárolódik.
 | `POST` | `/push/register` | Token regisztrálása |
 | `DELETE` | `/push/register` | Token törlése (kijelentkezéskor) |
 
+## 3.7 Hanghívás végpontok
+
+| Metódus | Végpont | Leírás |
+|---|---|---|
+| `POST` | `/call/token` | LiveKit JWT token generálás |
+| `POST` | `/rooms/{id}/call/notify` | Hívás értesítő broadcast indítása |
+
+**LiveKit token kérés:**
 ```json
-// Regisztráció:
-{ "device_token": "abc123...", "platform": "ios" }
-// vagy:
-{ "device_token": "fcm_token...", "platform": "android" }
+// Kérés:
+{ "room_id": 5 }
+
+// Válasz:
+{
+  "url": "wss://babl.rv42.hu:7880",
+  "token": "eyJ...",
+  "room": "room_5"
+}
 ```
 
-## 3.7 Admin végpontok
+A token generálásához a szerver ellenőrzi, hogy a hívó tagja-e a szobának. A JWT `video` claim tartalmaz szoba-specifikus jogosultságot (`roomJoin: true`, szoba neve).
+
+**Hívás értesítő (`POST /rooms/{id}/call/notify`):**
+
+Kiváltja a WS szerver által küldött `call_started` broadcastot az adott szoba tagjainak. APNs/FCM push értesítés is küldésre kerül azoknak a tagoknak, akik nem online a WS-en.
+
+```json
+// Válasz:
+{ "ok": true }
+```
+
+## 3.8 Admin végpontok
 
 | Metódus | Végpont | Leírás |
 |---|---|---|
@@ -458,8 +402,35 @@ Kliens                              Szerver
 | `member_left` | Tag elhagyta a szobát | `room_id`, `user_id` |
 | `delete_request` | Törlési kérés érkezett | `room_id`, `requested_by` |
 | `user_updated` | Profilkép/név változott | `user_id`, `name`, `avatar_url` |
+| `call_started` | Csoportos hívás indult | `room_id`, `room_name`, `user_name` |
+| `call_ended` | Csoportos hívás véget ért | `room_id` |
 | `pong` | Heartbeat válasz | — |
 | `error` | Hiba | `message` |
+
+### `call_started` esemény részletei
+
+```json
+{
+  "type": "call_started",
+  "room_id": 5,
+  "room_name": "Fejlesztők",
+  "user_name": "Kovács János"
+}
+```
+
+A WS szerver a `call/notify` REST hívás IPC üzenetére broadcastolja a szoba összes tagjának. A Flutter kliens `main.dart`-ban fogadja és:
+1. `GroupCallService().markRoomCallActive(roomId, roomName)` — állapot frissítés
+2. SnackBar megjelenítése "Csatlakozás" gombbal (kivéve ha már ebben a szobában vagyunk hívásban)
+
+### `call_ended` esemény részletei
+
+```json
+{ "type": "call_ended", "room_id": 5 }
+```
+
+A szerver a LiveKit webhook `room_finished` eseményére küldi. A kliens:
+1. `GroupCallService().markRoomCallInactive(roomId)` — állapot törlés
+2. Ha aktívan benne volt a hívásban: pip bar eltűnik
 
 ## 4.4 Üzenetküldés folyamat
 
@@ -474,8 +445,6 @@ Kliens                  REST API              WebSocket (IPC)          Többi kl
   │                                                  │  {type:"message",...}   │
   │                                                  │─ push küldés ──────────►│ (ha offline)
 ```
-
-**IPC (belső TCP):** A REST API és a WebSocket szerver között egy belső TCP kapcsolat fut (`127.0.0.1:9455`). Az API üzenetküldés után JSON-t küld az IPC csatornán, a WS szerver ezt továbbítja az összes csatlakozott kliensnek.
 
 ## 4.5 Heartbeat mechanizmus
 
@@ -501,6 +470,7 @@ Push értesítést kap egy felhasználó, ha:
 - Nincs aktív WebSocket kapcsolata (offline)
 - A szobát **nem némította** el (`is_muted = 0`)
 - Kivétel: `@mention` esetén a némítás felülírható (a szerver mindig küld)
+- `call_started` esetén a szerver **mindig** küld push-t (hívás értesítő)
 
 ## 5.2 iOS — APNs
 
@@ -508,9 +478,9 @@ Push értesítést kap egy felhasználó, ha:
 - Protokoll: HTTP/2 + JWT token (`.p8` kulcsfájl)
 - Key ID: `94HGSV4WAL`, Team ID: `K7Z734X92Z`
 - Bundle ID: `com.rv42.babl42`
-- Értesítés típus: `alert` (nem VoIP/PushKit)
+- Értesítés típus: `alert` (üzenetekhez) és `voip` (1:1 híváshoz, PushKit)
 
-**Push payload:**
+**Push payload (üzenet):**
 ```json
 {
   "aps": {
@@ -527,52 +497,40 @@ Push értesítést kap egy felhasználó, ha:
 }
 ```
 
-**iOS push regisztráció folyamat:**
-```
-AppDelegate (Swift)                 PushService (Dart)          API szerver
-      │                                    │                         │
-      │─ APNs token kérés ──────────────►APNs                        │
-      │◄─ device token ──────────────────│                           │
-      │─ MethodChannel 'onToken' ─────────►│                          │
-      │                                    │─ POST /push/register ───►│
-      │                                    │  { token, platform:"ios"}│
-      │                                    │◄─ 200 OK ───────────────│
+**Push payload (csoportos hívás értesítő):**
+```json
+{
+  "aps": {
+    "alert": {
+      "title": "Fejlesztők",
+      "body": "Kovács János hanghívást indított"
+    },
+    "sound": "default"
+  },
+  "room_id": 5,
+  "type": "call_started"
+}
 ```
 
 ## 5.3 Android — FCM
 
-**Technikai részletek:**
 - Firebase Cloud Messaging (FCM)
 - `google-services.json` konfiguráció
 - Package: `com.rv42.babl42`
 - Library: `firebase_messaging: ^15.x`
 
-**Android push regisztráció folyamat:**
-```
-FirebaseMessaging (Flutter)         PushService (Dart)          API szerver
-      │                                    │                         │
-      │─ requestPermission ───────────────►│                          │
-      │─ getToken() ──────────────────────►│                          │
-      │◄─ FCM token ──────────────────────│                           │
-      │                                    │─ POST /push/register ───►│
-      │                                    │  { token, platform:"android"}
-      │                                    │◄─ 200 OK ───────────────│
-```
-
 ## 5.4 Szerver oldali push küldés
 
 ```
-API kap üzenetet
+API kap üzenetet / call_notify kérést
       │
       ├─ WebSocket tagok lekérése (ki online?)
       │
       └─ Offline tagok → push_tokens lekérése
             │
             ├─ platform = 'ios'  → APNs HTTP/2 küldés
-            │                      (badge = olvasatlan üzenetek)
             │
             └─ platform = 'android' → FCM küldés
-                                       (Firebase Server Key)
 ```
 
 ---
@@ -583,7 +541,7 @@ API kap üzenetet
 
 ```
 lib/
-├── main.dart              ← App belépési pont, lifecycle kezelés
+├── main.dart              ← App belépési pont, WS eseménykezelő
 ├── app_theme.dart         ← Light + dark téma (kBlue/kLime)
 ├── models/
 │   ├── message.dart       ← Message, MessageDelivery, ReplyTo, MessageReaction
@@ -594,7 +552,9 @@ lib/
 │   ├── auth_service.dart  ← Token, userId, profil tárolás
 │   ├── ws_service.dart    ← WebSocket kapcsolat kezelés
 │   ├── push_service.dart  ← APNs (iOS) + FCM (Android)
-│   └── settings_service.dart ← Betűméret, dark mode, SharedPreferences
+│   ├── settings_service.dart ← Betűméret, dark mode, SharedPreferences
+│   ├── call_service.dart  ← 1:1 WebRTC hívás (CallService)
+│   └── group_call_service.dart ← Csoportos LiveKit hívás
 ├── screens/
 │   ├── login_screen.dart
 │   ├── register_screen.dart
@@ -602,9 +562,12 @@ lib/
 │   ├── chat_screen.dart
 │   ├── profile_screen.dart
 │   ├── room_search_screen.dart
-│   └── room_media_screen.dart
+│   ├── room_media_screen.dart
+│   ├── video_player_screen.dart  ← Teljes képernyős videólejátszó
+│   └── group_call_screen.dart    ← Csoportos hívás (LiveKit)
 └── widgets/
-    └── ws_status_bar.dart  ← WsDot, PresenceDot, avatar dialog
+    ├── ws_status_bar.dart         ← WsDot, PresenceDot, avatar dialog
+    └── group_call_bar.dart        ← Pip bar (hívás közben állandóan látható)
 ```
 
 ## 6.2 Service réteg
@@ -613,41 +576,102 @@ lib/
 - Tárolja: `token`, `userId`, `userName`, `avatarUrl`
 - `SharedPreferences` perzisztencia
 - `init()`: betöltés induláskor
-- `updateProfile(name, avatarUrl)`: profil frissítése memóriában
 
 ### `ApiService` (singleton)
 - Összes HTTP kérés kezelése
-- `IOClient` + `badCertificateCallback` (önaláírt tanúsítvány)
 - `Authorization: Bearer <token>` header automatikusan
 - Hibakezelés: `ApiException(message, statusCode)`
+- Metódusok: `notifyCallStarted(roomId)` — csoportos hívás értesítő
 
 ### `WsService` (singleton)
-- WebSocket kapcsolat: `wss://192.168.16.22:9456/ws`
+- WebSocket kapcsolat: `wss://babl.rv42.hu:9456/ws`
 - Állapotok: `WsState.connected / connecting / disconnected`
 - Automatikus újracsatlakozás 5 másodperc után
 - Ping/pong heartbeat: 30s ping, 10s timeout, 60s szerver timeout
 - `events` broadcast stream: minden beérkező WS esemény
-- `onlineUsers`: jelenlegi online felhasználó ID-k halmaza
-- `join(roomId)` / `leave(roomId)`: szoba feliratkozás
 
 ### `PushService` (singleton)
-- iOS: `MethodChannel('push_channel')` → natív AppDelegate
+- iOS: `MethodChannel('push_channel')` → natív AppDelegate (APNs token)
 - Android: `FirebaseMessaging` → FCM token
 - `_saveAndRegister(token, platform)`: token regisztrálása az API-n
-- `setBadge(count)`: iOS badge frissítése (Android: FCM kezeli)
-- `reregisterIfNeeded()`: újrabejelentkezéskor token újraküldés
 
 ### `SettingsService` (singleton, ChangeNotifier)
-- `fontScale`: 0.8–1.5x szövegméret, SharedPreferences
-- `themeMode`: `ThemeMode.system / light / dark`, SharedPreferences
-- `setFontScale()` / `setThemeMode()`: async mentés + `notifyListeners()`
+- `fontScale`: 0.8–1.5x szövegméret
+- `themeMode`: `ThemeMode.system / light / dark`
+
+### `GroupCallService` (singleton, ChangeNotifier)
+
+A csoportos hanghívások teljes állapotát kezeli. LiveKit SDK (`livekit_client: ^2.4.1`) wrapper.
+
+```dart
+enum AudioOutput { earpiece, speaker, bluetooth }
+
+const _proximityChannel = MethodChannel('com.rv42.babl42/proximity');
+
+class GroupCallService extends ChangeNotifier {
+  Room? _room;                          // LiveKit Room objektum
+  bool _connecting = false;
+  String? _error;
+  int? _chatRoomId;                     // aktív hívás szoba ID-ja
+  String _chatRoomName = '';
+  final Map<int, String> _activeCallRooms = {};  // mások által indított hívások
+  AudioOutput _audioOutput = AudioOutput.earpiece;
+  List<MediaDeviceInfo> _audioDevices = [];
+}
+```
+
+**Főbb metódusok:**
+
+| Metódus | Leírás |
+|---|---|
+| `join(roomId, roomName)` | LiveKit token kérés → Room.connect → proximity enable → notifyCallStarted |
+| `leave()` | Room.disconnect → proximity disable → reset → notifyListeners |
+| `toggleMute()` | LocalParticipant.setMicrophoneEnabled(!isMuted) |
+| `reloadAudioDevices()` | `Helper.audiooutputs` → `_audioDevices` lista frissítés |
+| `setAudioOutput(output, {deviceId})` | Hangkimenet váltás (lásd lent) |
+| `markRoomCallActive(roomId, roomName)` | Más szobában lévő hívás regisztrálása |
+| `markRoomCallInactive(roomId)` | Hívás véget ért, törlés `_activeCallRooms`-ból |
+| `isRoomCallActive(roomId)` | `true` ha van aktív hívás az adott szobában |
+
+**Hangkimenet váltás:**
+```dart
+Future<void> setAudioOutput(AudioOutput output, {String? deviceId}) async {
+  switch (output) {
+    case AudioOutput.earpiece:
+      await Helper.setSpeakerphoneOn(false);
+    case AudioOutput.speaker:
+      await Helper.setSpeakerphoneOn(true);
+    case AudioOutput.bluetooth:
+      if (deviceId != null) {
+        await Helper.selectAudioOutput(deviceId);
+      } else {
+        await Helper.setSpeakerphoneOnButPreferBluetooth();
+      }
+  }
+  _audioOutput = output;
+  notifyListeners();
+}
+```
+
+**Audio eszköz detektálás:**
+```dart
+Future<void> reloadAudioDevices() async {
+  _audioDevices = await Helper.audiooutputs;
+  notifyListeners();
+}
+
+bool get hasBluetoothDevice => _audioDevices.any((d) {
+  final label = d.label.toLowerCase();
+  return label.contains('bluetooth') || label.contains('bt') ||
+         label.contains('airpod') || label.contains('wireless');
+});
+```
 
 ## 6.3 App belépési pont (`main.dart`)
 
 ```dart
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  HttpOverrides.global = _DevHttpOverrides(); // önaláírt cert elfogadás
   if (Platform.isAndroid) await Firebase.initializeApp();
   await AuthService().init();
   await SettingsService().init();
@@ -655,10 +679,35 @@ void main() async {
 }
 ```
 
-`TriccApp` (`StatefulWidget + WidgetsBindingObserver`):
-- **App resume**: `_refreshProfile()` + `WsService().connect()` + badge nullázás
-- **WS `user_updated`**: avatár/név frissítés valós időben
-- **SettingsService listener**: téma/betűméret változáskor `setState()`
+**WS eseménykezelő (`_onWsEvent`):**
+```dart
+} else if (msg['type'] == 'call_started') {
+  final roomId = msg['room_id'] as int?;
+  final roomName = msg['room_name'] as String? ?? '';
+  final userName = msg['user_name'] as String? ?? 'Valaki';
+  if (roomId != null) svc.markRoomCallActive(roomId, roomName);
+  if (svc.isActive && svc.chatRoomId == roomId) return; // már ebben vagyok
+  // SnackBar: "$userName hanghívást indított — Csatlakozás"
+} else if (msg['type'] == 'call_ended') {
+  final roomId = msg['room_id'] as int?;
+  if (roomId != null) GroupCallService().markRoomCallInactive(roomId);
+}
+```
+
+**MaterialApp builder — pip bar:**
+```dart
+builder: (context, child) => MediaQuery(
+  data: MediaQuery.of(context).copyWith(textScaler: ...),
+  child: Column(
+    children: [
+      Expanded(child: child!),
+      GroupCallBar(navigatorKey: navigatorKey),
+    ],
+  ),
+),
+```
+
+**Miért `navigatorKey`:** A `MaterialApp.builder` context az alkalmazás navigátor **felett** van. Standard `Navigator.push(context, ...)` itt nem működik. Megoldás: `GlobalKey<NavigatorState> navigatorKey` átadása `GroupCallBar`-nak, és `navigatorKey.currentState?.push(...)` használata.
 
 ---
 
@@ -674,106 +723,111 @@ Név, email, jelszó, meghívókód mezők, `POST /auth/register`.
 
 ## 7.3 Szoba lista képernyő (`room_list_screen.dart`)
 
-```
-Betöltés:
-  GET /rooms → Room lista
-
-Frissítés:
-  WS 'message' esemény → unread count növelés + szoba lista frissítés
-  WS 'presence' esemény → online dot frissítés
-
-UI elemek:
-  - Avatar (online dot: zöld karika ha online)
-  - Szoba neve / utolsó üzenet előnézete
-  - Olvasatlan darabszám (kék buborék)
-  - Némított ikon
-  - Kitűzött ikon
-
-Műveletek (hosszú nyomás → BottomSheet):
-  - Elrejtés
-  - Némítás/feloldás
-  - Törlési kérés
-```
+**Csoport létrehozás bottom sheet (újítás v1.2.0):**
+- `isScrollControlled: true` — a sheet a teljes képernyő 85%-át töltheti ki
+- `ConstrainedBox(maxHeight: screenHeight * 0.85)` + `Flexible` ListView
+- Kiválasztott tagok vízszintes chip-sorban jelennek meg (X-szel eltávolítható)
 
 ## 7.4 Chat képernyő (`chat_screen.dart`)
 
-Ez a legösszetettebb képernyő. Fő komponensei:
+**Csoportos hívás gomb (3 állapotú):**
+```dart
+final isMyCall    = svc.isActive && svc.chatRoomId == _room.id;
+final isJoinable  = svc.isRoomCallActive(_room.id) && !isMyCall;
+final isBusy      = svc.isActive && svc.chatRoomId != _room.id;
 
-**Üzenetlista:**
-- `ListView.builder(reverse: true)` — az index 0 = legújabb üzenet = alul
-- Lapozás: görgetéskor felfelé `GET /messages?before=<id>`
-- `_highlightMessageId`: keresési találat kiemelése (amber, 2 másodperc)
-
-**Üzenetbuborék (`_MessageBubble`):**
-```
-Saját üzenet (jobbra):      Fogadott üzenet (balra):
-┌──────────────────┐         ┌──────────────────┐
-│ [idézet ha van]  │         │Kovács J.          │
-│ Üzenet szövege   │         │ [idézet ha van]  │
-│ 18:22  ✓✓        │         │ Üzenet szövege   │
-│ 👍 2  ❤️ 1       │         │ 18:22            │
-└──────────────────┘         │ 👍 2             │
-                             └──────────────────┘
+// isMyCall  → piros call_end ikon, kilépés a hívásból
+// isJoinable → zöld headset ikon, csatlakozás
+// isBusy    → szürke headset ikon, letiltva (más szobában vagyok hívásban)
+// else      → normál headset ikon, hívás indítása
 ```
 
-**Kézbesítési ikonok:**
-| Ikon | Szín | Jelentés |
-|---|---|---|
-| ✓ | Piros | Elküldve (szerveren) |
-| ✓✓ | Sárga | Megkapta (delivered_at) |
-| ✓✓ | Zöld | Elolvasta (read_at) |
+## 7.5 Csoportos hívás képernyő (`group_call_screen.dart`)
 
-**Beviteli sor:**
-- Szövegmező + gomb sor
-- Fájl csatolás (fájlválasztó) / kép küldés (kamera/fotótár)
-- Gépelés jelzés: 1 másodperces debounce, WS `typing` üzenet
-- Válasz/szerkesztés bar: törölhető `_ReplyBar` / `_EditBar`
-- @mention: `@` után felugró felhasználó lista (`_MentionSuggestionBar`)
-- Markdown előnézet gomb
+**Konstruktor:** `GroupCallScreen({required int roomId, required String roomName})`
 
-**Keresés → ugrás üzenetre:**
-```
-Kereső ikonra nyomás
-      │
-      ▼
-RoomSearchScreen megnyílik
-      │
-      ├─ GET /messages/search?q=...
-      │
-      └─ Találatra nyomás → Navigator.pop(message)
-              │
-              ▼
-       ChatScreen fogadja a kiválasztott Message-t
-              │
-              ├─ GET /messages?before=msg.id+1  (batch betöltés a célüzenetig)
-              │
-              ├─ ListView.jumpTo(0) → alulra görget
-              │
-              └─ _highlightMessageId = msg.id
-                  AnimatedContainer: amber kiemelés 2 másodpercig
+**Inicializálás:** `_svc.join(widget.roomId, widget.roomName)` az `initState`-ben.
+
+**Nincs PopScope** — a vissza gomb minimalizál, nem hagyja el a hívást:
+```dart
+AppBar(
+  leading: IconButton(
+    icon: const Icon(Icons.keyboard_arrow_down),
+    onPressed: () => Navigator.pop(context),  // csak minimalizál
+  ),
+  ...
+)
 ```
 
-## 7.5 Profil képernyő (`profile_screen.dart`)
+**BottomBar gombok:**
+1. **Mikrofon** — toggle mute (`_svc.toggleMute()`)
+2. **Hangkimenet** — bottom sheet megnyit (`_showAudioSheet`)
+3. **Kilépés** — piros `call_end` ikon → `_leave()` → `_svc.leave()` + `Navigator.pop()`
 
-- Profilkép (avatar): megjelenítés, feltöltés (`image_picker` → `POST /upload/avatar`)
-- Névmódosítás: szövegmező + mentés (`PUT /auth/profile`)
-- Betűméret beállítás: csúszka (0.8–1.5x) — `_FontSizeSection`
-- Megjelenési mód: `SegmentedButton` (Rendszer / Világos / Sötét) — `_ThemeModeSection`
-- Jelszócsere: dialog (`_ChangePasswordDialog`) — aktuális + új jelszó + megerősítés
-- Kijelentkezés: token törlése + navigálás Login-ra
+**Audio bottom sheet (`_showAudioSheet`):**
+```dart
+showModalBottomSheet(
+  context: context,
+  isScrollControlled: true,
+  builder: (_) => Column(children: [
+    _AudioOption(
+      icon: Icons.hearing,
+      label: 'Fülhallgató',
+      output: AudioOutput.earpiece,
+      selected: svc.audioOutput == AudioOutput.earpiece,
+    ),
+    _AudioOption(
+      icon: Icons.volume_up,
+      label: 'Kihangosítás',
+      output: AudioOutput.speaker,
+      selected: svc.audioOutput == AudioOutput.speaker,
+    ),
+    _AudioOption(
+      icon: Icons.bluetooth_audio,
+      label: 'Bluetooth',
+      output: AudioOutput.bluetooth,
+      enabled: svc.hasBluetoothDevice,
+      selected: svc.audioOutput == AudioOutput.bluetooth,
+    ),
+  ]),
+);
+```
 
-## 7.6 Keresési képernyő (`room_search_screen.dart`)
+## 7.6 Pip bar widget (`group_call_bar.dart`)
+
+```dart
+class GroupCallBar extends StatelessWidget {
+  final GlobalKey<NavigatorState> navigatorKey;
+  const GroupCallBar({super.key, required this.navigatorKey});
+
+  // Látható: svc.isActive || svc.isConnecting
+  // onTap: navigatorKey.currentState?.push(GroupCallScreen route)
+  // Tartalom: headset ikon + szoba neve + résztvevő szám + mic toggle + kilépés
+}
+```
+
+## 7.7 Videólejátszó képernyő (`video_player_screen.dart`)
+
+- `video_player: ^2.9.2` alapú teljes képernyős lejátszó
+- Inicializálás URL-ből (`VideoPlayerController.networkUrl`)
+- Lejátszás / szünet, előre/hátra tekerés
+- HTTPS streamelés Let's Encrypt tanúsítvánnyal (iOS: `AVPlayer`, Android: `ExoPlayer`)
+
+## 7.8 Profil képernyő (`profile_screen.dart`)
+
+- Profilkép, névmódosítás, betűméret, dark mode, jelszócsere
+- **Névjegy (About)** szekció: `package_info_plus` alapján automatikus verzió és build szám megjelenítés
+
+## 7.9 Keresési képernyő (`room_search_screen.dart`)
 
 - Valós idejű keresés (0.5s debounce)
-- `GET /rooms/{id}/messages/search?q=...`
-- Kiemelés: egyezés sárga háttérrel (`_buildHighlighted`)
 - Találatra nyomás: `Navigator.pop(context, message)` → ChatScreen megkapja
 
-## 7.7 Média galéria (`room_media_screen.dart`)
+## 7.10 Média galéria (`room_media_screen.dart`)
 
-- `GET /rooms/{id}/media` → képek + fájlok listája
+- `GET /rooms/{id}/media` → képek + videók + fájlok listája
 - Képek rácsos elrendezésben, fájlok lista nézetben
-- Kép megnyitás: `open_filex` / URL megnyitás
+- Videók: bélyegkép + koppintásra `VideoPlayerScreen`
 
 ---
 
@@ -788,7 +842,7 @@ class Message {
   final int userId;
   final String userName;
   final String? avatarUrl;
-  final String type;           // text, image, file, link, system
+  final String type;           // text, image, file, link, video, system
   final String content;
   final bool isEdited;
   final String? fileUrl;
@@ -834,19 +888,7 @@ Material 3 `ThemeData` alapú, két téma: `buildAppTheme()` (világos) és `bui
 | `kLime` | `#7CC042` | Kiemelések, online jelzők |
 | `kBlueDark` | `#1A3A6E` | Dark mód AppBar |
 
-## 9.3 Theme-aware színhasználat
-
-A chat képernyőn a hard-coded szürke értékeket `colorScheme` alapú hívásokra cseréltük:
-
-| Korábbi | Új |
-|---|---|
-| `Color(0xFFEEEEEE)` | `colorScheme.surfaceContainerHighest` |
-| `Colors.grey.shade300` | `colorScheme.outlineVariant` |
-| `Colors.black54` | `colorScheme.onSurfaceVariant` |
-| `Colors.black87` | `colorScheme.onSurface` |
-| `Colors.grey.shade100` | `colorScheme.surfaceContainerHighest` |
-
-## 9.4 3-fokozatú kapcsoló
+## 9.3 3-fokozatú kapcsoló
 
 ```
 Profil képernyő → _ThemeModeSection
@@ -856,9 +898,7 @@ Profil képernyő → _ThemeModeSection
                   │
                   └─ SettingsService().setThemeMode(mode)
                            │
-                           └─ SharedPreferences mentés + notifyListeners()
-                                    │
-                                    └─ TriccApp rebuild → új themeMode
+                           └─ SharedPreferences + notifyListeners() → TriccApp rebuild
 ```
 
 ---
@@ -871,17 +911,11 @@ Profil képernyő → _ThemeModeSection
 Kliens A csatlakozik
       │
       ├─ WS auth → WS szerver
-      │       │
       │       └─ Közös szobák tagjai kapnak:
       │           { type: "presence", user_id: A, online: true }
       │
       └─ Kliens A join(szoba) →
               { type: "presence_list", online_user_ids: [B, C] }
-
-Kliens A lecsatlakozik
-      │
-      └─ WS szerver → közös szobák tagjai kapnak:
-          { type: "presence", user_id: A, online: false }
 ```
 
 ## 10.2 UI megjelenítés
@@ -894,70 +928,55 @@ Kliens A lecsatlakozik
 
 # 11. Kézbesítési státusz
 
-## 11.1 Státuszok és triggereik
-
 ```
 Üzenet elküldve (REST POST)
       │
-      └─ message_deliveries sor létrehozva (delivered_at=NULL, read_at=NULL)
+      └─ message_deliveries sor létrehozva
               │
               ├─ Fogadó ONLINE (WS):
               │       WS kliens fogadja a 'message' eseményt
-              │       → Küld: { type: "delivered", message_id: X, room_id: Y }
+              │       → Küld: { type: "delivered", message_id: X }
               │       → Szerver: UPDATE delivered_at = NOW()
               │       → Szerver: broadcast { type: "status_update" } küldőnek
               │
               └─ Fogadó OFFLINE (push):
                       APNs/FCM push küldése
-                      → Szerver az APNs HTTP válasz alapján: delivered_at = NOW()
-                      → Broadcast: { type: "status_update" } küldőnek
+                      → delivered_at = NOW() (push kézbesítési visszaigazolás alapján)
 
 Fogadó megnyitja a szobát (GET /messages)
       │
-      └─ POST /rooms/{id}/read
-              │
-              └─ UPDATE read_at = NOW() WHERE user_id = fogadó AND message_id IN (...)
-                      │
-                      └─ broadcast { type: "status_update" } küldőnek
+      └─ POST /rooms/{id}/read → UPDATE read_at = NOW()
+              └─ broadcast { type: "status_update" } küldőnek
 ```
-
-## 11.2 UI
-
-- **Long press** saját üzenetre: kézbesítési részletei modal
-- Lista: ki kapta, ki olvasta, mikor
 
 ---
 
-# 12. Fájlfeltöltés folyamat
+# 12. Fájlfeltöltés és videó folyamat
 
 ```
-Felhasználó kiválaszt egy fájlt (FilePicker / ImagePicker)
+Felhasználó kiválaszt fájlt / videót (FilePicker / ImagePicker)
       │
       ├─ Megerősítési dialog (fájlnév, méret)
       │
       ▼
 POST /upload   (multipart/form-data)
       │
-      ├─ Szerver menti a fájlt
+      ├─ Szerver menti a fájlt, detektálja a MIME típust
       │
       └─ Visszakap: { url, file_name, mime, size, type }
-              │
+              │    (type = "video" ha video/* MIME)
               ▼
       POST /rooms/{id}/messages
-      { type: "file", file_url: url, file_name: ..., file_size: ... }
+      { type: "video", file_url: url, file_name: ..., file_size: ... }
               │
-              └─ WS broadcast → többi kliens megkapja az üzenetet
+              └─ WS broadcast → többi kliens kap "video" típusú üzenetet
+                                → bélyegkép + play gomb a buborékban
 ```
 
-**MIME típus kezelés (kliens oldal):**
-```dart
-final mime = lookupMimeType(file.path) ?? 'application/octet-stream';
-final parts = mime.split('/');
-req.files.add(await http.MultipartFile.fromPath(
-  'file', file.path,
-  contentType: MediaType(parts[0], parts[1]),
-));
-```
+**Videó streamelés:**
+- iOS: `AVPlayer` — HTTPS streamelés Let's Encrypt tanúsítvánnyal
+- Android: `ExoPlayer` — ugyanaz
+- Korábbi self-signed cert probléma megoldva Let's Encrypt-re váltással
 
 ---
 
@@ -965,125 +984,302 @@ req.files.add(await http.MultipartFile.fromPath(
 
 ## 13.1 Hosszú lenyomás az üzenetbuborékon
 
-Az `_MessageBubble` widget `StatefulWidget`-ként kezeli a lenyomott állapotot. A `GestureDetector` `onLongPressStart` / `onLongPressEnd` / `onLongPressCancel` callbackeket használ a `onLongPress` helyett, hogy pontos időzítés legyen a visszajelzés és a menü megjelenítése között.
-
 ```dart
 void _handleLongPressStart(LongPressStartDetails _) {
-  HapticFeedback.mediumImpact();   // ← rezgés azonnal
-  setState(() => _pressed = true);  // ← animáció indul
+  HapticFeedback.mediumImpact();   // rezgés azonnal
+  setState(() => _pressed = true);  // animáció indul
 }
 
 void _handleLongPressEnd(LongPressEndDetails _) {
-  setState(() => _pressed = false); // ← animáció visszaáll
-  widget.onLongPress?.call();       // ← menü megnyílik
+  setState(() => _pressed = false);
+  widget.onLongPress?.call();       // menü megnyílik
 }
 ```
 
 ## 13.2 Vizuális effekt
-
-Az `AnimatedScale` widget a `ConstrainedBox` (a buborék) köré van helyezve — az avatar **nem** skálázódik:
 
 ```dart
 AnimatedScale(
   scale: _pressed ? 0.95 : 1.0,
   duration: const Duration(milliseconds: 120),
   curve: Curves.easeOut,
-  child: ConstrainedBox(...),
+  child: ConstrainedBox(...),  // csak a buborék skálázódik, az avatar nem
 )
 ```
 
-| Paraméter | Érték | Leírás |
-|---|---|---|
-| `scale` lenyomva | 0.95 | 5%-os zsugorodás |
-| `duration` | 120ms | Gyors, de észrevehető |
-| `curve` | `easeOut` | Természetes visszapattanás |
-| Haptic típus | `mediumImpact` | Közepesen erős rezgés (iOS + Android) |
+---
+
+# 14. Csoportos hanghívás (LiveKit SFU)
+
+## 14.1 Architektúra
+
+```
+Flutter kliens
+      │
+      ├─ POST /call/token → API → LiveKit JWT generálás
+      │        { url: wss://babl.rv42.hu:7880, token, room: "room_5" }
+      │
+      ├─ WSS LiveKit szerver (:7880)
+      │       Mediasoup/SFU — hangfolyamok keverése szerveren
+      │       (max ~10 résztvevő egyszerre)
+      │
+      └─ STUN/TURN — coturn (:3478)
+              P2P ha lehetséges, relay ha NAT mögött
+```
+
+## 14.2 LiveKit token (szerver oldal)
+
+```php
+// CallController.php
+$roomName = "room_{$roomId}";
+$payload = [
+  'iss' => LIVEKIT_KEY,
+  'sub' => "user_{$userId}",
+  'iat' => time(),
+  'exp' => time() + 3600,
+  'video' => [
+    'room'      => $roomName,
+    'roomJoin'  => true,
+    'canPublish' => true,
+    'canSubscribe' => true,
+  ],
+];
+```
+
+**Fontos:** A `ListParticipants` Twirp API híváshoz (admin panel) szintén szoba-specifikus token kell — általános `roomAdmin` tokennel 401-et ad.
+
+## 14.3 Csatlakozás folyamat (Flutter)
+
+```
+GroupCallScreen initState
+      │
+      └─ GroupCallService.join(roomId, roomName)
+              │
+              ├─ POST /call/token → {url, token, room}
+              │
+              ├─ Room.connect(url, token)
+              │       LiveKit SDK kezeli a WebRTC handshake-t
+              │
+              ├─ LocalParticipant.setMicrophoneEnabled(true)
+              │
+              ├─ _proximityChannel.invokeMethod('enable')
+              │       iOS: UIDevice.isProximityMonitoringEnabled = true
+              │       Android: proximityWakeLock.acquire()
+              │
+              ├─ ApiService.notifyCallStarted(roomId)
+              │       → POST /rooms/{id}/call/notify
+              │       → WS szerver broadcast: call_started
+              │
+              └─ notifyListeners() → GroupCallBar megjelenik
+```
+
+## 14.4 Résztvevők figyelése
+
+```dart
+// room.remoteParticipants: UnmodifiableMapView<String, RemoteParticipant>
+// participant.isMicrophoneEnabled(): metódus (nem getter)
+
+List<RemoteParticipant> get participants =>
+    _room!.remoteParticipants.values.toList();
+```
+
+A `Room extends DisposableChangeNotifier` — a `GroupCallService` a room változásaira `notifyListeners()`-t hív, a `GroupCallScreen` `ListenableBuilder`-rel figyeli.
+
+## 14.5 Hívás véget ér
+
+A LiveKit szerver a hívás befejezésekor `room_finished` webhook eseményt küld az API-nak. Az API:
+1. WS IPC üzenet → WS szerver broadcast `call_ended` az összes szoba tagnak
+2. Flutter kliens: `GroupCallService().markRoomCallInactive(roomId)`
+3. Pip bar eltűnik, chat headset ikon visszaáll normál állapotra
 
 ---
 
-# 14. iOS specifikus részletek
+# 15. Platform channel-ek
 
+## 15.1 Közelségérzékelő (proximity)
 
-## 13.1 APNs integráció (natív Swift)
+**Channel neve:** `com.rv42.babl42/proximity`  
+**Metódusok:** `enable` / `disable`
 
-Az AppDelegate.swift kezeli a token regisztrációt és az értesítés fogadást:
+```dart
+// GroupCallService
+const _proximityChannel = MethodChannel('com.rv42.babl42/proximity');
+
+Future<void> join(...) async {
+  // ... csatlakozás
+  await _proximityChannel.invokeMethod('enable');
+}
+
+Future<void> leave() async {
+  // ... lecsatlakozás
+  await _proximityChannel.invokeMethod('disable');
+}
+```
+
+### iOS implementáció (`AppDelegate.swift`)
+
+```swift
+private var proximityChannel: FlutterMethodChannel?
+
+// didInitializeImplicitFlutterEngine-ben:
+if let proxReg = engineBridge.pluginRegistry.registrar(forPlugin: "ProximityPlugin") {
+  let proxCh = FlutterMethodChannel(
+    name: "com.rv42.babl42/proximity",
+    binaryMessenger: proxReg.messenger()
+  )
+  proximityChannel = proxCh
+  proxCh.setMethodCallHandler { (call, result) in
+    DispatchQueue.main.async {
+      switch call.method {
+      case "enable":
+        UIDevice.current.isProximityMonitoringEnabled = true
+      case "disable":
+        UIDevice.current.isProximityMonitoringEnabled = false
+      default: break
+      }
+      result(nil as Any?)
+    }
+  }
+}
+```
+
+Az `UIDevice.isProximityMonitoringEnabled = true` hatására iOS automatikusan elsötétíti a kijelzőt, ha a proximity szenzor lefedett (telefon archoz kerül).
+
+### Android implementáció (`MainActivity.kt`)
+
+```kotlin
+class MainActivity : FlutterActivity() {
+  private var proximityWakeLock: PowerManager.WakeLock? = null
+
+  override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
+    super.configureFlutterEngine(flutterEngine)
+    val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
+    @Suppress("DEPRECATION")
+    proximityWakeLock = pm.newWakeLock(
+      PowerManager.PROXIMITY_SCREEN_OFF_WAKE_LOCK, "BabL42:proximity"
+    )
+    MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "com.rv42.babl42/proximity")
+      .setMethodCallHandler { call, result ->
+        when (call.method) {
+          "enable"  -> { if (proximityWakeLock?.isHeld == false) proximityWakeLock?.acquire() }
+          "disable" -> { if (proximityWakeLock?.isHeld == true)  proximityWakeLock?.release() }
+          else      -> result.notImplemented(); return@setMethodCallHandler
+        }
+        result.success(null)
+      }
+  }
+
+  override fun onDestroy() {
+    if (proximityWakeLock?.isHeld == true) proximityWakeLock?.release()
+    super.onDestroy()
+  }
+}
+```
+
+`AndroidManifest.xml`-ben szükséges jogosultság:
+```xml
+<uses-permission android:name="android.permission.WAKE_LOCK"/>
+```
+
+## 15.2 APNs token (iOS)
+
+**Channel neve:** `push_channel`
 
 ```
-iOS rendszer                AppDelegate (Swift)         Flutter (Dart)
-      │                            │                         │
-      │─ didRegisterForRemote ────►│                          │
-      │   PushNotificationsWithDevice                         │
-      │   DeviceToken              │─ MethodChannel ─────────►│
-      │                            │  'push_channel'          │
-      │                            │  onToken(tokenString)    │
-      │                            │                         PushService._initIos()
-      │                            │                              │
-      │                            │◄─ invokeMethod ─────────────│
-      │                            │   'refreshToken'            │
+AppDelegate (Swift)                 PushService (Dart)
+      │                                    │
+      │─ APNs token kapás ────────────────►│
+      │  MethodChannel 'onToken'           │
+      │                                    │─ POST /push/register
 ```
 
-## 13.2 Alkalmazás ikonok
+---
+
+# 16. Audio routing (hanghívás)
+
+## 16.1 flutter_webrtc Helper API
+
+A hangkimenet vezérlése a `flutter_webrtc` csomag `Helper` osztályán keresztül történik:
+
+| Metódus | Hatás |
+|---|---|
+| `Helper.setSpeakerphoneOn(false)` | Fülhallgató mód (earpiece) |
+| `Helper.setSpeakerphoneOn(true)` | Kihangosítás (speakerphone) |
+| `Helper.setSpeakerphoneOnButPreferBluetooth()` | Bluetooth preferencia, fallback speaker |
+| `Helper.selectAudioOutput(deviceId)` | Konkrét eszköz kiválasztása |
+| `Helper.audiooutputs` | `Future<List<MediaDeviceInfo>>` — elérhető eszközök |
+
+**Megjegyzés:** `Helper.enumDevices()` nem létezik — a helyes API: `Helper.audiooutputs` (getter, nem metódus).
+
+## 16.2 Bluetooth detektálás
+
+```dart
+bool get hasBluetoothDevice => _audioDevices.any((d) {
+  final l = d.label.toLowerCase();
+  return l.contains('bluetooth') || l.contains('bt') ||
+         l.contains('airpod') || l.contains('wireless');
+});
+```
+
+Az eszközök listáját `join()` során tölti be automatikusan, majd `setAudioOutput()` hívás előtt is frissíti.
+
+---
+
+# 17. iOS specifikus részletek
+
+## 17.1 APNs integráció (natív Swift)
+
+`AppDelegate.swift` kezeli a token regisztrációt és a proximity channel-t. A `FlutterImplicitEngineDelegate` mintát követi, amely `SceneDelegate` alapú appokhoz szükséges.
+
+## 17.2 Alkalmazás ikonok
 
 - `flutter_launcher_icons` package
 - Forrás: `assets/icon.png`
 - iOS: `remove_alpha_channel_ios: true` (App Store követelmény)
-- Megjelenített név: `BabL42`
 
-## 13.3 Hálózati biztonság
+## 17.3 TLS kezelés
 
-- Info.plist: `NSAppTransportSecurity` exception a `192.168.16.22` szerverre
-- `badCertificateCallback = true` a Flutter HTTP kliensben
+- Domain: `babl.rv42.hu` — Let's Encrypt tanúsítvány (korábban önaláírt)
+- `Info.plist`: már nincs szükség `NSAppTransportSecurity` exception-re
+- iOS videó lejátszás (`AVPlayer`): Let's Encrypt tanúsítvánnyal natively működik
 
-## 13.4 Build és kiadás
+## 17.4 Build és kiadás
 
-- Bundle ID: `com.rv42.babl42`
-- Team: K7Z734X92Z
-- Kiadás: Xcode archive → `.ipa` → Ad Hoc / App Store Connect
+```bash
+flutter build ios --release --no-codesign
+
+xcodebuild \
+  -workspace ios/Runner.xcworkspace \
+  -scheme Runner \
+  -configuration Release \
+  -archivePath ~/Library/Developer/Xcode/Archives/BabL42_vN.xcarchive \
+  archive \
+  DEVELOPMENT_TEAM="K7Z734X92Z" \
+  -allowProvisioningUpdates
+```
 
 ---
 
-# 15. Android specifikus részletek
+# 18. Android specifikus részletek
 
-## 14.1 FCM integráció
+## 18.1 FCM integráció
 
 - Package: `firebase_messaging: ^15.x`
 - `google-services.json` az `android/app/` mappában
 - `com.google.gms:google-services` Gradle plugin
 
-**Gradle konfiguráció (`android/build.gradle.kts`):**
-```kotlin
-buildscript {
-    repositories { google(); mavenCentral() }
-    dependencies {
-        classpath("com.google.gms:google-services:4.4.2")
-    }
-}
-
-// Minden Android library plugin compileSdk override-ja 36-ra:
-gradle.afterProject {
-    val android = extensions.findByType(com.android.build.api.dsl.LibraryExtension::class)
-    if (android != null && (android.compileSdk ?: 0) < 36) {
-        android.compileSdk = 36
-    }
-}
-```
-
-> **Megjegyzés:** A `gradle.afterProject {}` hook azért szükséges, mert egyes plugin-könyvtárak (pl. `file_picker`) saját `android {}` blokkjaikban alacsonyabb `compileSdk` értéket állítanak be. A hook az összes subproject kiértékelése UTÁN fut le, ezért felül tudja írni ezeket.
-
-## 14.2 AndroidManifest.xml főbb elemek
+## 18.2 AndroidManifest.xml főbb elemek
 
 ```xml
 <uses-permission android:name="android.permission.INTERNET"/>
 <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
 <uses-permission android:name="android.permission.READ_MEDIA_IMAGES"/>
+<uses-permission android:name="android.permission.WAKE_LOCK"/>
 
-<application
-    android:label="BabL42"
-    android:networkSecurityConfig="@xml/network_security_config">
-
+<application android:label="BabL42"
+             android:networkSecurityConfig="@xml/network_security_config">
   <!-- FCM Service -->
-  <service android:name=".FlutterFirebaseMessagingService"
-           android:exported="false">
+  <service android:name=".FlutterFirebaseMessagingService" android:exported="false">
     <intent-filter>
       <action android:name="com.google.firebase.MESSAGING_EVENT"/>
     </intent-filter>
@@ -1091,39 +1287,39 @@ gradle.afterProject {
 </application>
 ```
 
-## 14.3 Hálózati biztonság (önaláírt tanúsítvány)
+## 18.3 Gradle konfiguráció
 
-`android/app/src/main/res/xml/network_security_config.xml`:
-```xml
-<network-security-config>
-  <domain-config cleartextTrafficPermitted="false">
-    <domain includeSubdomains="true">192.168.16.22</domain>
-    <trust-anchors>
-      <certificates src="system"/>
-      <certificates src="user"/>
-    </trust-anchors>
-  </domain-config>
-</network-security-config>
+```kotlin
+// android/build.gradle.kts
+gradle.afterProject {
+  val android = extensions.findByType(com.android.build.api.dsl.LibraryExtension::class)
+  if (android != null && (android.compileSdk ?: 0) < 36) {
+    android.compileSdk = 36
+  }
+}
 ```
 
-## 14.4 Build
+> **Megjegyzés:** A `gradle.afterProject {}` hook azért szükséges, mert egyes plugin-könyvtárak (pl. `file_picker`) alacsonyabb `compileSdk` értéket állítanak be. A hook az összes subproject kiértékelése UTÁN fut le.
 
-- Application ID: `com.rv42.babl42`
-- compileSdk: 36, minSdk: Flutter alapértelmezett (21)
-- Kiadás: `flutter build apk --release` → `.apk` fájl
-- Jövőbeli: App Bundle (`flutter build appbundle`) Play Store-hoz
+## 18.4 Build
+
+```bash
+flutter build apk --release
+# Jövőbeli Play Store: flutter build appbundle
+```
 
 ---
 
-# 16. Biztonsági megfontolások
+# 19. Biztonsági megfontolások
 
 | Terület | Megvalósítás |
 |---|---|
 | Hitelesítés | JWT token (HS256), lejárattal |
 | Jelszó tárolás | bcrypt hash |
 | Regisztráció | Meghívókód szükséges |
-| HTTPS | TLS mindenhol (önaláírt belső CA) |
+| HTTPS | TLS mindenhol (Let's Encrypt — `babl.rv42.hu`) |
 | WebSocket | WSS (TLS) |
+| LiveKit | WSS + szoba-specifikus JWT token |
 | Fájlfeltöltés | Szerver oldali típusellenőrzés |
 | Admin jogok | Szerver oldali `is_admin` ellenőrzés minden admin végponton |
 | Push tokenek | Felhasználóhoz kötve, kijelentkezéskor törlés |
@@ -1131,24 +1327,39 @@ gradle.afterProject {
 
 ---
 
-# 17. Admin panel
+# 20. Admin panel
 
 Webes felület (`admin/`) az alábbi funkciókkal:
 
 - **Meghívókód kezelés:** kód generálás, listázás, lejárat beállítása
 - **Felhasználó kezelés:** tiltás (`is_active = 0`), admin jog adása/visszavonása
-- **Hozzáférés:** admin jogú fiókkal, `Authorization: Bearer` header
+- **Aktív hívások (`calls.php`):** LiveKit API alapú valós idejű megjelenítés
+
+### Aktív hívások oldal (`admin/calls.php`)
+
+- LiveKit Twirp API: `ListRooms` → aktív szobák → `ListParticipants` szobánként
+- **Token:** szoba-specifikus JWT (`video: {room: "room_N", roomAdmin: true}`)
+- 30 másodperces automatikus oldal-frissítés (`<meta http-equiv="refresh">`)
+- Megjelenített adatok: szoba neve, résztvevők száma, résztvevők listája
+
+```php
+function lkApi(string $method, array $payload, string $room = ''): array {
+  // room-specifikus JWT generálás + Twirp API hívás a 17880-as porton
+  $token = generateLkToken($room);
+  // POST https://127.0.0.1:17880/twirp/livekit.RoomService/{$method}
+}
+```
 
 ---
 
-# 18. Dependency-k (Flutter)
+# 21. Dependency-k (Flutter)
 
 | Package | Verzió | Szerepe |
 |---|---|---|
 | `http` | ^1.2 | REST API kérések |
 | `web_socket_channel` | ^3.0 | WebSocket kapcsolat |
 | `shared_preferences` | ^2.3 | Beállítások perzisztencia |
-| `image_picker` | ^1.1 | Kamera / fotótár |
+| `image_picker` | ^1.1 | Kamera / fotótár / videó |
 | `file_picker` | ^8.1 | Általános fájlválasztó |
 | `cached_network_image` | ^3.4 | Avatar / kép cache |
 | `path_provider` | ^2.1 | Fájlrendszer útvonalak |
@@ -1159,11 +1370,18 @@ Webes felület (`admin/`) az alábbi funkciókkal:
 | `http_parser` | ^4.0 | MIME típus HTTP fejléc |
 | `firebase_core` | ^3.0 | Firebase inicializáció |
 | `firebase_messaging` | ^15.0 | Android FCM push |
+| `package_info_plus` | ^9.0 | Verzió/build szám lekérdezés |
+| `flutter_webrtc` | ^0.12 | WebRTC + audio routing (Helper) |
+| `flutter_ringtone_player` | ^4.0 | Csengőhang lejátszás |
+| `wakelock_plus` | ^1.2 | Képernyő bekapcsolva tartás hívás alatt |
+| `video_player` | ^2.9 | Videó üzenet lejátszó |
+| `livekit_client` | ^2.4 | LiveKit SFU csoportos hanghívás |
+| `intl` | ^0.20 | Dátum/idő formázás |
 | `flutter_launcher_icons` | ^0.14 | App ikon generálás |
 
 ---
 
-# 19. Verzióhistória
+# 22. Verzióhistória
 
 | Verzió | Jellemzők |
 |---|---|
@@ -1173,4 +1391,7 @@ Webes felület (`admin/`) az alábbi funkciókkal:
 | 1.0.9 | Média galéria, üzenet keresés |
 | 1.0.10 | @mention, pin üzenet, szoba elrejtés |
 | 1.0.11 | Fájlnév fix, push badge, admin fejlesztések |
-| 1.1.0 | Dark mode (3-fokozatú), keresés→ugrás találatra, jelszócsere, profilkép multi-device szinkron, Android port (FCM push), haptikus visszajelzés + AnimatedScale hosszú lenyomásra |
+| 1.1.0 | Dark mode (3-fokozatú), keresés→ugrás találatra, jelszócsere, profilkép multi-device szinkron, Android port (FCM push), haptikus visszajelzés + AnimatedScale |
+| 1.1.1 | Fájl letöltés hosszú nyomás menüből, About modal (package_info_plus), build szám automatikus |
+| 1.1.2 | 1:1 WebRTC hanghívás (CallService), VoIP push (APNs PushKit), hívás képernyő |
+| 1.2.0 | Videó üzenetek (küldés + VideoPlayerScreen), Let's Encrypt TLS (cert bypass eltávolítva), csoportos hanghívás (LiveKit SFU), pip bar (GroupCallBar, MaterialApp.builder), call_started/call_ended WS esemény + LiveKit webhook, hangkimenet választó (earpiece/speaker/bluetooth, Helper API), közelségérzékelő platform channel (iOS: UIDevice, Android: PROXIMITY_SCREEN_OFF_WAKE_LOCK), admin aktív hívások oldal (LiveKit Twirp API, room-specifikus JWT), csoport létrehozás sheet görgetés javítás + chip sor |

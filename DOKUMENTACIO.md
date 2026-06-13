@@ -12,26 +12,26 @@ stylesheet: doc_style.css
   <h1 style="font-size: 2.6em; margin: 0 0 12px 0; color: #0d1b3e;">BabL42</h1>
   <p style="font-size: 1.2em; color: #4a5568; margin: 0 0 40px 0;">Meghívásos belső csevegő alkalmazás</p>
   <hr style="width: 60px; border: 2px solid #7ec81b; margin: 0 0 40px 0;" />
-  <p style="color: #718096; font-size: 0.95em; margin: 0;">iOS · Android · Flutter · PHP 8 · WebSocket</p>
-  <p style="color: #a0aec0; font-size: 0.85em; margin: 8px 0 0 0;">v1.1.0 · 2026. június</p>
+  <p style="color: #718096; font-size: 0.95em; margin: 0;">iOS · Android · Flutter · PHP 8 · WebSocket · LiveKit</p>
+  <p style="color: #a0aec0; font-size: 0.85em; margin: 8px 0 0 0;">v1.2.0 · 2026. június</p>
 </div>
 
 # BabL42
 
-> **Meghívásos belső csevegő alkalmazás** — zárt körű, valós idejű üzenetküldő iOS és Android alkalmazás PHP/WebSocket backenddel.
+> **Meghívásos belső csevegő és hanghívó alkalmazás** — zárt körű, valós idejű üzenetküldő iOS és Android alkalmazás PHP/WebSocket backenddel és LiveKit SFU csoportos hanghívással.
 
 ---
 
 ## Áttekintés
 
-A BabL42 egy privát, meghívásos alapú csevegő alkalmazás, amelyet zárt szervezeti vagy baráti körök belső kommunikációjára terveztek. Nem igényel külső szolgáltatókat (WhatsApp, Telegram stb.) — a teljes infrastruktúra önállóan üzemeltethető.
+A BabL42 egy privát, meghívásos alapú csevegő és hanghívó alkalmazás, amelyet zárt szervezeti vagy baráti körök belső kommunikációjára terveztek. Nem igényel külső szolgáltatókat (WhatsApp, Telegram stb.) — a teljes infrastruktúra önállóan üzemeltethető.
 
 | Tulajdonság | Érték |
 |---|---|
 | Bundle ID | `com.rv42.babl42` |
 | Platform | iOS · Android (Flutter) |
-| Backend | PHP 8 + Ratchet WebSocket + MySQL |
-| Aktuális verzió | 1.1.0 (39) |
+| Backend | PHP 8 + Ratchet WebSocket + MySQL + LiveKit SFU |
+| Aktuális verzió | 1.2.0 (+90) |
 | Fejlesztői csapat | K7Z734X92Z |
 
 ---
@@ -110,10 +110,11 @@ Több tagból álló szoba névvel. Az admin tagokat adhat hozzá és távolíth
 
 Az online állapot valós időben frissül. A pontosság érdekében a kliens 30 másodpercenként ping üzenetet küld a szervernek — ha a kapcsolat "csendben" megszakad (pl. iOS háttérben levágja), a szerver ezt 60 másodpercen belül észleli és offline-nak jelöli a felhasználót.
 
-## 1.5 Push értesítések (APNs)
+## 1.5 Push értesítések (APNs / FCM)
 
-- Token alapú APNs autentikáció (`.p8` kulcs, ES256/JWT)
-- Ékezetes karakterek helyesen jelennek meg (Unicode escape kódolással)
+- Token alapú APNs autentikáció (`.p8` kulcs, ES256/JWT) iOS-en
+- Firebase Cloud Messaging (FCM) Android-on
+- Ékezetes karakterek helyesen jelennek meg
 - Koppintásra az értesítésen → közvetlenül az adott szobába ugrik
 - Némított szobákból nem érkezik push
 - App ikon badge száma = összes olvasatlan üzenet
@@ -125,6 +126,7 @@ Az online állapot valós időben frissül. A pontosság érdekében a kliens 30
 - **Jelszócsere:** aktuális jelszó megadása után új jelszó beállítható
 - **Betűméret beállítás:** + / − gombokkal, élő előnézettel
 - **Megjelenési mód:** Rendszer / Világos / Sötét (dark mode)
+- **Névjegy (About):** alkalmazásverzió és build szám, copyright
 - Kijelentkezés
 
 ## 1.7 Keresés
@@ -134,6 +136,87 @@ Az AppBar-ban lévő 🔍 ikonra koppintva kereshetünk a szoba üzenetei közö
 ## 1.8 Android támogatás
 
 A BabL42 az iOS mellett Android rendszeren is elérhető. Az Android változat azonos funkcionalitást nyújt; push értesítéseket Firebase Cloud Messaging (FCM) segítségével kap. Minimum Android verzió: **7.0 (API 24)**.
+
+## 1.9 Videó üzenetek
+
+- Videó fájlok küldése a csatolás ikonon keresztül (Videó menüpont)
+- A chat buborékban bélyegkép jelenik meg lejátszás gombbal
+- Koppintásra teljes képernyős lejátszó nyílik (`VideoPlayerScreen`)
+- Hosszú lenyomás → Lejátszás / Letöltés
+- Maximális fájlméret: 100 MB
+- Streamelés HTTPS-en keresztül (Let's Encrypt TLS tanúsítvány)
+
+## 1.10 1:1 Hanghívás
+
+- Zöld telefon ikon a direkt szoba fejlécén
+- Valós idejű WebRTC alapú hang kapcsolat
+- Hívás indítása, fogadása és elutasítása
+- Hangszóró toggle hívás közben
+- Push értesítés (APNs/FCM) beérkező hívásról
+
+## 1.11 Csoportos hanghívás
+
+A csoportos szobákban LiveKit SFU alapú konferenciadíjhívás érhető el, egyidejűleg kb. 10 résztvevőig.
+
+### Hívás indítása és csatlakozás
+
+- **Fejhallgató ikon** a csoport szoba fejlécén indít vagy csatlakoztat híváshoz
+- Ha egy csoportban már folyamatban van hívás, az ikon **zöldre** vált → koppintásra csatlakozás (nem új hívás)
+- Más szobában aktív hívás esetén a gomb szürke és letiltott
+- Ha én vagyok a hívásban → piros leállítás ikon jelenik meg a fejlécen
+- **Csatlakozási értesítés:** ha valaki hívást kezdeményez, egy SnackBar jelenik meg az app alján „Csatlakozás" gombbal
+
+### Hívás képernyő (GroupCallScreen)
+
+```
+┌─────────────────────────────────┐
+│  ← Csoport neve (← = minimalizál)│
+│                                 │
+│  [Avatar]  [Avatar]  [Avatar]   │
+│  Kovács J. Kiss P.   Nagy A.    │
+│  🎤 aktív  🔇 némítva  🎤 aktív │
+│                                 │
+│  [🎤 Mic] [🔈 Hangkimenet] [☎ Kilép] │
+└─────────────────────────────────┘
+```
+
+- Résztvevők kör avatarral és névvel
+- Mikrofon státusz jelzése (aktív / némított)
+- **Mikrofon gomb:** saját mikrofon némítása/visszakapcsolása
+- **Hangkimenet gomb:** bottom sheet megnyílik → hangeszköz választó
+- **Kilépés gomb:** elhagyja a hívást
+
+### Pip bar (háttérsáv)
+
+Hívás közben a vissza gomb **nem szünteti meg** a hívást — csak minimalizálja. Az app alján egy **sáv (pip bar)** jelenik meg:
+
+```
+[🎧] Fejlesztők  ·  3 résztvevő   [🎤] [✕]
+```
+
+- Koppintásra visszaugrik a hívás képernyőre
+- Mikrofon toggle a sávból is működik
+- Kilépés gomb a sávból is működik
+- Minden képernyőn látható, amíg hívás folyamatban van
+
+### Hangkimenet választó
+
+Bottom sheet a hangkimenet váltásához:
+
+| Opció | Ikon | Leírás |
+|---|---|---|
+| Fülhallgató | 👂 | Belső hangszóró, telefon mellé tartva |
+| Kihangosítás | 🔊 | Beépített hangszóró, asztalra téve |
+| Bluetooth | 🎧 | Külső BT eszköz (headset, fülhallgató) |
+
+Ha nincs Bluetooth eszköz párosítva, az opció szürke és letiltott.
+
+### Közelségérzékelő
+
+Hívás közben, ha a telefont archoz tartják:
+- **iOS:** `UIDevice.isProximityMonitoringEnabled` → a kijelző automatikusan elsötétül
+- **Android:** `PowerManager.PROXIMITY_SCREEN_OFF_WAKE_LOCK` → ugyanaz az eredmény
+- Az arcot elvéve a kijelző újra bekapcsol
 
 ---
 
@@ -148,12 +231,15 @@ Az alkalmazás meghívásos — fiókot csak az adminisztrátor tud létrehozni.
 1. Jobb alsó sarokban lévő **ceruza ikon** → új szoba
 2. Válaszd: **Direkt üzenet** (egy személynek) vagy **Csoport**
 3. Csoportnál adj meg egy nevet, és jelöld ki a tagokat
+   - A kiválasztott tagok chip-sorban jelennek meg (X-szel eltávolíthatók)
+   - A tagválasztó lista görgethető, ha sokan vannak
 4. **Létrehozás** gomb
 
 ## 2.3 Üzenet küldése
 
 - Szöveg: beírás → küldés gomb
 - Kép: 📎 ikon → Kamera vagy Fotótár
+- Videó: 📎 ikon → Videó
 - Fájl: 📎 ikon → Fájl
 - Válasz: hosszú nyomás → Válasz
 - Reakció / szerkesztés / törlés: hosszú nyomás az üzeneten
@@ -167,6 +253,18 @@ Az alkalmazás meghívásos — fiókot csak az adminisztrátor tud létrehozni.
 
 A szoba neve melletti **👥 N** jelzőre koppintva megnyílik a tagok listája az online állapotukkal. Az online tagok felül jelennek meg.
 
+## 2.6 Csoportos hanghívás használata
+
+1. Nyiss meg egy **csoport szobát**
+2. Koppints a **fejhallgató ikonra** (AppBar jobb oldal)
+   - Ha a szobában már van hívás → csatlakozás kérdés
+   - Ha nincs hívás → te indítod el
+3. A **hívás képernyőn** látod a résztvevőket és a mikrofon állapotát
+4. **Hangkimenet** módosítása: koppints a hangszóró ikonra → válassz az opciók közül
+5. **Minimalizálás:** vissza gomb → a pip bar megjelenik az app alján
+6. **Visszatérés híváshoz:** koppints a pip barra
+7. **Kilépés a hívásból:** koppints a piros ☎ gombra a hívás képernyőn, vagy az ✕ gombra a pip bárban
+
 ---
 
 # 3. Technikai megvalósítás
@@ -174,26 +272,28 @@ A szoba neve melletti **👥 N** jelzőre koppintva megnyílik a tagok listája 
 ## 3.1 Architektúra áttekintés
 
 ```
-┌─────────────────────────────────────────┐
-│           iOS kliens (Flutter)          │
-│                                         │
-│  Screens → Services → Models           │
-│     │          │                        │
-│  WsService  ApiService                  │
-└──────────────────┬──────────────────────┘
+┌─────────────────────────────────────────────────┐
+│           iOS / Android kliens (Flutter)         │
+│                                                  │
+│  Screens → Services → Models                    │
+│     │           │                                │
+│  WsService  ApiService   GroupCallService        │
+└──────────────────┬──────────────────────────────┘
                    │ HTTPS + WSS
-                   │ (önaláírt tanúsítvány,
-                   │  Dart SSL bypass)
-┌──────────────────┴──────────────────────┐
-│         Backend szerver                 │
-│                                         │
-│  PHP 8 REST API  +  Ratchet WS szerver  │
-│              │                          │
-│           MySQL adatbázis               │
-└─────────────────────────────────────────┘
+                   │ (Let's Encrypt TLS — babl.rv42.hu)
+┌──────────────────┴──────────────────────────────┐
+│         Backend szerver (babl.rv42.hu)           │
+│                                                  │
+│  PHP 8 REST API  +  Ratchet WS szerver           │
+│              │                                   │
+│           MySQL adatbázis                        │
+│                                                  │
+│  LiveKit SFU  (wss://babl.rv42.hu:7880)         │
+│  coturn TURN relay                               │
+└──────────────────────────────────────────────────┘
 ```
 
-**Szerver:** `192.168.16.22:9456` (LAN, HTTPS + WSS)
+**Szerver:** `babl.rv42.hu:9456` (HTTPS + WSS, Let's Encrypt)
 
 ## 3.2 Flutter alkalmazás struktúra
 
@@ -206,17 +306,25 @@ app/lib/
 │   ├── room.dart               # Szoba modell, helper getterek
 │   └── user.dart               # Felhasználó modell
 ├── services/
-│   ├── api_service.dart        # REST API hívások (IOClient, SSL bypass)
+│   ├── api_service.dart        # REST API hívások
 │   ├── auth_service.dart       # Token kezelés (SharedPreferences)
 │   ├── ws_service.dart         # WebSocket singleton + jelenlét
-│   └── push_service.dart       # APNs regisztráció és kezelés
+│   ├── push_service.dart       # APNs (iOS) + FCM (Android)
+│   ├── settings_service.dart   # Betűméret, dark mode
+│   ├── call_service.dart       # 1:1 WebRTC hívás kezelés
+│   └── group_call_service.dart # Csoportos LiveKit hívás kezelés
 ├── screens/
 │   ├── login_screen.dart
 │   ├── room_list_screen.dart   # Szoba lista + tagok modal
 │   ├── chat_screen.dart        # Chat + info panel + összes interakció
-│   └── profile_screen.dart     # Profil szerkesztés, betűméret
+│   ├── profile_screen.dart     # Profil szerkesztés, betűméret
+│   ├── room_search_screen.dart # Üzenetkeresés
+│   ├── room_media_screen.dart  # Média galéria
+│   ├── video_player_screen.dart# Teljes képernyős videólejátszó
+│   └── group_call_screen.dart  # Csoportos hívás képernyő
 └── widgets/
-    └── ws_status_bar.dart      # WsDot (AppBar pötty) + PresenceDot
+    ├── ws_status_bar.dart      # WsDot (AppBar pötty) + PresenceDot
+    └── group_call_bar.dart     # Pip bar (hívás közben mindig látható)
 ```
 
 ## 3.3 WebSocket szolgáltatás (`WsService`)
@@ -253,6 +361,8 @@ class WsService {
 | `presence_list` | Szobában lévő online felhasználók listája |
 | `member_left` | Tag elhagyta a szobát |
 | `delete_request` | Szoba törlési kérelem |
+| `call_started` | Valaki csoportos hívást kezdeményezett |
+| `call_ended` | A csoportos hívás véget ért |
 
 ## 3.4 Online jelenlét pipeline
 
@@ -273,8 +383,6 @@ WS events stream (RoomList + ChatScreen setState)
 PresenceDot / avatar keret szín frissül
 ```
 
-Szobába lépéskor a szerver `presence_list` eseményt küld az éppen online tagok ID listájával.
-
 ## 3.5 Ping/pong heartbeat
 
 Az online jelenlét pontosítása érdekében a kliens és szerver rendszeres "életjel" cserét folytat:
@@ -290,87 +398,29 @@ Kliens                          Szerver
   │── 5 mp múlva reconnect ───────▶ onOpen() → auth → online
 ```
 
-**Miért szükséges:** iOS agresszívan bezárja a háttér WebSocket kapcsolatokat, de nem mindig küld TCP FIN csomagot. Enélkül a szerver nem értesülne a kilépésről — a felhasználó "szellemként" online maradna órákon át.
+## 3.6 Push értesítések
 
-**Időzítések:**
+**iOS (APNs):** Token alapú autentikáció (`.p8` privát kulcs, ES256 algoritmus, JWT)
 
-| Esemény | Időzítés |
-|---|---|
-| Kliens ping küldése | 30 másodpercenként |
-| Pong várakozási idő | 10 másodperc |
-| Szerver idle timeout | 60 másodperc ping nélkül |
-| Automatikus reconnect | 5 másodperccel a bontás után |
+**Android (FCM):** Firebase Cloud Messaging, `google-services.json` konfiguráció
 
-## 3.6 Push értesítések (APNs)
+## 3.7 SSL / TLS
 
-**Autentikáció:** Token alapú (`.p8` privát kulcs, ES256 algoritmus, JWT)
+A szerver `babl.rv42.hu` domainre Let's Encrypt tanúsítvánnyal rendelkezik. A kliens standard HTTPS/WSS kapcsolattal csatlakozik; nincs szükség tanúsítvány bypass-ra.
 
-**Fontos tanulság — ékezetek:** Az iOS APNs rendszer a `JSON_UNESCAPED_UNICODE` PHP flag esetén helytelen byte szekvenciát kaphat. A megoldás: standard JSON kódolás (`\uXXXX` escape), amelyet az iOS JSON parser helyesen dekódol.
-
-```php
-// HELYTELEN:
-json_encode($payload, JSON_UNESCAPED_UNICODE);
-
-// HELYES:
-json_encode($payload);  // \uXXXX escape → iOS helyesen jeleníti meg
-```
-
-**Token regisztráció Flow (iOS):**
-```
-AppDelegate.didRegisterForRemoteNotifications
-      │
-      ▼ (SceneDelegate alapú app: FlutterImplicitEngineDelegate kell)
-pendingToken buffer → Flutter engine kész
-      │
-      ▼
-MethodChannel → PushService.dart → API /push-token
-```
-
-**Entitlement:** `aps-environment = production` szükséges a `Runner.entitlements`-ben.
-
-## 3.7 SSL kezelés (önaláírt tanúsítvány)
-
-```dart
-final client = IOClient(
-  HttpClient()..badCertificateCallback = (cert, host, port) => true,
-);
-```
-
-Ez kizárólag fejlesztési/belső használatra alkalmas megoldás. Éles, nyilvános alkalmazásban érvényes tanúsítvány szükséges.
-
-## 3.8 Üzenet buborék
-
-A buborék maximális szélessége a képernyőhöz igazodik:
-
-```dart
-// Szöveg/link:
-BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75)
-
-// Kép:
-width: MediaQuery.of(context).size.width * 0.65
-```
-
-## 3.9 Build és kiadás folyamat
+## 3.8 Build és kiadás folyamat
 
 ```bash
-# 1. Flutter fordítás (aláírás nélkül)
+# iOS build (Ad Hoc / TestFlight)
 flutter build ios --release --no-codesign
-
-# 2. Xcode archív létrehozása
-xcodebuild \
-  -workspace ios/Runner.xcworkspace \
-  -scheme Runner \
-  -configuration Release \
+xcodebuild -workspace ios/Runner.xcworkspace \
+  -scheme Runner -configuration Release \
   -archivePath ~/Library/Developer/Xcode/Archives/BabL42_vN.xcarchive \
-  archive \
-  DEVELOPMENT_TEAM="K7Z734X92Z" \
-  -allowProvisioningUpdates
+  archive DEVELOPMENT_TEAM="K7Z734X92Z" -allowProvisioningUpdates
 
-# 3. Feltöltés TestFlight-ra
-# Xcode → Window → Organizer → Distribute App → App Store Connect → Upload
+# Android build
+flutter build apk --release
 ```
-
-> **Fontos:** a `flutter build` **megelőzi** az `xcodebuild archive` lépést. Ha fordítva végzik, az archív az előző build kódját tartalmazza.
 
 ---
 
@@ -387,11 +437,14 @@ xcodebuild \
 | 1.0.6 | 26 | Üzenet buborék szélesség képernyőarányos |
 | 1.0.7 | 27 | Avatar karika hangsúlyosabb, statikus AppBar pötty, avatar dialog bárhol, saját üzenet olvasatlan bug fix |
 | 1.0.8 | 29 | Ping/pong heartbeat — pontos online/offline érzékelés |
-| 1.0.9 | 30 | Avatar + presence karika a kézbesítési részleteknél és tagok modalnál; fájltípus ikon üzenetbuborékban; időzóna egységesítés (szerver); szobalistán fájlnév megjelenítés (szerver) |
+| 1.0.9 | 30 | Avatar + presence karika a kézbesítési részleteknél és tagok modalnál; fájltípus ikon üzenetbuborékban; időzóna egységesítés (szerver); szobalistán fájlnév megjelenítés |
 | 1.0.10 | 31 | Chat info panel (ⓘ) taglistájánál avatar + jelenlét-karika |
-| 1.0.11 | 32 | Fájlnév helyes megjelenítése küldőnél és fogadónál egyaránt (buborék + szoba lista előnézet) |
+| 1.0.11 | 32 | Fájlnév helyes megjelenítése küldőnél és fogadónál egyaránt |
 | 1.1.0 | 33–39 | Dark mode (rendszer/világos/sötét), üzenetkeresés + ugrás találatra, jelszócsere, profilkép multi-device szinkron, Android port (FCM push), haptikus visszajelzés + scale animáció hosszú lenyomásra |
+| 1.1.1 | 40–50 | Média galéria, @mention, kitűzött üzenet, szoba elrejtés, fájl letöltés hosszú nyomás menüből, About modal |
+| 1.1.2 | 51–70 | 1:1 WebRTC hanghívás (CallService), VoIP push (APNs PushKit), hívás képernyő |
+| 1.2.0 | 71–90 | Videó üzenetek (küldés + inline lejátszó + VideoPlayerScreen), Let's Encrypt TLS, csoportos hanghívás (LiveKit SFU), pip bar, call_started/call_ended WS események, hangkimenet választó (fülhallgató/kihangosítás/BT), közelségérzékelő (iOS + Android platform channel), admin aktív hívások panel, csoport létrehozás chip sor + görgetés |
 
 ---
 
-*Dokumentáció generálva: 2026. június · BabL42 v1.1.0*
+*Dokumentáció generálva: 2026. június · BabL42 v1.2.0*
