@@ -957,20 +957,40 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
             ListenableBuilder(
               listenable: GroupCallService(),
               builder: (_, __) {
-                final active = GroupCallService().isActive;
+                final svc = GroupCallService();
+                final isMyCall = svc.isActive && svc.chatRoomId == _room.id;
+                final isJoinable = svc.isRoomCallActive(_room.id) && !isMyCall;
+                final isBusy = svc.isActive && svc.chatRoomId != _room.id;
+
                 return IconButton(
-                  icon: Icon(active ? Icons.call_end : Icons.headset),
-                  color: active ? Colors.red : null,
-                  tooltip: active ? 'Kilépés a hívásból' : 'Csoportos hanghívás',
-                  onPressed: () {
-                    if (active) {
-                      GroupCallService().leave();
-                    } else {
-                      Navigator.push(context, MaterialPageRoute(
-                        builder: (_) => GroupCallScreen(roomId: _room.id, roomName: _room.name),
-                      ));
-                    }
-                  },
+                  icon: Icon(
+                    isMyCall ? Icons.call_end : Icons.headset,
+                    color: isMyCall
+                        ? Colors.red
+                        : isJoinable
+                            ? Colors.green
+                            : isBusy
+                                ? Colors.grey
+                                : null,
+                  ),
+                  tooltip: isMyCall
+                      ? 'Kilépés a hívásból'
+                      : isJoinable
+                          ? 'Csatlakozás a folyamatban lévő híváshoz'
+                          : isBusy
+                              ? 'Másik hívásban vagy'
+                              : 'Csoportos hanghívás indítása',
+                  onPressed: isBusy
+                      ? null
+                      : () {
+                          if (isMyCall) {
+                            GroupCallService().leave();
+                          } else {
+                            Navigator.push(context, MaterialPageRoute(
+                              builder: (_) => GroupCallScreen(roomId: _room.id, roomName: _room.name),
+                            ));
+                          }
+                        },
                 );
               },
             ),

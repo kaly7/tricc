@@ -10,15 +10,36 @@ class GroupCallService extends ChangeNotifier {
   Room? _room;
   bool _connecting = false;
   String? _error;
+  int? _chatRoomId;
+  String _chatRoomName = '';
+  // roomId → roomName: külső (más által indított) aktív hívások
+  final Map<int, String> _activeCallRooms = {};
 
   Room? get room => _room;
   bool get isConnecting => _connecting;
   bool get isActive => _room?.connectionState == ConnectionState.connected;
   String? get error => _error;
   bool get isMuted => !(_room?.localParticipant?.isMicrophoneEnabled() ?? true);
+  int? get chatRoomId => _chatRoomId;
+  String get chatRoomName => _chatRoomName;
 
-  Future<void> join(int roomId) async {
+  bool isRoomCallActive(int roomId) =>
+      _activeCallRooms.containsKey(roomId) || (isActive && _chatRoomId == roomId);
+
+  void markRoomCallActive(int roomId, String roomName) {
+    _activeCallRooms[roomId] = roomName;
+    notifyListeners();
+  }
+
+  void markRoomCallInactive(int roomId) {
+    _activeCallRooms.remove(roomId);
+    notifyListeners();
+  }
+
+  Future<void> join(int roomId, String roomName) async {
     if (_connecting || isActive) return;
+    _chatRoomId = roomId;
+    _chatRoomName = roomName;
     _connecting = true;
     _error = null;
     notifyListeners();
@@ -33,8 +54,12 @@ class GroupCallService extends ChangeNotifier {
       );
       await r.localParticipant?.setMicrophoneEnabled(true);
       _room = r;
+      _activeCallRooms[roomId] = roomName;
+      try { await ApiService().notifyCallStarted(roomId); } catch (_) {}
     } catch (e) {
       _error = e.toString();
+      _chatRoomId = null;
+      _chatRoomName = '';
     } finally {
       _connecting = false;
       notifyListeners();
@@ -42,10 +67,14 @@ class GroupCallService extends ChangeNotifier {
   }
 
   Future<void> leave() async {
+    final leavingRoomId = _chatRoomId;
     _room?.removeListener(notifyListeners);
     await _room?.disconnect();
     _room = null;
     _error = null;
+    _chatRoomId = null;
+    _chatRoomName = '';
+    if (leavingRoomId != null) _activeCallRooms.remove(leavingRoomId);
     notifyListeners();
   }
 

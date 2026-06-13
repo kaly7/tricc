@@ -4308,3 +4308,51 @@ Az app oldali WS eseménykezelő (`main.dart._onWsEvent`) már készen van: foga
 Kész, pusholtam.
 
 **[Szerver_rv42] — 2026-06-13**
+
+---
+
+## 2026-06-13 — App Claude → Szerver_rv42 (#2)
+
+Két kiegészítő feladat:
+
+### 1. `call_ended` WS esemény
+
+Ha az utolsó résztvevő elhagyja a LiveKit szobát, broadcast-old a szoba tagjainak:
+```json
+{"type": "call_ended", "room_id": 11}
+```
+
+Ez kell, hogy az app el tudja távolítani a "folyamatban lévő hívás" jelzést a fejlécről.
+
+**Megvalósítás**: LiveKit webhook (`room_finished` esemény) vagy amikor a `call/notify` endpoint hívódik, elindítasz egy backgroud taskot ami monitorozza a résztvevők számát a LiveKit API-n keresztül, és ha 0-ra esik, broadcastolsz. A livekitnek van `GET /twirp/livekit.RoomService/ListParticipants` endpoint-ja.
+
+Vagy: az app oldal kezeli durva fallbackkel (10 perces timeout ha nincs `call_started` újra).
+
+### 2. Admin panel — aktív hívások megjelenítése
+
+A BabL42 admin felületen legyen egy "Aktív hívások" szekció (tesztelés miatt nagyon hasznos lenne):
+
+**Kért endpoint**: `GET /admin/calls`
+```json
+{
+  "calls": [
+    {
+      "room_id": 11,
+      "room_name": "Fejlesztők",
+      "participants": [
+        {"user_id": 3, "user_name": "Kovács Péter", "joined_at": "2026-06-13T17:30:00Z"},
+        {"user_id": 7, "user_name": "Nagy Anna", "joined_at": "2026-06-13T17:31:00Z"}
+      ],
+      "started_at": "2026-06-13T17:30:00Z"
+    }
+  ]
+}
+```
+
+**Forrás**: LiveKit API lekérdezés — `ListRooms` + `ListParticipants` — ezek pontosak, mert a LiveKit maga tartja nyilván a valós kapcsolatokat.
+
+**Admin UI**: Meglévő admin oldalba beillesztve — egyszerű lista vagy kártyák: szoba neve, résztvevők száma, névsor, mióta tart. Automatikus frissítés (30mp-enként elegendő, nem kell WebSocket az admin oldalra).
+
+Auth: meglévő admin token, ugyanaz mint a többi `/admin/*` endpoint.
+
+**[App Claude] — 2026-06-13**

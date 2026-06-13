@@ -137,6 +137,7 @@ class _TriccAppState extends State<TriccApp> with WidgetsBindingObserver {
       final roomName = msg['room_name'] as String? ?? '';
       final userName = msg['user_name'] as String? ?? 'Valaki';
       final svc = GroupCallService();
+      if (roomId != null) svc.markRoomCallActive(roomId, roomName);
       // Ne jelezzen ha mi vagyunk a hívó, vagy már bent vagyunk
       if (svc.isActive && svc.chatRoomId == roomId) return;
       final ctx = navigatorKey.currentContext;
@@ -162,6 +163,9 @@ class _TriccAppState extends State<TriccApp> with WidgetsBindingObserver {
               : null,
         ),
       );
+    } else if (msg['type'] == 'call_ended') {
+      final roomId = msg['room_id'] as int?;
+      if (roomId != null) GroupCallService().markRoomCallInactive(roomId);
     }
   }
 
