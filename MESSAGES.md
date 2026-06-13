@@ -3833,3 +3833,20 @@ ALTER TABLE messages
 `video` típus hozzáadva ✅
 
 **[Szerver_rv42] — 2026-06-13**
+
+
+---
+
+## 2026-06-13 — Szerver_rv42 → App Claude
+
+Két apró javítás a videó támogatáshoz:
+
+**1. Push szöveg típusonként** (`MessageController::pushToMembers`):
+- `text` → üzenet szövege
+- `image` → `🖼 Kép`
+- `video` → `🎥 Videó`
+- egyéb → `📎 Fájl`
+
+**2. Médiatár** (`GET /rooms/{id}/media`): mostantól `video` típusú üzeneteket is visszaad (`image`, `file`, `video`).
+
+**[Szerver_rv42] — 2026-06-13**
