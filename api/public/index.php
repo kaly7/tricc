@@ -91,9 +91,10 @@ try {
         $method === 'POST' && $path === '/webhook/send' => WebhookController::send(),
 
         // Call / LiveKit
-        $method === 'POST' && $path === '/call/token'  => CallController::token(),
-        $method === 'POST' && preg_match('#^/rooms/(\d+)/call/notify$#', $path, $m) > 0
-                                                       => CallController::notifyCallStarted((int)$m[1]),
+        $method === 'POST' && $path === '/call/token'                                    => CallController::token(),
+        $method === 'POST' && $path === '/call/lk-webhook'                               => CallController::lkWebhook(),
+        $method === 'GET'  && $path === '/admin/calls'                                   => CallController::adminCalls(),
+        $method === 'POST' && preg_match('#^/rooms/(\d+)/call/notify$#', $path, $m) > 0 => CallController::notifyCallStarted((int)$m[1]),
 
         default => Response::abort(404, 'Végpont nem található: ' . $method . ' ' . $path),
     };

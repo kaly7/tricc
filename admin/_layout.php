@@ -32,6 +32,11 @@ body { background: #f0f2f5; }
         </a>
       </li>
       <li class="nav-item">
+        <a class="nav-link <?= ($active_page??'') === 'calls' ? 'active' : '' ?>" href="calls.php">
+          <i class="bi bi-telephone-fill"></i> Aktív hívások
+        </a>
+      </li>
+      <li class="nav-item">
         <a class="nav-link <?= ($active_page??'') === 'reset' ? 'active' : '' ?> text-warning" href="reset.php">
           <i class="bi bi-trash2"></i> Teszt reset
         </a>
