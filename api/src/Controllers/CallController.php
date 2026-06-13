@@ -147,7 +147,7 @@ class CallController {
             $st->execute(['Szoba #' . $roomId, $roomId]);
             $roomName = $st->fetchColumn() ?: ('Szoba #' . $roomId);
 
-            $parts = self::lkApiCall('ListParticipants', ['room' => $room['name']], $cfg);
+            $parts = self::lkApiCall('ListParticipants', ['room' => $room['name']], $cfg, $room['name']);
             $participants = [];
             foreach ($parts['participants'] ?? [] as $p) {
                 $userId = (int)($p['identity'] ?? 0);
@@ -172,15 +172,18 @@ class CallController {
         Response::json(['calls' => $calls]);
     }
 
-    private static function lkApiCall(string $method, array $body, array $cfg): array {
+    private static function lkApiCall(string $method, array $body, array $cfg, string $room = ''): array {
         $now = time();
+        $grant = $room
+            ? (object)['room' => $room, 'roomAdmin' => true, 'roomJoin' => false]
+            : (object)['roomList' => true, 'roomAdmin' => true];
         $token = JWT::encode([
             'iss'   => $cfg['livekit_key'],
             'sub'   => 'server',
             'jti'   => uniqid('lk_', true),
             'iat'   => $now,
             'exp'   => $now + 60,
-            'video' => (object)['roomList' => true, 'roomAdmin' => true],
+            'video' => $grant,
         ], $cfg['livekit_secret'], 'HS256');
 
         $ch = curl_init('http://127.0.0.1:17880/twirp/livekit.RoomService/' . $method);
