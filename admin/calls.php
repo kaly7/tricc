@@ -1,13 +1,11 @@
 <?php
-session_start();
-if (!isset($_SESSION['tricc_admin'])) { header('Location: login.php'); exit; }
+require '_db.php';
+tricc_auth();
 
-require_once '_db.php';
 require_once __DIR__ . '/../../vendor/autoload.php';
-
 use Firebase\JWT\JWT;
 
-// AJAX kérés: JSON visszaadása
+// AJAX: JSON visszaadása
 if (isset($_GET['json'])) {
     header('Content-Type: application/json');
     echo json_encode(['calls' => lkActiveCalls()]);
@@ -16,7 +14,7 @@ if (isset($_GET['json'])) {
 
 function lkActiveCalls(): array {
     $cfg = require __DIR__ . '/../../config.php';
-    $db  = db();
+    $db  = tricc_db();
 
     $rooms = lkApi('ListRooms', [], $cfg);
     $calls = [];
@@ -80,9 +78,9 @@ function lkApi(string $method, array $body, array $cfg): array {
 
 $title = 'Aktív hívások';
 $active_page = 'calls';
-
-ob_start();
+require '_layout.php';
 ?>
+
 <div class="d-flex justify-content-between align-items-center mb-3">
   <h4 class="mb-0"><i class="bi bi-telephone-fill text-success me-2"></i>Aktív hívások</h4>
   <button class="btn btn-sm btn-outline-secondary" onclick="loadCalls()">
@@ -96,6 +94,7 @@ ob_start();
   </div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script>
 function loadCalls() {
   fetch('calls.php?json=1')
@@ -140,6 +139,6 @@ function esc(s) {
 loadCalls();
 setInterval(loadCalls, 30000);
 </script>
-<?php
-$content = ob_get_clean();
-require '_layout.php';
+</div>
+</body>
+</html>
