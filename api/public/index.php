@@ -92,6 +92,8 @@ try {
 
         // Call / LiveKit
         $method === 'POST' && $path === '/call/token'  => CallController::token(),
+        $method === 'POST' && preg_match('#^/rooms/(\d+)/call/notify$#', $path, $m) > 0
+                                                       => CallController::notifyCallStarted((int)$m[1]),
 
         default => Response::abort(404, 'Végpont nem található: ' . $method . ' ' . $path),
     };
