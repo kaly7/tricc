@@ -37,6 +37,73 @@ class _GroupCallScreenState extends State<GroupCallScreen> {
     if (mounted) Navigator.pop(context);
   }
 
+  void _showAudioSheet(BuildContext context) {
+    final svc = GroupCallService();
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF16213E),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (_) => ListenableBuilder(
+        listenable: svc,
+        builder: (_, __) {
+          final btDevices = svc.audioDevices
+              .where((d) => d.label.toLowerCase().contains('bluetooth') ||
+                  d.label.toLowerCase().contains('bt') ||
+                  d.label.toLowerCase().contains('airpod') ||
+                  d.label.toLowerCase().contains('wireless'))
+              .toList();
+
+          return SafeArea(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Padding(
+                  padding: EdgeInsets.all(16),
+                  child: Text('Hangkimenet', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600)),
+                ),
+                _AudioOption(
+                  icon: Icons.phone_in_talk,
+                  label: 'Fülhallgató',
+                  subtitle: 'Telefon hangszórója (privát)',
+                  selected: svc.audioOutput == AudioOutput.earpiece,
+                  onTap: () { svc.setAudioOutput(AudioOutput.earpiece); Navigator.pop(context); },
+                ),
+                _AudioOption(
+                  icon: Icons.volume_up,
+                  label: 'Kihangosítás',
+                  subtitle: 'Beépített hangszóró',
+                  selected: svc.audioOutput == AudioOutput.speaker,
+                  onTap: () { svc.setAudioOutput(AudioOutput.speaker); Navigator.pop(context); },
+                ),
+                if (btDevices.isNotEmpty)
+                  ...btDevices.map((d) => _AudioOption(
+                    icon: Icons.bluetooth_audio,
+                    label: d.label.isNotEmpty ? d.label : 'Bluetooth',
+                    subtitle: 'Bluetooth eszköz',
+                    selected: svc.audioOutput == AudioOutput.bluetooth,
+                    onTap: () { svc.setAudioOutput(AudioOutput.bluetooth, deviceId: d.deviceId); Navigator.pop(context); },
+                  ))
+                else
+                  _AudioOption(
+                    icon: Icons.bluetooth_audio,
+                    label: 'Bluetooth',
+                    subtitle: 'Nincs csatlakoztatva',
+                    selected: false,
+                    enabled: false,
+                    onTap: () {},
+                  ),
+                const SizedBox(height: 8),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+    svc.reloadAudioDevices();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -135,8 +202,10 @@ class _GroupCallScreenState extends State<GroupCallScreen> {
         ),
         _BottomBar(
           isMuted: _svc.isMuted,
+          audioOutput: _svc.audioOutput,
           onMute: _svc.toggleMute,
           onLeave: _leave,
+          onAudioOutput: () => _showAudioSheet(context),
         ),
       ],
     );
@@ -201,15 +270,29 @@ class _ParticipantTile extends StatelessWidget {
 
 class _BottomBar extends StatelessWidget {
   final bool isMuted;
+  final AudioOutput audioOutput;
   final VoidCallback onMute;
   final VoidCallback onLeave;
-  const _BottomBar({required this.isMuted, required this.onMute, required this.onLeave});
+  final VoidCallback onAudioOutput;
+  const _BottomBar({
+    required this.isMuted,
+    required this.audioOutput,
+    required this.onMute,
+    required this.onLeave,
+    required this.onAudioOutput,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final audioIcon = switch (audioOutput) {
+      AudioOutput.earpiece  => Icons.phone_in_talk,
+      AudioOutput.speaker   => Icons.volume_up,
+      AudioOutput.bluetooth => Icons.bluetooth_audio,
+    };
+
     return SafeArea(
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 48, vertical: 20),
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
           children: [
@@ -218,6 +301,16 @@ class _BottomBar extends StatelessWidget {
               label: isMuted ? 'Némítva' : 'Mikrofon',
               color: isMuted ? Colors.red : Colors.white24,
               onTap: onMute,
+            ),
+            _CallButton(
+              icon: audioIcon,
+              label: switch (audioOutput) {
+                AudioOutput.earpiece  => 'Fülhallgató',
+                AudioOutput.speaker   => 'Kihangosítás',
+                AudioOutput.bluetooth => 'Bluetooth',
+              },
+              color: audioOutput == AudioOutput.speaker ? kBlue : Colors.white24,
+              onTap: onAudioOutput,
             ),
             _CallButton(
               icon: Icons.call_end,
@@ -255,6 +348,35 @@ class _CallButton extends StatelessWidget {
           Text(label, style: const TextStyle(color: Colors.white70, fontSize: 12)),
         ],
       ),
+    );
+  }
+}
+
+class _AudioOption extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String subtitle;
+  final bool selected;
+  final bool enabled;
+  final VoidCallback onTap;
+  const _AudioOption({
+    required this.icon,
+    required this.label,
+    required this.subtitle,
+    required this.selected,
+    required this.onTap,
+    this.enabled = true,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final color = enabled ? (selected ? kBlue : Colors.white70) : Colors.white24;
+    return ListTile(
+      onTap: enabled ? onTap : null,
+      leading: Icon(icon, color: color, size: 26),
+      title: Text(label, style: TextStyle(color: color, fontWeight: selected ? FontWeight.w600 : FontWeight.normal)),
+      subtitle: Text(subtitle, style: const TextStyle(color: Colors.white38, fontSize: 12)),
+      trailing: selected ? Icon(Icons.check_circle, color: kBlue, size: 20) : null,
     );
   }
 }

@@ -1,6 +1,9 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:livekit_client/livekit_client.dart';
 import 'api_service.dart';
+
+enum AudioOutput { earpiece, speaker, bluetooth }
 
 class GroupCallService extends ChangeNotifier {
   static final GroupCallService _i = GroupCallService._();
@@ -12,8 +15,13 @@ class GroupCallService extends ChangeNotifier {
   String? _error;
   int? _chatRoomId;
   String _chatRoomName = '';
-  // roomId → roomName: külső (más által indított) aktív hívások
   final Map<int, String> _activeCallRooms = {};
+
+  AudioOutput _audioOutput = AudioOutput.earpiece;
+  List<MediaDeviceInfo> _audioDevices = [];
+
+  AudioOutput get audioOutput => _audioOutput;
+  List<MediaDeviceInfo> get audioDevices => _audioDevices;
 
   Room? get room => _room;
   bool get isConnecting => _connecting;
@@ -56,6 +64,7 @@ class GroupCallService extends ChangeNotifier {
       _room = r;
       _activeCallRooms[roomId] = roomName;
       try { await ApiService().notifyCallStarted(roomId); } catch (_) {}
+      reloadAudioDevices();
     } catch (e) {
       _error = e.toString();
       _chatRoomId = null;
@@ -64,6 +73,34 @@ class GroupCallService extends ChangeNotifier {
       _connecting = false;
       notifyListeners();
     }
+  }
+
+  Future<void> reloadAudioDevices() async {
+    try {
+      _audioDevices = await Helper.audiooutputs;
+    } catch (_) {
+      _audioDevices = [];
+    }
+    notifyListeners();
+  }
+
+  Future<void> setAudioOutput(AudioOutput output, {String? deviceId}) async {
+    try {
+      switch (output) {
+        case AudioOutput.earpiece:
+          await Helper.setSpeakerphoneOn(false);
+        case AudioOutput.speaker:
+          await Helper.setSpeakerphoneOn(true);
+        case AudioOutput.bluetooth:
+          if (deviceId != null) {
+            await Helper.selectAudioOutput(deviceId);
+          } else {
+            await Helper.setSpeakerphoneOnButPreferBluetooth();
+          }
+      }
+      _audioOutput = output;
+      notifyListeners();
+    } catch (_) {}
   }
 
   Future<void> leave() async {
@@ -75,6 +112,8 @@ class GroupCallService extends ChangeNotifier {
     _chatRoomId = null;
     _chatRoomName = '';
     if (leavingRoomId != null) _activeCallRooms.remove(leavingRoomId);
+    _audioOutput = AudioOutput.earpiece;
+    _audioDevices = [];
     notifyListeners();
   }
 
