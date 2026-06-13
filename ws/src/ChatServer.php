@@ -4,7 +4,7 @@ namespace Tricc\WS;
 use Ratchet\MessageComponentInterface;
 use Ratchet\ConnectionInterface;
 use React\EventLoop\LoopInterface;
-use Tricc\{DB, Auth};
+use Tricc\{DB, Auth, APNs, FCM};
 
 class ChatServer implements MessageComponentInterface {
     /** @var array<int, ConnectionInterface> conn_id → connection */
@@ -22,14 +22,35 @@ class ChatServer implements MessageComponentInterface {
     /** @var array<int, int> conn_id → utolsó ping időbélyeg */
     private array $lastPing = [];
 
+    /**
+     * Aktív hívások: call_id → [initiator_uid, target_uid, state, created_at]
+     * state: 'ringing' | 'active'
+     */
+    private array $calls = [];
+
+    /** user_id → React timer — aktív hívás közbeni WS disconnect grace period */
+    private array $reconnectTimers = [];
+
+    private LoopInterface $loop;
+
     public function __construct(LoopInterface $loop) {
-        // 15 másodpercenként ellenőrzi: aki 60 másodperce nem pingelt, azt lezárja
+        $this->loop = $loop;
         $loop->addPeriodicTimer(15, function () {
             $now = time();
             foreach ($this->lastPing as $cid => $ts) {
                 if ($now - $ts > 60 && isset($this->conns[$cid])) {
                     echo "[WS] idle timeout #{$cid}, closing\n";
                     $this->conns[$cid]->close();
+                }
+            }
+            // 60 mp-nél régebbi, még 'ringing' hívások timeout-olása
+            foreach ($this->calls as $call_id => $call) {
+                if ($call['state'] === 'ringing' && $now - $call['created_at'] > 60) {
+                    $timeout = ['type' => 'call_timeout', 'call_id' => $call_id];
+                    $this->sendToUser($call['initiator_uid'], $timeout);
+                    $this->sendToUser($call['target_uid'], $timeout);
+                    unset($this->calls[$call_id]);
+                    echo "[WS] call timeout $call_id\n";
                 }
             }
         });
@@ -65,6 +86,14 @@ class ChatServer implements MessageComponentInterface {
                 $this->lastPing[$from->resourceId] = time();
                 $from->send(json_encode(['type' => 'pong']));
                 break;
+            case 'call_invite':    $this->handleCallInvite($from, $msg);    break;
+            case 'call_accept':    $this->handleCallSignal($from, $msg, 'call_accepted',  'call_reject_cleanup'); break;
+            case 'call_reject':    $this->handleCallSignal($from, $msg, 'call_rejected',  'end'); break;
+            case 'call_cancel':    $this->handleCallSignal($from, $msg, 'call_cancelled', 'end'); break;
+            case 'call_end':       $this->handleCallSignal($from, $msg, 'call_ended',     'end'); break;
+            case 'sdp_offer':
+            case 'sdp_answer':
+            case 'ice_candidate':  $this->handleCallRelay($from, $msg);     break;
         }
     }
 
@@ -73,14 +102,34 @@ class ChatServer implements MessageComponentInterface {
         $uid = $this->users[$id] ?? null;
 
         if ($uid !== null) {
+            // Először eltávolítjuk ezt a kapcsolatot
             $this->userConns[$uid] = array_values(
                 array_filter($this->userConns[$uid] ?? [], fn($c) => $c !== $id)
             );
+            unset($this->users[$id]);
+
+            // Csak akkor küldünk call_ended-et, ha a usernek már nincs más WS kapcsolata
             if (empty($this->userConns[$uid])) {
                 unset($this->userConns[$uid]);
+                foreach ($this->calls as $call_id => $call) {
+                    if ($call['initiator_uid'] !== $uid && $call['target_uid'] !== $uid) continue;
+                    $other = $call['initiator_uid'] === $uid ? $call['target_uid'] : $call['initiator_uid'];
+                    if ($call['state'] === 'active') {
+                        // Grace period: 30s várás reconnect-re, WebRTC P2P audio közben is fut
+                        $this->reconnectTimers[$uid] = $this->loop->addTimer(30, function () use ($uid, $call_id, $other) {
+                            $this->sendToUser($other, ['type' => 'call_ended', 'call_id' => $call_id]);
+                            unset($this->calls[$call_id], $this->reconnectTimers[$uid]);
+                            echo "[WS] call_ended (reconnect timeout) $call_id uid=$uid\n";
+                        });
+                        echo "[WS] call reconnect grace started $call_id uid=$uid\n";
+                    } else {
+                        $this->sendToUser($other, ['type' => 'call_ended', 'call_id' => $call_id]);
+                        unset($this->calls[$call_id]);
+                        echo "[WS] call_ended (disconnect) $call_id\n";
+                    }
+                }
                 $this->broadcastPresence($uid, false);
             }
-            unset($this->users[$id]);
         }
         unset($this->conns[$id]);
         unset($this->lastPing[$id]);
@@ -110,6 +159,21 @@ class ChatServer implements MessageComponentInterface {
         $conn->send(json_encode(['type' => 'auth_ok', 'user_id' => $uid]));
         $this->broadcastPresence($uid, true);
         echo "[WS] auth ok #{$id} → user $uid\n";
+
+        // Visszatért a grace periódus alatt → hívás folytatódik
+        if (isset($this->reconnectTimers[$uid])) {
+            $this->loop->cancelTimer($this->reconnectTimers[$uid]);
+            unset($this->reconnectTimers[$uid]);
+            foreach ($this->calls as $call_id => $call) {
+                if ($call['initiator_uid'] !== $uid && $call['target_uid'] !== $uid) continue;
+                $other = $call['initiator_uid'] === $uid ? $call['target_uid'] : $call['initiator_uid'];
+                // Visszatért félnek: van aktív hívása
+                $conn->send(json_encode(['type' => 'call_ongoing', 'call_id' => $call_id], JSON_UNESCAPED_UNICODE));
+                // Másik félnek: újra online
+                $this->sendToUser($other, ['type' => 'call_reconnected', 'call_id' => $call_id]);
+                echo "[WS] call reconnected $call_id uid=$uid\n";
+            }
+        }
     }
 
     private function handleJoin(ConnectionInterface $conn, array $msg): void {
@@ -182,6 +246,105 @@ class ChatServer implements MessageComponentInterface {
             'user_id' => $uid,
             'typing'  => (bool)($msg['typing'] ?? false),
         ]);
+    }
+
+    // ── WebRTC signaling ─────────────────────────────────────────
+
+    private function handleCallInvite(ConnectionInterface $conn, array $msg): void {
+        $uid    = $this->users[$conn->resourceId] ?? null;
+        $target = (int)($msg['target_user_id'] ?? 0);
+        if (!$uid || !$target || $uid === $target) return;
+
+        // Target online?
+        if (empty($this->userConns[$target])) {
+            $conn->send(json_encode(['type' => 'call_error', 'message' => 'A felhasználó nem elérhető.'], JSON_UNESCAPED_UNICODE));
+            return;
+        }
+
+        $call_id = uniqid('call_', true);
+        $this->calls[$call_id] = [
+            'initiator_uid' => $uid,
+            'target_uid'    => $target,
+            'state'         => 'ringing',
+            'created_at'    => time(),
+        ];
+
+        // Visszaküldés a hívónak (hogy tudja a call_id-t)
+        $conn->send(json_encode(['type' => 'call_initiated', 'call_id' => $call_id], JSON_UNESCAPED_UNICODE));
+
+        // Caller neve
+        $st = DB::get()->prepare("SELECT name FROM users WHERE id=?");
+        $st->execute([$uid]);
+        $name = $st->fetchColumn() ?: 'Ismeretlen';
+
+        $this->sendToUser($target, [
+            'type'        => 'incoming_call',
+            'call_id'     => $call_id,
+            'caller_id'   => $uid,
+            'caller_name' => $name,
+        ]);
+
+        // Push értesítés — háttérben lévő / zárt apphoz
+        $this->sendCallPush($target, $call_id, $uid, $name);
+
+        echo "[WS] call_invite $call_id: $uid → $target\n";
+    }
+
+    private function sendCallPush(int $target_uid, string $call_id, int $caller_id, string $caller_name): void {
+        try {
+            $st = DB::get()->prepare("SELECT token, platform FROM push_tokens WHERE user_id=?");
+            $st->execute([$target_uid]);
+            $row = $st->fetch();
+            if (!$row) return;
+
+            $title = 'Bejövő hívás';
+            $body  = "$caller_name hív téged";
+            $data  = [
+                'type'        => 'incoming_call',
+                'call_id'     => $call_id,
+                'caller_id'   => (string)$caller_id,
+                'caller_name' => $caller_name,
+            ];
+
+            if ($row['platform'] === 'android') {
+                FCM::send($row['token'], $title, $body, $data);
+            } else {
+                APNs::send($row['token'], $title, $body, $data, 0);
+            }
+        } catch (\Throwable $e) {
+            error_log("[WS] sendCallPush error: " . $e->getMessage());
+        }
+    }
+
+    private function handleCallSignal(ConnectionInterface $conn, array $msg, string $outType, string $action): void {
+        $uid     = $this->users[$conn->resourceId] ?? null;
+        $call_id = $msg['call_id'] ?? '';
+        if (!$uid || !isset($this->calls[$call_id])) return;
+
+        $call  = $this->calls[$call_id];
+        $other = $call['initiator_uid'] === $uid ? $call['target_uid'] : $call['initiator_uid'];
+
+        $this->sendToUser($other, ['type' => $outType, 'call_id' => $call_id]);
+
+        if ($action === 'end') {
+            unset($this->calls[$call_id]);
+            echo "[WS] call $outType $call_id\n";
+        } elseif ($action === 'call_reject_cleanup') {
+            // accept: állapot frissítése active-ra
+            $this->calls[$call_id]['state'] = 'active';
+        }
+    }
+
+    private function handleCallRelay(ConnectionInterface $conn, array $msg): void {
+        $uid     = $this->users[$conn->resourceId] ?? null;
+        $call_id = $msg['call_id'] ?? '';
+        if (!$uid || !isset($this->calls[$call_id])) return;
+
+        $call  = $this->calls[$call_id];
+        $other = $call['initiator_uid'] === $uid ? $call['target_uid'] : $call['initiator_uid'];
+
+        $msg['from_uid'] = $uid;
+        $this->sendToUser($other, $msg);
     }
 
     // ── public broadcast (called from outside, e.g. REST API) ──

@@ -15,7 +15,7 @@ $path   = rtrim($path, '/') ?: '/';
 $segs   = explode('/', ltrim($path, '/'));
 
 use Tricc\Response;
-use Tricc\Controllers\{AuthController, RoomController, MessageController, UploadController, PushController, AdminController, WebhookController};
+use Tricc\Controllers\{AuthController, RoomController, MessageController, UploadController, PushController, AdminController, WebhookController, CallController};
 
 try {
     match(true) {
@@ -53,6 +53,10 @@ try {
                                                              => RoomController::unmute((int)$m[1]),
 
         // Messages
+        $method === 'GET'  && preg_match('#^/rooms/(\d+)/messages/search$#', $path, $m) > 0
+                                                             => MessageController::search((int)$m[1]),
+        $method === 'GET'  && preg_match('#^/rooms/(\d+)/media$#', $path, $m) > 0
+                                                             => MessageController::media((int)$m[1]),
         $method === 'GET'  && preg_match('#^/rooms/(\d+)/messages$#', $path, $m) > 0
                                                              => MessageController::list((int)$m[1]),
         $method === 'POST' && preg_match('#^/rooms/(\d+)/messages$#', $path, $m) > 0
@@ -85,6 +89,9 @@ try {
 
         // Webhook
         $method === 'POST' && $path === '/webhook/send' => WebhookController::send(),
+
+        // Call / LiveKit
+        $method === 'POST' && $path === '/call/token'  => CallController::token(),
 
         default => Response::abort(404, 'Végpont nem található: ' . $method . ' ' . $path),
     };

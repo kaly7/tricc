@@ -37,12 +37,16 @@ class UploadController {
         if (!is_dir(self::UPLOAD_DIR)) mkdir(self::UPLOAD_DIR, 0755, true);
         if (!move_uploaded_file($f['tmp_name'], $dest)) Response::abort(500, 'Mentési hiba.');
 
+        $isImage = str_starts_with($mime, 'image/');
+        $isVideo = str_starts_with($mime, 'video/');
+        $type    = $isImage ? 'image' : ($isVideo ? 'video' : 'file');
+
         Response::ok([
             'url'       => self::PUBLIC_BASE . $name,
             'file_name' => $f['name'],
             'mime'      => $mime,
             'size'      => $f['size'],
-            'type'      => str_starts_with($mime, 'image/') ? 'image' : 'file',
+            'type'      => $type,
         ]);
     }
 

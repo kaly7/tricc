@@ -7,9 +7,10 @@ class APNs {
 
         $payload = json_encode([
             'aps' => [
-                'alert' => ['title' => $title, 'body' => mb_substr($body, 0, 100, 'UTF-8')],
-                'sound' => 'default',
-                'badge' => $badge,
+                'alert'             => ['title' => $title, 'body' => mb_substr($body, 0, 100, 'UTF-8')],
+                'sound'             => 'default',
+                'badge'             => $badge,
+                'content-available' => 1,
             ],
             'data' => $data,
         ]);
