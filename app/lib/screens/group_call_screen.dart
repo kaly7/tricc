@@ -39,28 +39,19 @@ class _GroupCallScreenState extends State<GroupCallScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return PopScope(
-      onPopInvokedWithResult: (_, __) => _svc.leave(),
-      child: Scaffold(
+    return Scaffold(
+      backgroundColor: const Color(0xFF1A1A2E),
+      appBar: AppBar(
         backgroundColor: const Color(0xFF1A1A2E),
-        appBar: AppBar(
-          backgroundColor: const Color(0xFF1A1A2E),
-          foregroundColor: Colors.white,
-          title: Text(widget.roomName, style: const TextStyle(color: Colors.white)),
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back, color: Colors.white),
-            onPressed: _leave,
-          ),
-          actions: [
-            IconButton(
-              icon: const Icon(Icons.arrow_downward, color: Colors.white70),
-              tooltip: 'Háttérbe (hívás folytatódik)',
-              onPressed: () => Navigator.pop(context),
-            ),
-          ],
+        foregroundColor: Colors.white,
+        title: Text(widget.roomName, style: const TextStyle(color: Colors.white)),
+        leading: IconButton(
+          icon: const Icon(Icons.keyboard_arrow_down, color: Colors.white),
+          tooltip: 'Háttérbe (hívás folytatódik)',
+          onPressed: () => Navigator.pop(context),
         ),
-        body: _buildBody(),
       ),
+      body: _buildBody(),
     );
   }
 
