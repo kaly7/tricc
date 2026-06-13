@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:livekit_client/livekit_client.dart' as lk;
-import '../models/room.dart' as model;
 import '../services/group_call_service.dart';
 import '../app_theme.dart';
 
 class GroupCallScreen extends StatefulWidget {
-  final model.Room chatRoom;
-  const GroupCallScreen({super.key, required this.chatRoom});
+  final int roomId;
+  final String roomName;
+  const GroupCallScreen({super.key, required this.roomId, required this.roomName});
 
   @override
   State<GroupCallScreen> createState() => _GroupCallScreenState();
@@ -19,7 +19,7 @@ class _GroupCallScreenState extends State<GroupCallScreen> {
   void initState() {
     super.initState();
     _svc.addListener(_rebuild);
-    _svc.join(widget.chatRoom.id);
+    _svc.join(widget.roomId, widget.roomName);
   }
 
   @override
@@ -40,20 +40,24 @@ class _GroupCallScreenState extends State<GroupCallScreen> {
   @override
   Widget build(BuildContext context) {
     return PopScope(
-      onPopInvoked: (_) => _svc.leave(),
+      onPopInvokedWithResult: (_, __) => _svc.leave(),
       child: Scaffold(
         backgroundColor: const Color(0xFF1A1A2E),
         appBar: AppBar(
           backgroundColor: const Color(0xFF1A1A2E),
           foregroundColor: Colors.white,
-          title: Text(
-            widget.chatRoom.name,
-            style: const TextStyle(color: Colors.white),
-          ),
+          title: Text(widget.roomName, style: const TextStyle(color: Colors.white)),
           leading: IconButton(
             icon: const Icon(Icons.arrow_back, color: Colors.white),
             onPressed: _leave,
           ),
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.arrow_downward, color: Colors.white70),
+              tooltip: 'Háttérbe (hívás folytatódik)',
+              onPressed: () => Navigator.pop(context),
+            ),
+          ],
         ),
         body: _buildBody(),
       ),
@@ -176,7 +180,7 @@ class _ParticipantTile extends StatelessWidget {
             children: [
               CircleAvatar(
                 radius: 30,
-                backgroundColor: kBlue.withOpacity(0.3),
+                backgroundColor: kBlue.withValues(alpha: 0.3),
                 child: Text(initial, style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
               ),
               if (info.isMuted)

@@ -967,7 +967,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                       GroupCallService().leave();
                     } else {
                       Navigator.push(context, MaterialPageRoute(
-                        builder: (_) => GroupCallScreen(chatRoom: _room),
+                        builder: (_) => GroupCallScreen(roomId: _room.id, roomName: _room.name),
                       ));
                     }
                   },

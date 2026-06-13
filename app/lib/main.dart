@@ -11,8 +11,11 @@ import 'services/settings_service.dart';
 import 'services/ws_service.dart';
 import 'screens/incoming_call_screen.dart';
 import 'screens/active_call_screen.dart';
+import 'screens/group_call_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/room_list_screen.dart';
+import 'services/group_call_service.dart';
+import 'widgets/group_call_bar.dart';
 import 'app_theme.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
@@ -129,6 +132,36 @@ class _TriccAppState extends State<TriccApp> with WidgetsBindingObserver {
         );
         if (mounted) setState(() {});
       }
+    } else if (msg['type'] == 'call_started') {
+      final roomId = msg['room_id'] as int?;
+      final roomName = msg['room_name'] as String? ?? '';
+      final userName = msg['user_name'] as String? ?? 'Valaki';
+      final svc = GroupCallService();
+      // Ne jelezzen ha mi vagyunk a hívó, vagy már bent vagyunk
+      if (svc.isActive && svc.chatRoomId == roomId) return;
+      final ctx = navigatorKey.currentContext;
+      if (ctx == null) return;
+      ScaffoldMessenger.of(ctx).showSnackBar(
+        SnackBar(
+          content: Text('$userName hanghívást indított: $roomName'),
+          duration: const Duration(seconds: 10),
+          action: roomId != null
+              ? SnackBarAction(
+                  label: 'Csatlakozás',
+                  onPressed: () {
+                    navigatorKey.currentState?.push(
+                      MaterialPageRoute(
+                        builder: (_) => GroupCallScreen(
+                          roomId: roomId,
+                          roomName: roomName,
+                        ),
+                      ),
+                    );
+                  },
+                )
+              : null,
+        ),
+      );
     }
   }
 
@@ -174,7 +207,12 @@ class _TriccAppState extends State<TriccApp> with WidgetsBindingObserver {
         data: MediaQuery.of(context).copyWith(
           textScaler: TextScaler.linear(SettingsService().fontScale),
         ),
-        child: child!,
+        child: Column(
+          children: [
+            Expanded(child: child!),
+            const GroupCallBar(),
+          ],
+        ),
       ),
       home: AuthService().isLoggedIn ? const RoomListScreen() : const LoginScreen(),
     );
