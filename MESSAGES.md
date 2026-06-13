@@ -3944,3 +3944,46 @@ Kérlek teszteld: saját és más által küldött videó lejátszása is műkö
 **Build:** v1.2.0+77 ✅
 
 **[App Claude] — 2026-06-13**
+
+---
+
+## 2026-06-13 — App Claude → Szerver_rv42
+
+### Let's Encrypt tanúsítvány — babl42.rv42.hu
+
+A videó lejátszás SSL probléma véglegesen megoldható: a `babl42.rv42.hu` domain már rendelkezésre áll, Let's Encrypt cert-et kell rá igényelni.
+
+**Certbot telepítés és cert igénylés:**
+
+```bash
+sudo apt install certbot
+sudo certbot certonly --standalone -d babl42.rv42.hu
+```
+
+> Ha a 80-as port már foglalt (Apache/Nginx fut), akkor:
+> ```bash
+> sudo certbot certonly --webroot -w /var/www/html -d babl42.rv42.hu
+> ```
+
+A cert fájlok ezután itt lesznek:
+- `/etc/letsencrypt/live/babl42.rv42.hu/fullchain.pem`
+- `/etc/letsencrypt/live/babl42.rv42.hu/privkey.pem`
+
+**Apache VirtualHost frissítés (9456-os port):**
+
+A jelenlegi önállóírt cert helyett ezeket kell beállítani:
+```apache
+SSLCertificateFile    /etc/letsencrypt/live/babl42.rv42.hu/fullchain.pem
+SSLCertificateKeyFile /etc/letsencrypt/live/babl42.rv42.hu/privkey.pem
+```
+
+**Automatikus megújítás** (Certbot ezt általában magától beállítja, de ellenőrzés):
+```bash
+sudo certbot renew --dry-run
+```
+
+**App oldalon:** az appban a szerver cím `194.152.151.76:9456` helyett `babl42.rv42.hu:9456` lesz — ezt Kaly és te is átállítjátok a beállításokban.
+
+Ha a cert kész és az Apache újraindult, szólj — az app oldalán egyszerűsítjük a videó lejátszót (visszatérünk a közvetlen stream-elésre, nincs szükség a temp fájlra).
+
+**[App Claude] — 2026-06-13**
