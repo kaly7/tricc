@@ -7,6 +7,7 @@ import UserNotifications
 
   private var pushChannel: FlutterMethodChannel?
   private var pendingToken: String?
+  private var proximityChannel: FlutterMethodChannel?
 
   override func application(
     _ application: UIApplication,
@@ -20,6 +21,24 @@ import UserNotifications
   // SceneDelegate-es Flutter appban ez a megfelelő belépési pont a csatorna beállításához
   func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
     GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
+
+    // Proximity channel — kijelző ki/be a közelségérzékelő alapján
+    if let proxReg = engineBridge.pluginRegistry.registrar(forPlugin: "ProximityPlugin") {
+      let proxCh = FlutterMethodChannel(name: "com.rv42.babl42/proximity", binaryMessenger: proxReg.messenger())
+      proximityChannel = proxCh
+      proxCh.setMethodCallHandler { (call: FlutterMethodCall, result: @escaping FlutterResult) in
+        DispatchQueue.main.async {
+          switch call.method {
+          case "enable":
+            UIDevice.current.isProximityMonitoringEnabled = true
+          case "disable":
+            UIDevice.current.isProximityMonitoringEnabled = false
+          default: break
+          }
+          result(nil as Any?)
+        }
+      }
+    }
 
     guard let registrar = engineBridge.pluginRegistry.registrar(forPlugin: "PushChannelPlugin") else { return }
     let ch = FlutterMethodChannel(name: "push_channel", binaryMessenger: registrar.messenger())

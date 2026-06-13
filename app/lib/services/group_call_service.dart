@@ -1,7 +1,10 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:livekit_client/livekit_client.dart';
 import 'api_service.dart';
+
+const _proximityChannel = MethodChannel('com.rv42.babl42/proximity');
 
 enum AudioOutput { earpiece, speaker, bluetooth }
 
@@ -65,6 +68,7 @@ class GroupCallService extends ChangeNotifier {
       _activeCallRooms[roomId] = roomName;
       try { await ApiService().notifyCallStarted(roomId); } catch (_) {}
       reloadAudioDevices();
+      try { await _proximityChannel.invokeMethod('enable'); } catch (_) {}
     } catch (e) {
       _error = e.toString();
       _chatRoomId = null;
@@ -114,6 +118,7 @@ class GroupCallService extends ChangeNotifier {
     if (leavingRoomId != null) _activeCallRooms.remove(leavingRoomId);
     _audioOutput = AudioOutput.earpiece;
     _audioDevices = [];
+    try { await _proximityChannel.invokeMethod('disable'); } catch (_) {}
     notifyListeners();
   }
 
