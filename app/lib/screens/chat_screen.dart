@@ -24,6 +24,8 @@ import '../services/call_service.dart';
 import 'room_search_screen.dart';
 import 'room_media_screen.dart';
 import 'video_player_screen.dart';
+import 'group_call_screen.dart';
+import '../services/group_call_service.dart';
 
 class ChatScreen extends StatefulWidget {
   final Room room;
@@ -947,6 +949,27 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                     final otherId = _room.otherUserId(AuthService().userId ?? 0) ?? 0;
                     final otherName = _room.displayName(AuthService().userId ?? 0);
                     if (otherId != 0) CallService().startCall(otherId, otherName);
+                  },
+                );
+              },
+            ),
+          if (!_room.isDirect)
+            ListenableBuilder(
+              listenable: GroupCallService(),
+              builder: (_, __) {
+                final active = GroupCallService().isActive;
+                return IconButton(
+                  icon: Icon(active ? Icons.call_end : Icons.headset),
+                  color: active ? Colors.red : null,
+                  tooltip: active ? 'Kilépés a hívásból' : 'Csoportos hanghívás',
+                  onPressed: () {
+                    if (active) {
+                      GroupCallService().leave();
+                    } else {
+                      Navigator.push(context, MaterialPageRoute(
+                        builder: (_) => GroupCallScreen(chatRoom: _room),
+                      ));
+                    }
                   },
                 );
               },

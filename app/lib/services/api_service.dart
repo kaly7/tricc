@@ -172,6 +172,9 @@ class ApiService {
     return Message.fromJson(r);
   }
 
+  Future<Map<String, dynamic>> getLiveKitToken(int roomId) =>
+      _post('/call/token', {'room_id': roomId});
+
   Future<List<Message>> searchMessages(int roomId, String q) async {
     final path = '/rooms/$roomId/messages/search?q=${Uri.encodeQueryComponent(q)}';
     final r = await _get(path);

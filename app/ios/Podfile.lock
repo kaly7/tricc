@@ -5,6 +5,10 @@ PODS:
   - flutter_webrtc (0.12.6):
     - Flutter
     - WebRTC-SDK (= 125.6422.06)
+  - livekit_client (2.4.1):
+    - Flutter
+    - flutter_webrtc
+    - WebRTC-SDK (= 125.6422.06)
   - open_filex (0.0.2):
     - Flutter
   - WebRTC-SDK (125.6422.06)
@@ -13,6 +17,7 @@ DEPENDENCIES:
   - Flutter (from `Flutter`)
   - flutter_ringtone_player (from `.symlinks/plugins/flutter_ringtone_player/ios`)
   - flutter_webrtc (from `.symlinks/plugins/flutter_webrtc/ios`)
+  - livekit_client (from `.symlinks/plugins/livekit_client/ios`)
   - open_filex (from `.symlinks/plugins/open_filex/ios`)
 
 SPEC REPOS:
@@ -26,6 +31,8 @@ EXTERNAL SOURCES:
     :path: ".symlinks/plugins/flutter_ringtone_player/ios"
   flutter_webrtc:
     :path: ".symlinks/plugins/flutter_webrtc/ios"
+  livekit_client:
+    :path: ".symlinks/plugins/livekit_client/ios"
   open_filex:
     :path: ".symlinks/plugins/open_filex/ios"
 
@@ -33,6 +40,7 @@ SPEC CHECKSUMS:
   Flutter: cabc95a1d2626b1b06e7179b784ebcf0c0cde467
   flutter_ringtone_player: a77c42464250845611eaa44c27e8714acc800138
   flutter_webrtc: 57f32415b8744e806f9c2a96ccdb60c6a627ba33
+  livekit_client: 08755cabfa4da4ed455642f460cfbb39bc518070
   open_filex: 432f3cd11432da3e39f47fcc0df2b1603854eff1
   WebRTC-SDK: 79942c006ea64f6fb48d7da8a4786dfc820bc1db
 
