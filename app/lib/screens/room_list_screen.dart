@@ -94,6 +94,7 @@ class _RoomListScreenState extends State<RoomListScreen> {
   void _showNewRoomDialog() {
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (_) => _NewRoomSheet(onCreated: (roomId) async {
         final room = await ApiService().getRoom(roomId);
@@ -409,66 +410,93 @@ class _NewRoomSheetState extends State<_NewRoomSheet> {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: EdgeInsets.fromLTRB(16, 16, 16, MediaQuery.of(context).viewInsets.bottom + 16),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const Text('Új beszélgetés', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 12),
-          SegmentedButton<bool>(
-            segments: const [
-              ButtonSegment(value: false, label: Text('Direkt üzenet'), icon: Icon(Icons.person)),
-              ButtonSegment(value: true, label: Text('Csoport'), icon: Icon(Icons.group)),
-            ],
-            selected: {_isGroup},
-            onSelectionChanged: (v) => setState(() {
-              _isGroup = v.first;
-              _selected.clear();
-            }),
-          ),
-          const SizedBox(height: 12),
-          if (_isGroup) ...[
-            TextField(controller: _nameCtrl, decoration: const InputDecoration(labelText: 'Csoport neve')),
-            const SizedBox(height: 8),
-          ],
-          Text(
-            _isGroup ? 'Tagok kiválasztása:' : 'Kivel szeretnél beszélgetni?',
-            style: const TextStyle(fontWeight: FontWeight.w500),
-          ),
-          const SizedBox(height: 8),
-          if (_loading)
-            const Center(child: CircularProgressIndicator())
-          else
-            SizedBox(
-              height: 200,
-              child: ListView(
-                children: _users.map((u) => CheckboxListTile(
-                  title: Text(u.name),
-                  subtitle: Text(u.email, style: const TextStyle(fontSize: 12)),
-                  value: _selected.contains(u.id),
-                  onChanged: (v) {
-                    setState(() {
-                      if (v == true) {
-                        if (!_isGroup) _selected.clear();
-                        _selected.add(u.id);
-                      } else {
-                        _selected.remove(u.id);
-                      }
-                    });
-                  },
-                )).toList(),
-              ),
+    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+    final maxHeight = MediaQuery.of(context).size.height * 0.85;
+
+    return ConstrainedBox(
+      constraints: BoxConstraints(maxHeight: maxHeight),
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(16, 16, 16, bottomInset + 16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Text('Új beszélgetés', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 12),
+            SegmentedButton<bool>(
+              segments: const [
+                ButtonSegment(value: false, label: Text('Direkt üzenet'), icon: Icon(Icons.person)),
+                ButtonSegment(value: true, label: Text('Csoport'), icon: Icon(Icons.group)),
+              ],
+              selected: {_isGroup},
+              onSelectionChanged: (v) => setState(() {
+                _isGroup = v.first;
+                _selected.clear();
+              }),
             ),
-          const SizedBox(height: 12),
-          ElevatedButton(
-            onPressed: (_selected.isEmpty || _creating) ? null : _create,
-            child: _creating
-                ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                : const Text('Létrehozás'),
-          ),
-        ],
+            const SizedBox(height: 12),
+            if (_isGroup) ...[
+              TextField(controller: _nameCtrl, decoration: const InputDecoration(labelText: 'Csoport neve')),
+              const SizedBox(height: 8),
+              if (_selected.isNotEmpty) ...[
+                SizedBox(
+                  height: 36,
+                  child: ListView(
+                    scrollDirection: Axis.horizontal,
+                    children: _selected.map((id) {
+                      final u = _users.firstWhere((u) => u.id == id);
+                      return Padding(
+                        padding: const EdgeInsets.only(right: 6),
+                        child: Chip(
+                          label: Text(u.name, style: const TextStyle(fontSize: 12)),
+                          deleteIcon: const Icon(Icons.close, size: 14),
+                          onDeleted: () => setState(() => _selected.remove(id)),
+                          visualDensity: VisualDensity.compact,
+                          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                ),
+                const SizedBox(height: 8),
+              ],
+            ],
+            Text(
+              _isGroup ? 'Tagok kiválasztása:' : 'Kivel szeretnél beszélgetni?',
+              style: const TextStyle(fontWeight: FontWeight.w500),
+            ),
+            const SizedBox(height: 8),
+            if (_loading)
+              const Center(child: CircularProgressIndicator())
+            else
+              Flexible(
+                child: ListView(
+                  shrinkWrap: true,
+                  children: _users.map((u) => CheckboxListTile(
+                    title: Text(u.name),
+                    subtitle: Text(u.email, style: const TextStyle(fontSize: 12)),
+                    value: _selected.contains(u.id),
+                    onChanged: (v) {
+                      setState(() {
+                        if (v == true) {
+                          if (!_isGroup) _selected.clear();
+                          _selected.add(u.id);
+                        } else {
+                          _selected.remove(u.id);
+                        }
+                      });
+                    },
+                  )).toList(),
+                ),
+              ),
+            const SizedBox(height: 12),
+            ElevatedButton(
+              onPressed: (_selected.isEmpty || _creating) ? null : _create,
+              child: _creating
+                  ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                  : const Text('Létrehozás'),
+            ),
+          ],
+        ),
       ),
     );
   }
