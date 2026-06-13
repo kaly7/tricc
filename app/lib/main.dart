@@ -214,7 +214,7 @@ class _TriccAppState extends State<TriccApp> with WidgetsBindingObserver {
         child: Column(
           children: [
             Expanded(child: child!),
-            const GroupCallBar(),
+            GroupCallBar(navigatorKey: navigatorKey),
           ],
         ),
       ),

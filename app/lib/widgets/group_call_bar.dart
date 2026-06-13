@@ -3,7 +3,8 @@ import '../services/group_call_service.dart';
 import '../screens/group_call_screen.dart';
 
 class GroupCallBar extends StatelessWidget {
-  const GroupCallBar({super.key});
+  final GlobalKey<NavigatorState> navigatorKey;
+  const GroupCallBar({super.key, required this.navigatorKey});
 
   @override
   Widget build(BuildContext context) {
@@ -18,8 +19,7 @@ class GroupCallBar extends StatelessWidget {
         return GestureDetector(
           onTap: () {
             if (svc.chatRoomId == null) return;
-            Navigator.push(
-              context,
+            navigatorKey.currentState?.push(
               MaterialPageRoute(
                 builder: (_) => GroupCallScreen(
                   roomId: svc.chatRoomId!,
