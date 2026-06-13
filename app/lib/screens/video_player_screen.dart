@@ -1,9 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:http/io_client.dart';
-import 'package:http/http.dart' as http;
-import 'package:path_provider/path_provider.dart';
 import 'package:video_player/video_player.dart';
 
 class VideoPlayerScreen extends StatefulWidget {
@@ -16,16 +13,10 @@ class VideoPlayerScreen extends StatefulWidget {
 }
 
 class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
-  VideoPlayerController? _ctrl;
+  late VideoPlayerController _ctrl;
   bool _initialized = false;
   bool _showControls = true;
   String? _error;
-  double? _downloadProgress;
-
-  static http.Client _buildClient() {
-    final inner = HttpClient()..badCertificateCallback = (_, __, ___) => true;
-    return IOClient(inner);
-  }
 
   @override
   void initState() {
@@ -35,65 +26,29 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
       DeviceOrientation.landscapeLeft,
       DeviceOrientation.landscapeRight,
     ]);
-    _downloadAndPlay();
-  }
-
-  Future<void> _downloadAndPlay() async {
-    try {
-      final dir = await getTemporaryDirectory();
-      final cacheFile = File('${dir.path}/babl42_${widget.url.split('/').last}');
-
-      if (!await cacheFile.exists()) {
-        final client = _buildClient();
-        final req = http.Request('GET', Uri.parse(widget.url));
-        final res = await client.send(req);
-        if (res.statusCode != 200 && res.statusCode != 206) {
-          throw Exception('HTTP ${res.statusCode}');
-        }
-        final total = res.contentLength;
-        int received = 0;
-        final sink = cacheFile.openWrite();
-        await for (final chunk in res.stream) {
-          sink.add(chunk);
-          received += chunk.length;
-          if (total != null && total > 0 && mounted) {
-            setState(() => _downloadProgress = received / total);
-          }
-        }
-        await sink.close();
-        client.close();
+    _ctrl = VideoPlayerController.networkUrl(Uri.parse(widget.url));
+    _ctrl.addListener(() { if (mounted) setState(() {}); });
+    _ctrl.initialize().then((_) {
+      if (mounted) {
+        setState(() => _initialized = true);
+        _ctrl.play();
       }
-
-      if (!mounted) return;
-
-      final ctrl = VideoPlayerController.file(cacheFile);
-      ctrl.addListener(() { if (mounted) setState(() {}); });
-      await ctrl.initialize();
-
-      if (!mounted) return;
-      setState(() {
-        _ctrl = ctrl;
-        _initialized = true;
-        _downloadProgress = null;
-      });
-      ctrl.play();
-    } catch (e) {
-      if (mounted) setState(() { _error = e.toString(); _downloadProgress = null; });
-    }
+    }).catchError((e) {
+      if (mounted) setState(() => _error = e.toString());
+    });
   }
 
   @override
   void dispose() {
     SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
-    _ctrl?.dispose();
+    _ctrl.dispose();
     super.dispose();
   }
 
   void _toggleControls() => setState(() => _showControls = !_showControls);
 
   void _togglePlay() {
-    if (_ctrl == null) return;
-    _ctrl!.value.isPlaying ? _ctrl!.pause() : _ctrl!.play();
+    _ctrl.value.isPlaying ? _ctrl.pause() : _ctrl.play();
   }
 
   String _formatDuration(Duration d) {
@@ -125,37 +80,15 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
                   ),
                 ),
               )
-            else if (_initialized && _ctrl != null)
+            else if (_initialized)
               Center(
                 child: AspectRatio(
-                  aspectRatio: _ctrl!.value.aspectRatio,
-                  child: VideoPlayer(_ctrl!),
+                  aspectRatio: _ctrl.value.aspectRatio,
+                  child: VideoPlayer(_ctrl),
                 ),
               )
             else
-              Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (_downloadProgress != null) ...[
-                      SizedBox(
-                        width: 200,
-                        child: LinearProgressIndicator(
-                          value: _downloadProgress,
-                          backgroundColor: Colors.white24,
-                          valueColor: const AlwaysStoppedAnimation(Colors.white),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        '${(_downloadProgress! * 100).toStringAsFixed(0)}%',
-                        style: const TextStyle(color: Colors.white54, fontSize: 13),
-                      ),
-                    ] else
-                      const CircularProgressIndicator(color: Colors.white),
-                  ],
-                ),
-              ),
+              const CircularProgressIndicator(color: Colors.white),
 
             if (_showControls) ...[
               Positioned(
@@ -188,7 +121,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
                   ),
                 ),
               ),
-              if (_initialized && _ctrl != null)
+              if (_initialized)
                 Positioned(
                   bottom: 0, left: 0, right: 0,
                   child: SafeArea(
@@ -205,7 +138,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           VideoProgressIndicator(
-                            _ctrl!,
+                            _ctrl,
                             allowScrubbing: true,
                             colors: const VideoProgressColors(
                               playedColor: Colors.white,
@@ -218,18 +151,18 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
                             children: [
                               IconButton(
                                 icon: Icon(
-                                  _ctrl!.value.isPlaying ? Icons.pause : Icons.play_arrow,
+                                  _ctrl.value.isPlaying ? Icons.pause : Icons.play_arrow,
                                   color: Colors.white, size: 28,
                                 ),
                                 onPressed: _togglePlay,
                               ),
                               Text(
-                                _formatDuration(_ctrl!.value.position),
+                                _formatDuration(_ctrl.value.position),
                                 style: const TextStyle(color: Colors.white, fontSize: 12),
                               ),
                               const Text(' / ', style: TextStyle(color: Colors.white54, fontSize: 12)),
                               Text(
-                                _formatDuration(_ctrl!.value.duration),
+                                _formatDuration(_ctrl.value.duration),
                                 style: const TextStyle(color: Colors.white54, fontSize: 12),
                               ),
                             ],
