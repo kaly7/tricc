@@ -40,7 +40,9 @@ class ChatServer implements MessageComponentInterface {
             foreach ($this->lastPing as $cid => $ts) {
                 if ($now - $ts > 60 && isset($this->conns[$cid])) {
                     echo "[WS] idle timeout #{$cid}, closing\n";
-                    $this->conns[$cid]->close();
+                    $conn = $this->conns[$cid];
+                    $this->cleanupConn($cid);
+                    $conn->close();
                 }
             }
             // 60 mp-nél régebbi, még 'ringing' hívások timeout-olása
@@ -99,23 +101,32 @@ class ChatServer implements MessageComponentInterface {
 
     public function onClose(ConnectionInterface $conn): void {
         $id = $conn->resourceId;
+        if (!isset($this->conns[$id])) {
+            // Már az idle timer kitakarította
+            echo "[WS] disconnected #{$id} (already cleaned)\n";
+            return;
+        }
+        $this->cleanupConn($id);
+        echo "[WS] disconnected #{$id}\n";
+    }
+
+    private function cleanupConn(int $id): void {
         $uid = $this->users[$id] ?? null;
+        unset($this->conns[$id]);
+        unset($this->lastPing[$id]);
 
         if ($uid !== null) {
-            // Először eltávolítjuk ezt a kapcsolatot
             $this->userConns[$uid] = array_values(
                 array_filter($this->userConns[$uid] ?? [], fn($c) => $c !== $id)
             );
             unset($this->users[$id]);
 
-            // Csak akkor küldünk call_ended-et, ha a usernek már nincs más WS kapcsolata
             if (empty($this->userConns[$uid])) {
                 unset($this->userConns[$uid]);
                 foreach ($this->calls as $call_id => $call) {
                     if ($call['initiator_uid'] !== $uid && $call['target_uid'] !== $uid) continue;
                     $other = $call['initiator_uid'] === $uid ? $call['target_uid'] : $call['initiator_uid'];
                     if ($call['state'] === 'active') {
-                        // Grace period: 30s várás reconnect-re, WebRTC P2P audio közben is fut
                         $this->reconnectTimers[$uid] = $this->loop->addTimer(30, function () use ($uid, $call_id, $other) {
                             $this->sendToUser($other, ['type' => 'call_ended', 'call_id' => $call_id]);
                             unset($this->calls[$call_id], $this->reconnectTimers[$uid]);
@@ -131,9 +142,6 @@ class ChatServer implements MessageComponentInterface {
                 $this->broadcastPresence($uid, false);
             }
         }
-        unset($this->conns[$id]);
-        unset($this->lastPing[$id]);
-        echo "[WS] disconnected #{$id}\n";
     }
 
     public function onError(ConnectionInterface $conn, \Exception $e): void {
