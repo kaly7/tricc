@@ -15,7 +15,9 @@ import 'screens/group_call_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/room_list_screen.dart';
 import 'services/group_call_service.dart';
+import 'services/share_service.dart';
 import 'widgets/group_call_bar.dart';
+import 'screens/share_modal.dart';
 import 'app_theme.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
@@ -57,6 +59,7 @@ class TriccApp extends StatefulWidget {
 
 class _TriccAppState extends State<TriccApp> with WidgetsBindingObserver {
   StreamSubscription? _wsSub;
+  StreamSubscription? _shareSub;
 
   @override
   void initState() {
@@ -69,6 +72,23 @@ class _TriccAppState extends State<TriccApp> with WidgetsBindingObserver {
     }
     SettingsService().addListener(_onSettingsChanged);
     _wsSub = WsService().events.listen(_onWsEvent);
+    _initShareService();
+  }
+
+  void _initShareService() {
+    ShareService().getInitialMedia().then((files) {
+      if (files.isNotEmpty) _showShareModal(files);
+    });
+    _shareSub = ShareService().mediaStream.listen((files) {
+      if (files.isNotEmpty) _showShareModal(files);
+    });
+  }
+
+  void _showShareModal(List<SharedMediaFile> files) {
+    ShareService().reset();
+    final ctx = navigatorKey.currentContext;
+    if (ctx == null) return;
+    ShareModal.show(ctx, files);
   }
 
   void _initCallService() {
@@ -192,6 +212,7 @@ class _TriccAppState extends State<TriccApp> with WidgetsBindingObserver {
   @override
   void dispose() {
     _wsSub?.cancel();
+    _shareSub?.cancel();
     SettingsService().removeListener(_onSettingsChanged);
     WidgetsBinding.instance.removeObserver(this);
     WsService().disconnect();
