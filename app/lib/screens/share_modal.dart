@@ -86,9 +86,9 @@ class _ShareModalState extends State<ShareModal> {
     try {
       for (final f in widget.files) {
         final result   = await ApiService().uploadFile(File(f.path));
-        final fileUrl  = result['file_url'] as String;
+        final fileUrl  = (result['url'] ?? result['file_url']) as String;
         final fileName = result['file_name'] as String?;
-        final fileSize = result['file_size'] as int?;
+        final fileSize = (result['size'] ?? result['file_size']) as int?;
         final msgType  = _resolveType(f.type);
         await ApiService().sendMessage(
           _selected!.id,
