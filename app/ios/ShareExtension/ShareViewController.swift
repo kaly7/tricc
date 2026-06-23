@@ -3,10 +3,8 @@ import UniformTypeIdentifiers
 
 class ShareViewController: UIViewController {
 
-    private let hostAppBundleIdentifier = "com.rv42.babl42"
-    private let appGroupId = "group.com.rv42.babl42"
-    private let urlScheme = "ShareMedia-com.rv42.babl42"
-
+    private var appGroupId = ""
+    private var hostAppBundleIdentifier = ""
     private var sharedMedia: [SharedMediaFile] = []
     private var totalItems = 0
     private var processedItems = 0
@@ -14,7 +12,15 @@ class ShareViewController: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         view.isHidden = true
+        loadIds()
         handleSharedFiles()
+    }
+
+    private func loadIds() {
+        let extBundle = Bundle.main.bundleIdentifier!
+        let lastDot = extBundle.lastIndex(of: ".")!
+        hostAppBundleIdentifier = String(extBundle[..<lastDot])
+        appGroupId = "group.\(hostAppBundleIdentifier)"
     }
 
     private func handleSharedFiles() {
@@ -29,37 +35,55 @@ class ShareViewController: UIViewController {
 
         for provider in attachments {
             if provider.hasItemConformingToTypeIdentifier(UTType.image.identifier) {
-                handleTypedItem(provider: provider, typeId: UTType.image.identifier, mediaType: .image)
+                handleItem(provider: provider, typeId: UTType.image.identifier, mediaType: .image)
             } else if provider.hasItemConformingToTypeIdentifier(UTType.movie.identifier) {
-                handleTypedItem(provider: provider, typeId: UTType.movie.identifier, mediaType: .video)
+                handleItem(provider: provider, typeId: UTType.movie.identifier, mediaType: .video)
             } else if provider.hasItemConformingToTypeIdentifier(UTType.data.identifier) {
-                handleTypedItem(provider: provider, typeId: UTType.data.identifier, mediaType: .file)
+                handleItem(provider: provider, typeId: UTType.data.identifier, mediaType: .file)
             } else {
                 itemDone()
             }
         }
     }
 
-    private func handleTypedItem(provider: NSItemProvider, typeId: String, mediaType: SharedMediaType) {
+    private func handleItem(provider: NSItemProvider, typeId: String, mediaType: SharedMediaType) {
         provider.loadItem(forTypeIdentifier: typeId, options: nil) { [weak self] item, _ in
             guard let self = self else { return }
+            var path = ""
             if let url = item as? URL {
-                let destPath = self.copyToSharedContainer(url: url)
-                let media = SharedMediaFile(path: destPath, thumbnail: nil, duration: nil, type: mediaType)
+                path = self.copyToContainer(url: url)
+            } else if let image = item as? UIImage, mediaType == .image {
+                path = self.saveImageToContainer(image: image)
+            }
+            if !path.isEmpty {
+                let media = SharedMediaFile(path: path, thumbnail: nil, duration: nil, type: mediaType)
                 DispatchQueue.main.async { self.sharedMedia.append(media) }
             }
             self.itemDone()
         }
     }
 
-    private func copyToSharedContainer(url: URL) -> String {
+    private func copyToContainer(url: URL) -> String {
         let fm = FileManager.default
         guard let container = fm.containerURL(forSecurityApplicationGroupIdentifier: appGroupId) else {
-            return url.path
+            return url.absoluteString
         }
         let dest = container.appendingPathComponent("\(UUID().uuidString)-\(url.lastPathComponent)")
         try? fm.copyItem(at: url, to: dest)
-        return dest.path
+        // Use absoluteString (file:// prefix) — plugin strips it via getAbsolutePath
+        return dest.absoluteString.removingPercentEncoding ?? dest.absoluteString
+    }
+
+    private func saveImageToContainer(image: UIImage) -> String {
+        let fm = FileManager.default
+        guard let container = fm.containerURL(forSecurityApplicationGroupIdentifier: appGroupId) else {
+            return ""
+        }
+        let dest = container.appendingPathComponent("\(UUID().uuidString).png")
+        if let data = image.pngData() {
+            try? data.write(to: dest)
+        }
+        return dest.absoluteString.removingPercentEncoding ?? dest.absoluteString
     }
 
     private func itemDone() {
@@ -70,27 +94,42 @@ class ShareViewController: UIViewController {
     }
 
     private func saveAndRedirect() {
-        let encoder = JSONEncoder()
-        if let data = try? encoder.encode(sharedMedia),
-           let json = String(data: data, encoding: .utf8) {
-            UserDefaults(suiteName: appGroupId)?.set(json, forKey: hostAppBundleIdentifier)
+        let userDefaults = UserDefaults(suiteName: appGroupId)
+        // Key: "ShareKey" — ezt várja a receive_sharing_intent plugin
+        // Format: Data (bináris JSON) — nem String
+        if let data = try? JSONEncoder().encode(sharedMedia) {
+            userDefaults?.set(data, forKey: "ShareKey")
+            userDefaults?.synchronize()
         }
         completeWithRedirect()
     }
 
     private func completeWithRedirect() {
-        guard let url = URL(string: "\(urlScheme)://") else {
+        // URL: "ShareMedia-{hostBundle}:share" — ezt veri a plugin scheme prefix check
+        guard let url = URL(string: "ShareMedia-\(hostAppBundleIdentifier):share") else {
             extensionContext?.completeRequest(returningItems: [], completionHandler: nil)
             return
         }
+
         var responder: UIResponder? = self
-        while responder != nil {
-            if let app = responder as? UIApplication {
-                app.open(url, options: [:])
-                break
+
+        if #available(iOS 18.0, *) {
+            while responder != nil {
+                if let app = responder as? UIApplication {
+                    app.open(url, options: [:])
+                }
+                responder = responder?.next
             }
-            responder = responder?.next
+        } else {
+            let selector = sel_registerName("openURL:")
+            while responder != nil {
+                if responder?.responds(to: selector) == true {
+                    _ = responder?.perform(selector, with: url)
+                }
+                responder = responder?.next
+            }
         }
+
         extensionContext?.completeRequest(returningItems: [], completionHandler: nil)
     }
 }
