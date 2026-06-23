@@ -62,6 +62,11 @@ import UserNotifications
     }
   }
 
+  // SceneDelegate továbbítja ide a URL scheme hívást → FlutterAppDelegate → receive_sharing_intent plugin
+  override func application(_ application: UIApplication, open url: URL, options: [UIApplication.OpenURLOptionsKey: Any] = [:]) -> Bool {
+    return super.application(application, open: url, options: options)
+  }
+
   private func requestPushPermission(_ application: UIApplication) {
     UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .badge, .sound]) { granted, _ in
       if granted {
