@@ -19,7 +19,7 @@ class RoomListScreen extends StatefulWidget {
   State<RoomListScreen> createState() => _RoomListScreenState();
 }
 
-class _RoomListScreenState extends State<RoomListScreen> {
+class _RoomListScreenState extends State<RoomListScreen> with WidgetsBindingObserver {
   List<Room> _rooms = [];
   bool _loading = true;
   StreamSubscription? _wsSub;
@@ -27,10 +27,14 @@ class _RoomListScreenState extends State<RoomListScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _load();
     _wsSub = WsService().events.listen((msg) {
       final type = msg['type'] as String?;
-      if (type == 'message') {
+      if (type == 'auth_ok') {
+        // WS sikeresen kapcsolódott → hálózat él → frissítjük a szobalistát
+        _load();
+      } else if (type == 'message') {
         // Saját üzenetre ne töltsük újra — azt a szerver olvasatlannak jelölné
         final senderId = (msg['message'] as Map?)?['user_id'];
         if (senderId != AuthService().userId) _load();
@@ -45,7 +49,13 @@ class _RoomListScreenState extends State<RoomListScreen> {
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _load();
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     PushService().onNotificationTap = null;
     _wsSub?.cancel();
     super.dispose();
