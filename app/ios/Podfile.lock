@@ -11,6 +11,8 @@ PODS:
     - WebRTC-SDK (= 125.6422.06)
   - open_filex (0.0.2):
     - Flutter
+  - receive_sharing_intent (1.8.1):
+    - Flutter
   - WebRTC-SDK (125.6422.06)
 
 DEPENDENCIES:
@@ -19,6 +21,7 @@ DEPENDENCIES:
   - flutter_webrtc (from `.symlinks/plugins/flutter_webrtc/ios`)
   - livekit_client (from `.symlinks/plugins/livekit_client/ios`)
   - open_filex (from `.symlinks/plugins/open_filex/ios`)
+  - receive_sharing_intent (from `.symlinks/plugins/receive_sharing_intent/ios`)
 
 SPEC REPOS:
   trunk:
@@ -35,6 +38,8 @@ EXTERNAL SOURCES:
     :path: ".symlinks/plugins/livekit_client/ios"
   open_filex:
     :path: ".symlinks/plugins/open_filex/ios"
+  receive_sharing_intent:
+    :path: ".symlinks/plugins/receive_sharing_intent/ios"
 
 SPEC CHECKSUMS:
   Flutter: cabc95a1d2626b1b06e7179b784ebcf0c0cde467
@@ -42,6 +47,7 @@ SPEC CHECKSUMS:
   flutter_webrtc: 57f32415b8744e806f9c2a96ccdb60c6a627ba33
   livekit_client: 08755cabfa4da4ed455642f460cfbb39bc518070
   open_filex: 432f3cd11432da3e39f47fcc0df2b1603854eff1
+  receive_sharing_intent: 222384f00ffe7e952bbfabaa9e3967cb87e5fe00
   WebRTC-SDK: 79942c006ea64f6fb48d7da8a4786dfc820bc1db
 
 PODFILE CHECKSUM: 3c63482e143d1b91d2d2560aee9fb04ecc74ac7e
