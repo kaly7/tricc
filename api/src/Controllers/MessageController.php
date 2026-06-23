@@ -168,6 +168,10 @@ class MessageController {
             SELECT ?, rm.user_id FROM room_members rm WHERE rm.room_id=? AND rm.user_id!=?")
            ->execute([$msg_id, $room_id, $auth['user_id']]);
 
+        // Küldő last_read_at frissítése: saját üzenet sosem legyen "olvasatlan" számára
+        $db->prepare("UPDATE room_members SET last_read_at=NOW() WHERE room_id=? AND user_id=?")
+           ->execute([$room_id, $auth['user_id']]);
+
         // Auto-unhide + delete_requested_by törlése: új üzenet hatására szoba újra látható, banner eltűnik
         $db->prepare("UPDATE room_members SET hidden_at=NULL WHERE room_id=? AND hidden_at IS NOT NULL")
            ->execute([$room_id]);
@@ -365,9 +369,10 @@ class MessageController {
                 SELECT COUNT(*) FROM messages m
                 JOIN room_members rm ON rm.room_id = m.room_id AND rm.user_id = ?
                 WHERE rm.hidden_at IS NULL
+                  AND m.sender_id != ?
                   AND (rm.last_read_at IS NULL OR m.created_at > rm.last_read_at)
             ");
-            $badgeSt->execute([$t['user_id']]);
+            $badgeSt->execute([$t['user_id'], $t['user_id']]);
             $badge = (int)$badgeSt->fetchColumn();
 
             $ok = APNs::send($t['token'], $title, $body, [

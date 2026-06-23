@@ -17,6 +17,7 @@ class RoomController {
                    (SELECT created_at FROM messages WHERE room_id=r.id ORDER BY created_at DESC LIMIT 1) AS last_message_at,
                    (SELECT COUNT(*) FROM messages m
                     WHERE m.room_id=r.id
+                    AND m.sender_id != rm.user_id
                     AND (rm.last_read_at IS NULL OR m.created_at > rm.last_read_at)) AS unread_count
             FROM rooms r
             JOIN room_members rm ON rm.room_id = r.id AND rm.user_id = ? AND rm.hidden_at IS NULL
