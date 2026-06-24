@@ -39,6 +39,7 @@ CREATE TABLE IF NOT EXISTS rooms (
     type         ENUM('direct','group') NOT NULL DEFAULT 'group',
     created_by           INT          NOT NULL,
     created_at           DATETIME     NOT NULL DEFAULT NOW(),
+    avatar_url           VARCHAR(500) NOT NULL DEFAULT '',
     pinned_message_id    INT          NULL DEFAULT NULL,
     delete_requested_by  INT          NULL DEFAULT NULL,
     FOREIGN KEY (created_by) REFERENCES users(id),

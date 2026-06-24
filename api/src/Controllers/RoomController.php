@@ -8,7 +8,7 @@ class RoomController {
         $auth = Auth::require();
         $db   = DB::get();
         $st   = $db->prepare("
-            SELECT r.id, r.name, r.type, r.created_at,
+            SELECT r.id, r.name, r.type, r.avatar_url, r.created_at,
                    r.delete_requested_by,
                    rm.is_muted,
                    COUNT(DISTINCT rm2.user_id) AS member_count,
@@ -105,7 +105,7 @@ class RoomController {
         $auth = Auth::require();
         self::assertMember($room_id, $auth['user_id']);
         $db   = DB::get();
-        $room = $db->prepare("SELECT id, name, type, created_by, created_at, pinned_message_id, delete_requested_by FROM rooms WHERE id=?");
+        $room = $db->prepare("SELECT id, name, type, avatar_url, created_by, created_at, pinned_message_id, delete_requested_by FROM rooms WHERE id=?");
         $room->execute([$room_id]);
         $r = $room->fetch();
         if (!$r) Response::abort(404, 'Szoba nem található.');

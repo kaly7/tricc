@@ -5,6 +5,7 @@ class Room {
   final int id;
   final String name;
   final String type; // 'direct' | 'group'
+  final String? avatarUrl;
   final int memberCount;
   final String? lastMessage;
   final String? lastMessageAt;
@@ -19,6 +20,7 @@ class Room {
     required this.id,
     required this.name,
     required this.type,
+    this.avatarUrl,
     this.memberCount = 0,
     this.lastMessage,
     this.lastMessageAt,
@@ -55,6 +57,7 @@ class Room {
         id: j['id'],
         name: j['name'] ?? '',
         type: j['type'] ?? 'group',
+        avatarUrl: (j['avatar_url'] as String?)?.isNotEmpty == true ? j['avatar_url'] as String : null,
         memberCount: j['member_count'] ?? 0,
         lastMessage: j['last_message'],
         lastMessageAt: j['last_message_at'],

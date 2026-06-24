@@ -1229,11 +1229,14 @@ class _RoomInfoSheet extends StatefulWidget {
 class _RoomInfoSheetState extends State<_RoomInfoSheet> {
   List<User> _allUsers = [];
   bool _loadingUsers = false;
+  bool _uploadingAvatar = false;
+  String? _avatarUrl;
   StreamSubscription? _presSub;
 
   @override
   void initState() {
     super.initState();
+    _avatarUrl = widget.room.avatarUrl;
     _presSub = WsService().events.listen((msg) {
       final type = msg['type'] as String?;
       if ((type == 'presence' || type == 'presence_list') && mounted) setState(() {});
@@ -1291,6 +1294,23 @@ class _RoomInfoSheetState extends State<_RoomInfoSheet> {
     }
   }
 
+  Future<void> _changeAvatar() async {
+    final picker = ImagePicker();
+    final picked = await picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
+    if (picked == null || !mounted) return;
+    setState(() => _uploadingAvatar = true);
+    try {
+      final url = await ApiService().uploadRoomAvatar(widget.room.id, File(picked.path));
+      if (mounted) setState(() { _avatarUrl = url; _uploadingAvatar = false; });
+      widget.onMembersChanged();
+    } catch (e) {
+      if (mounted) {
+        setState(() => _uploadingAvatar = false);
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+      }
+    }
+  }
+
   void _confirmLeave() {
     showDialog(
       context: context,
@@ -1320,12 +1340,49 @@ class _RoomInfoSheetState extends State<_RoomInfoSheet> {
   @override
   Widget build(BuildContext context) {
     final me = AuthService().userId;
+    final serverBase = ApiService.fileBase;
     return Padding(
       padding: const EdgeInsets.all(16),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Szoba avatar (csak csoportnál)
+          if (!widget.room.isDirect) ...[
+            Center(
+              child: GestureDetector(
+                onTap: _uploadingAvatar ? null : _changeAvatar,
+                child: Stack(
+                  children: [
+                    CircleAvatar(
+                      radius: 40,
+                      backgroundColor: kLime,
+                      backgroundImage: _avatarUrl != null
+                          ? CachedNetworkImageProvider('$serverBase$_avatarUrl')
+                          : null,
+                      child: _avatarUrl == null
+                          ? Text(
+                              widget.room.name.isNotEmpty ? widget.room.name[0].toUpperCase() : '?',
+                              style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold),
+                            )
+                          : null,
+                    ),
+                    Positioned(
+                      bottom: 0, right: 0,
+                      child: CircleAvatar(
+                        radius: 13,
+                        backgroundColor: kBlue,
+                        child: _uploadingAvatar
+                            ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                            : const Icon(Icons.camera_alt, size: 14, color: Colors.white),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
+          ],
           Row(
             children: [
               Expanded(child: Text(widget.room.name.isNotEmpty ? widget.room.name : 'Csoport', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold))),

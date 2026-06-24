@@ -317,7 +317,7 @@ class _RoomAvatar extends StatelessWidget {
   Widget build(BuildContext context) {
     final myId = AuthService().userId ?? 0;
     final name = room.displayName(myId);
-    final avatarUrl = room.isDirect ? room.otherAvatarUrl(myId) : null;
+    final avatarUrl = room.isDirect ? room.otherAvatarUrl(myId) : room.avatarUrl;
     final otherId = room.isDirect ? room.otherUserId(myId) : null;
     final borderColor = room.isDirect ? _presenceColor(otherId) : Colors.transparent;
 

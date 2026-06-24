@@ -237,6 +237,23 @@ class ApiService {
     } finally { client.close(); }
   }
 
+  Future<String> uploadRoomAvatar(int roomId, File file) async {
+    final mime = lookupMimeType(file.path) ?? 'image/jpeg';
+    final parts = mime.split('/');
+    final client = _buildClient();
+    try {
+      final req = http.MultipartRequest('POST', Uri.parse('$base/rooms/$roomId/avatar'));
+      req.headers['Authorization'] = 'Bearer ${AuthService().token}';
+      req.files.add(await http.MultipartFile.fromPath(
+        'file', file.path,
+        contentType: MediaType(parts[0], parts[1]),
+      ));
+      final res = await client.send(req);
+      final data = _parse(await http.Response.fromStream(res));
+      return data['avatar_url'] as String;
+    } finally { client.close(); }
+  }
+
   // Push
   Future<void> registerPushToken(String token, {String platform = 'ios'}) =>
       _post('/push/register', {'device_token': token, 'platform': platform});

@@ -71,6 +71,8 @@ try {
         // Upload
         $method === 'POST' && $path === '/upload'            => UploadController::upload(),
         $method === 'POST' && $path === '/upload/avatar'     => UploadController::avatar(),
+        $method === 'POST' && preg_match('#^/rooms/(\d+)/avatar$#', $path, $m) > 0
+                                                             => UploadController::roomAvatar((int)$m[1]),
 
         // Push tokens
         $method === 'POST'   && $path === '/push/register'   => PushController::register(),

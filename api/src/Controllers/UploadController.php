@@ -71,4 +71,31 @@ class UploadController {
         \Tricc\DB::get()->prepare("UPDATE users SET avatar_url=? WHERE id=?")->execute([$url, $auth['user_id']]);
         Response::ok(['avatar_url' => $url]);
     }
+
+    public static function roomAvatar(int $room_id): never {
+        $auth = Auth::require();
+        $db   = \Tricc\DB::get();
+
+        $mem = $db->prepare("SELECT 1 FROM room_members WHERE room_id=? AND user_id=? AND hidden_at IS NULL");
+        $mem->execute([$room_id, $auth['user_id']]);
+        if (!$mem->fetch()) Response::abort(403, 'Nem vagy tagja ennek a szobának.');
+
+        if (empty($_FILES['file'])) Response::abort(400, 'Fájl nem érkezett.');
+        $f = $_FILES['file'];
+        if ($f['error'] !== UPLOAD_ERR_OK) Response::abort(400, 'Feltöltési hiba: ' . $f['error']);
+        if ($f['size'] > 5 * 1024 * 1024) Response::abort(413, 'Max 5 MB.');
+        $mime = mime_content_type($f['tmp_name']);
+        if (!in_array($mime, ['image/jpeg', 'image/png', 'image/webp'], true))
+            Response::abort(415, 'Csak JPEG/PNG/WebP engedélyezett.');
+
+        $dir = self::UPLOAD_DIR . 'rooms/';
+        if (!is_dir($dir)) mkdir($dir, 0755, true);
+        $ext  = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp'][$mime];
+        $name = 'room_' . $room_id . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
+        if (!move_uploaded_file($f['tmp_name'], $dir . $name)) Response::abort(500, 'Mentési hiba.');
+
+        $url = self::PUBLIC_BASE . 'rooms/' . $name;
+        $db->prepare("UPDATE rooms SET avatar_url=? WHERE id=?")->execute([$url, $room_id]);
+        Response::ok(['avatar_url' => $url]);
+    }
 }
