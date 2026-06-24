@@ -178,7 +178,7 @@ class _RoomTile extends StatelessWidget {
         onTap: () {
           final myId = AuthService().userId ?? 0;
           showAvatarDialog(context, room.displayName(myId),
-              room.isDirect ? room.otherAvatarUrl(myId) : null);
+              room.isDirect ? room.otherAvatarUrl(myId) : room.avatarUrl);
         },
         child: _RoomAvatar(room: room),
       ),

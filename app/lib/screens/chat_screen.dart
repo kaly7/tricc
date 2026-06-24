@@ -927,14 +927,32 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
             ? Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Flexible(
-                    child: Text(_title, overflow: TextOverflow.ellipsis),
-                  ),
+                  Flexible(child: Text(_title, overflow: TextOverflow.ellipsis)),
                   const SizedBox(width: 6),
                   PresenceDot(userId: _room.otherUserId(AuthService().userId ?? 0)),
                 ],
               )
-            : Text(_title),
+            : GestureDetector(
+                onTap: () => showAvatarDialog(context, _title, _room.avatarUrl),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    CircleAvatar(
+                      radius: 15,
+                      backgroundColor: kLime,
+                      backgroundImage: _room.avatarUrl != null
+                          ? CachedNetworkImageProvider('${ApiService.fileBase}${_room.avatarUrl}')
+                          : null,
+                      child: _room.avatarUrl == null
+                          ? Text(_title.isNotEmpty ? _title[0].toUpperCase() : '?',
+                              style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold))
+                          : null,
+                    ),
+                    const SizedBox(width: 8),
+                    Flexible(child: Text(_title, overflow: TextOverflow.ellipsis)),
+                  ],
+                ),
+              ),
         actions: [
           const WsDot(),
           if (_room.isDirect)
