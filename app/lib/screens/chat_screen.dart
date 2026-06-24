@@ -26,6 +26,7 @@ import 'room_media_screen.dart';
 import 'video_player_screen.dart';
 import 'group_call_screen.dart';
 import '../services/group_call_service.dart';
+import 'markdown_help_modal.dart';
 
 class ChatScreen extends StatefulWidget {
   final Room room;
@@ -1007,11 +1008,13 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
             icon: const Icon(Icons.more_vert),
             onSelected: (v) {
               if (v == 'media') Navigator.push(context, MaterialPageRoute(builder: (_) => RoomMediaScreen(room: _room)));
+              if (v == 'help') MarkdownHelpModal.show(context);
               if (v == 'leave') _confirmDelete(forEveryone: false);
               if (v == 'delete') _confirmDelete(forEveryone: true);
             },
             itemBuilder: (_) => [
               const PopupMenuItem(value: 'media', child: Row(children: [Icon(Icons.photo_library_outlined, size: 18), SizedBox(width: 8), Text('Képek és fájlok')])),
+              const PopupMenuItem(value: 'help', child: Row(children: [Icon(Icons.help_outline, size: 18), SizedBox(width: 8), Text('Formázási súgó')])),
               const PopupMenuItem(value: 'leave', child: Row(children: [Icon(Icons.exit_to_app, size: 18), SizedBox(width: 8), Text('Törlés csak nálam')])),
               const PopupMenuItem(value: 'delete', child: Row(children: [Icon(Icons.delete_forever, size: 18, color: Colors.red), SizedBox(width: 8), Text('Törlés mindenkinél', style: TextStyle(color: Colors.red))])),
             ],
