@@ -77,7 +77,9 @@ class _TriccAppState extends State<TriccApp> with WidgetsBindingObserver {
 
   void _initShareService() {
     ShareService().getInitialMedia().then((files) {
-      if (files.isNotEmpty) _showShareModal(files);
+      if (files.isEmpty) return;
+      // Cold start: initState-ben navigatorKey még null, várunk az első frame-re
+      WidgetsBinding.instance.addPostFrameCallback((_) => _showShareModal(files));
     });
     _shareSub = ShareService().mediaStream.listen((files) {
       if (files.isNotEmpty) _showShareModal(files);
@@ -191,10 +193,17 @@ class _TriccAppState extends State<TriccApp> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed && AuthService().isLoggedIn) {
-      WsService().connect();
-      PushService().setBadge(0);
-      _refreshProfile();
+    if (state == AppLifecycleState.resumed) {
+      if (AuthService().isLoggedIn) {
+        WsService().connect();
+        PushService().setBadge(0);
+        _refreshProfile();
+      }
+      // Fallback: ha a stream lemaradt az URL-ről (plugin eventSink még nem volt kész),
+      // a UserDefaults-ban maradt adatot itt még elkapjuk
+      ShareService().getInitialMedia().then((files) {
+        if (files.isNotEmpty) _showShareModal(files);
+      });
     }
   }
 
