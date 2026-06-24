@@ -1,7 +1,7 @@
 name: tricc
 description: "BabL42 — meghívásos belső csevegő alkalmazás"
 publish_to: 'none'
-version: 1.3.0+98
+version: 1.3.0+99
 
 environment:
   sdk: ^3.12.0

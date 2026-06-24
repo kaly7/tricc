@@ -47,13 +47,13 @@ class ShareViewController: UIViewController {
     }
 
     private func handleItem(provider: NSItemProvider, typeId: String, mediaType: SharedMediaType) {
-        provider.loadItem(forTypeIdentifier: typeId, options: nil) { [weak self] item, _ in
+        // loadFileRepresentation minden típust (URL, UIImage, Data) fájllá konvertál,
+        // így képernyőfotó (Data) és Photos app (URL) egyformán működik
+        provider.loadFileRepresentation(forTypeIdentifier: typeId) { [weak self] url, _ in
             guard let self = self else { return }
             var path = ""
-            if let url = item as? URL {
+            if let url = url {
                 path = self.copyToContainer(url: url)
-            } else if let image = item as? UIImage, mediaType == .image {
-                path = self.saveImageToContainer(image: image)
             }
             if !path.isEmpty {
                 let media = SharedMediaFile(path: path, thumbnail: nil, duration: nil, type: mediaType)
@@ -71,18 +71,6 @@ class ShareViewController: UIViewController {
         let dest = container.appendingPathComponent("\(UUID().uuidString)-\(url.lastPathComponent)")
         try? fm.copyItem(at: url, to: dest)
         // Use absoluteString (file:// prefix) — plugin strips it via getAbsolutePath
-        return dest.absoluteString.removingPercentEncoding ?? dest.absoluteString
-    }
-
-    private func saveImageToContainer(image: UIImage) -> String {
-        let fm = FileManager.default
-        guard let container = fm.containerURL(forSecurityApplicationGroupIdentifier: appGroupId) else {
-            return ""
-        }
-        let dest = container.appendingPathComponent("\(UUID().uuidString).png")
-        if let data = image.pngData() {
-            try? data.write(to: dest)
-        }
         return dest.absoluteString.removingPercentEncoding ?? dest.absoluteString
     }
 
